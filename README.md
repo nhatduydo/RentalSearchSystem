@@ -1,74 +1,86 @@
 # System_For_Searching_Accommodations
 HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ
-# Dự Án Quản Lý Nhà Trọ
+# 🌟 Dự Án Quản Lý Nhà Trọ 🌟
 
-## Đăng Ký Tài Khoản
+## 📋 Đăng Ký Tài Khoản
 - **Chủ Trọ hoặc Người Thuê Trọ** (bắt buộc phải có avatar)
 
-## Đăng Nhập
+## 🔑 Đăng Nhập
 - **Quản Trị Viên, Chủ Nhà Trọ, Người Thuê Trọ**
 
-### Chức Năng Quản Trị Viên
-- Quản lý người dùng (duyệt, khóa, xóa tài khoản)
-- Duyệt tin đăng của chủ trọ (kiểm duyệt nội dung và hình ảnh)
-- Quản lý báo cáo vi phạm
-- Thống kê hệ thống
-- Quản lý thanh toán
-- Quản lý chứng thực nhà trọ
-- Gửi thông báo hệ thống
-- Quản lý danh mục tiện ích
+---
 
-### Chức Năng Chủ Nhà Trọ
-- Đăng ký tài khoản (bắt buộc cung cấp avatar, số điện thoại, hình ảnh trọ)
-- Quản lý tin đăng
-- Tích hợp Google Maps
-- Trả lời bình luận của người thuê
-- Nhận thông báo khi có bình luận hoặc tin nhắn
-- Quản lý danh sách người theo dõi
-- Gửi thông báo cho người theo dõi
-- Chứng thực nhà trọ
-- Quản lý thanh toán và đặt cọc
-- Xem thống kê tin đăng
-- Tích hợp chatbot hỗ trợ
-- Tích hợp AI gợi ý giá thuê hợp lý
+## 🛠️ Chức Năng Quản Trị Viên
+- ✅ Quản lý người dùng (duyệt, khóa, xóa tài khoản)
+- ✅ Duyệt tin đăng của chủ trọ (kiểm duyệt nội dung và hình ảnh)
+- ✅ Quản lý báo cáo vi phạm
+- 📊 Thống kê hệ thống
+- 💳 Quản lý thanh toán
+- ✅ Quản lý chứng thực nhà trọ
+- 📢 Gửi thông báo hệ thống
+- 🛠️ Quản lý danh mục tiện ích
 
-### Chức Năng Người Thuê Trọ
-- Đăng ký tài khoản (bắt buộc có avatar)
-- Tìm kiếm nhà trọ theo tiêu chí linh hoạt
-- Lưu tin yêu thích
-- Bình luận & trao đổi với chủ trọ
-- Theo dõi chủ trọ
-- Đăng tin tìm phòng trọ
-- Nhận thông báo khi có chủ trọ phù hợp
-- Tích hợp đánh giá và phản hồi
-- Tích hợp chat thời gian thực
-- Gửi báo cáo vi phạm
-- Đề xuất giá thuê hợp lý
+---
 
-### Chức Năng Chung
-- Hệ thống đăng nhập & đăng ký bảo mật
-- Tích hợp Firebase để chat thời gian thực
-- Tích hợp thanh toán online
-- Thông báo đẩy
-- Bộ lọc tìm kiếm nâng cao
-- Chứng thực thông tin chủ trọ
-- Tích hợp bản đồ Google Maps
-- Thống kê dữ liệu trên dashboard
-- Tích hợp AI hỗ trợ tìm trọ thông minh
-- Tích hợp chatbot hỗ trợ tự động
+## 🏠 Chức Năng Chủ Nhà Trọ
+- 📝 Đăng ký tài khoản (bắt buộc cung cấp avatar, số điện thoại, hình ảnh trọ)
+- 🛠️ Quản lý tin đăng
+- 🗺️ Tích hợp Google Maps
+- 💬 Trả lời bình luận của người thuê
+- 🔔 Nhận thông báo khi có bình luận hoặc tin nhắn
+- 👥 Quản lý danh sách người theo dõi
+- 📣 Gửi thông báo cho người theo dõi
+- ✅ Chứng thực nhà trọ
+- 💰 Quản lý thanh toán và đặt cọc
+- 📈 Xem thống kê tin đăng
+- 🤖 Tích hợp chatbot hỗ trợ
+- 💡 Tích hợp AI gợi ý giá thuê hợp lý
 
-### Chức Năng Mở Rộng
-- Hệ thống đánh giá & phản hồi tin đăng
-- Lịch sử giao dịch & thuê trọ
-- Đặt cọc online ngay trên ứng dụng
-- Chế độ hiển thị tin đăng nổi bật
-- Hệ thống gợi ý nhà trọ bằng AI
-- Hỗ trợ chatbot AI
-- Hỗ trợ đa ngôn ngữ
-- Tích hợp lịch hẹn xem phòng
-- Hệ thống quản lý hợp đồng thuê trọ online
+---
 
-### Công Nghệ Đề Xuất
+## 🏡 Chức Năng Người Thuê Trọ
+- 📝 Đăng ký tài khoản (bắt buộc có avatar)
+- 🔍 Tìm kiếm nhà trọ theo tiêu chí linh hoạt
+- ❤️ Lưu tin yêu thích
+- 💬 Bình luận & trao đổi với chủ trọ
+- 👥 Theo dõi chủ trọ
+- 📝 Đăng tin tìm phòng trọ
+- 🔔 Nhận thông báo khi có chủ trọ phù hợp
+- ⭐ Tích hợp đánh giá và phản hồi
+- 💬 Tích hợp chat thời gian thực
+- 🚨 Gửi báo cáo vi phạm
+- 💡 Đề xuất giá thuê hợp lý
+
+---
+
+## 📊 Chức Năng Chung
+- 🔒 Hệ thống đăng nhập & đăng ký bảo mật
+- 💬 Tích hợp Firebase để chat thời gian thực
+- 💳 Tích hợp thanh toán online
+- 🔔 Thông báo đẩy
+- 🔍 Bộ lọc tìm kiếm nâng cao
+- ✅ Chứng thực thông tin chủ trọ
+- 🗺️ Tích hợp bản đồ Google Maps
+- 📈 Thống kê dữ liệu trên dashboard
+- 🤖 Tích hợp AI hỗ trợ tìm trọ thông minh
+- 💬 Tích hợp chatbot hỗ trợ tự động
+
+---
+
+## 🚀 Chức Năng Mở Rộng
+- ⭐ Hệ thống đánh giá & phản hồi tin đăng
+- 📜 Lịch sử giao dịch & thuê trọ
+- 💳 Đặt cọc online ngay trên ứng dụng
+- 📌 Chế độ hiển thị tin đăng nổi bật
+- 🤖 Hệ thống gợi ý nhà trọ bằng AI
+- 💬 Hỗ trợ chatbot AI
+- 🌐 Hỗ trợ đa ngôn ngữ
+- 📅 Tích hợp lịch hẹn xem phòng
+- 📄 Hệ thống quản lý hợp đồng thuê trọ online
+
+---
+
+## 💻 Công Nghệ Đề Xuất
 - **Backend**: Python Django + Django REST Framework (API)
 - **Frontend Mobile**: React Native (Expo)
 - **Database**: PostgreSQL / Firebase Firestore
@@ -80,10 +92,12 @@ HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ
 - **Data Visualization**: Chart.js / Google Charts
 - **AI Recommendation System**: TensorFlow / OpenAI API
 
-### Mô Hình Class
+---
+
+## 📚 Mô Hình Class
 ```plaintext
-User  & Roles
-User  (username (PK), password, fullName, role , email, phone, avatar, address, createdDate)
+User   & Roles
+User   (username (PK), password, fullName, role , email, phone, avatar, address, createdDate)
 Enum: UserRole (ADMIN, LANDLORD, TENANT)
 Admin (username (PK, FK → User))
 Landlord (username (PK, FK → User), landlordName, citizenId, bankAccount, isVerified (boolean)) 
