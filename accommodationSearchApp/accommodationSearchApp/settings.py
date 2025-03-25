@@ -1,5 +1,16 @@
 from pathlib import Path
 import pymysql
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
+
+# Configuration       
+cloudinary.config( 
+    cloud_name = "devtqlbho", 
+    api_key = "654785974366212", 
+    api_secret = "yBPftN_K0QlSh0mAUyCZ-ewTxUY",
+    secure=True
+)
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,7 +36,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'ckeditor',
+    'ckeditor_uploader',
+    "cloudinary",
 ]
+
+CKEDITOR_UPLOAD_PATH = "ckeditor/images/"
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
