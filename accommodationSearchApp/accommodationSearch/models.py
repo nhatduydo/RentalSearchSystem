@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from cloudinary.models import CloudinaryField
 import uuid
 import json
+from ckeditor.fields import RichTextField
 
 
 class UserRole(models.TextChoices):
@@ -48,13 +49,25 @@ class PaymentStatus(models.TextChoices):
     COMPLETED = "COMPLETED", "Completed"
     FAILED = "FAILED", "Failed" 
 
+class RoomTenantStatus(models.TextChoices):
+    ACTIVE = "ACTIVE", "Active"
+    EXPIRED = "EXPIRED", "Expired"
+    CANCELLED = "CANCELLED", "Cancelled"
+    PENDING = "PENDING", "Pending"
+
 class BaseModel(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     
+    class Meta:
+        abstract = True
+    
 
 class ActiveModel(BaseModel):
     avtive = models.BooleanField(default=True)
+    
+    class Meta:
+        abstract = True
 
 #1
 class User(AbstractUser):
@@ -65,7 +78,7 @@ class User(AbstractUser):
     avatar = CloudinaryField('avatar', blank = True, null = True)
     address = models.TextField(blank = True, null = True)
     created_date = models.DateTimeField(auto_now_add=True)
-
+    
 #2
 class Admin(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
@@ -89,9 +102,9 @@ class Tenant(ActiveModel):
     bank_account = models.CharField(max_length=100, null = True)
 
 #5
-class Motel (ActiveModel):
+class Motel(ActiveModel):
     id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
     motel_name = models.CharField(max_length=255)
     slug = AutoSlugField(populate_from = 'model_name', unique=True)
     description = models.TextField()
@@ -104,6 +117,9 @@ class Motel (ActiveModel):
     total_rooms = models.IntegerField()
     available_rooms = models.IntegerField()
     rating_score = models.FloatField(default=0)
+    
+    def __str__(self):
+        return self.motel_name
  #6   
 class Room(ActiveModel):
     id = models.AutoField(primary_key=True)
@@ -113,10 +129,21 @@ class Room(ActiveModel):
     area = models.FloatField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     max_people = models.IntegerField()
-    amenities = models.TextField()
+    amenities = models.JSONField()
     
     class Meta:
         unique_together = ('room_name', 'motel')
+        
+    def __str__(self):
+        return self.room_name
+
+class RoomTenant(BaseModel):
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenants')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='rooms')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=20, choices=RoomTenantStatus.choices)
+    is_paid = models.BooleanField(default=False)
 
 #7
 class MotelImage(BaseModel):
@@ -137,7 +164,7 @@ class Post(ActiveModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_type = models.CharField(max_length=20, choices=PostType.choices)
     title = models.CharField(max_length=255)
-    content = models.TextField()
+    content =RichTextField()
     created_date = models.DateTimeField(auto_now_add=True)
     desired_address = models.TextField(blank=True, null=True)
     min_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -146,6 +173,10 @@ class Post(ActiveModel):
     desired_latitude = models.FloatField(blank=True, null=True)
     desired_longitude = models.FloatField(blank=True, null=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, blank=True, null=True)
+    
+        
+    def __str__(self):
+        return self.title
  
 #10   
 class Comment(ActiveModel):
@@ -154,10 +185,14 @@ class Comment(ActiveModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = models.TextField()
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    
+        
+    def __str__(self):
+        return self.content
+
 
 #11
-class LikeComment(BaseModel):
-    id = models.AutoField(primary_key=True)
+class LikeComment(ActiveModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE)
     
@@ -165,8 +200,7 @@ class LikeComment(BaseModel):
         unique_together = ('user', 'comment')
 
 #12
-class LikeMotel(BaseModel):
-    id = models.AutoField(primary_key=True)
+class LikeMotel(ActiveModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE)
     
@@ -203,10 +237,13 @@ class Notifications(BaseModel):
     notification_type = models.CharField(max_length=20, choices=NotificationType.choices)
     related_object_id = models.IntegerField()
     
+    def __str__(self):
+        return self.title
 #16
 class ChatRoom(BaseModel):
     user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms1")
     user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms2")
+    
     
 #17
 class RealTimeChat(BaseModel):
