@@ -1,1 +1,56 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
 venv/
+env/
+ENV/
+*.env
+*.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Django stuff:
+db.sqlite3
+*.sqlite3
+*.log
+media/
+staticfiles/
+
+# Ignore migrations cache files
+**/migrations/__pycache__/
+**/migrations/*.pyc
+**/migrations/*.pyo
+**/migrations/*.pyd
+**/migrations/*.log
+
+# Ignore IDE/Editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Ignore compiled files
+*.so
+*.o
+*.a
+
+# Ignore dependencies
+*.lock
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# Ignore MacOS system files
+.DS_Store
+
+# Ignore test and coverage files
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+htmlcov/
