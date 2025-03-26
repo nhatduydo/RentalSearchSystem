@@ -24,6 +24,39 @@ class PostType(models.TextChoices):
     RENT_OUT = "RENT_OUT", "Rent Out"
     FIND_ROOM = "FIND_ROOM", "Find Room"
 
+class NotificationType(models.TextChoices):
+    NEW_POST = "NEW_POST", "New Post"
+    NEW_COMMENT = "NEW_COMMENT", "New Comment"
+    ACCOUNT_VERIFICATION = "ACCOUNT_VERIFICATION", "Account Verification"
+    MOTEL_UPDATE = "MOTEL_UPDATE", "Motel Update"
+    PAYMENT = "PAYMENT", "Payment"
+    SYSTEM = "SYSTEM", "System"
+    
+class PaymentMethod(models.TextChoices):
+    VNPAY = "VNPAY", "Vnpay"
+    STRIPE = "STRIPE", "Stripe"
+    CASH = "CASH", "Cash"
+    
+class RoomStatus(models.TextChoices):
+    ACTIVE = "ACTIVE", "Active"
+    EXPIRED = "EXPIRED", "Expired"
+    CANCELLED = "CANCELLED", "Cancelled"
+    PENDING = "PENDING", "Pending"
+
+class PaymentStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    COMPLETED = "COMPLETED", "Completed"
+    FAILED = "FAILED", "Failed" 
+
+class BaseModel(models.Model):
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+    
+
+class ActiveModel(BaseModel):
+    avtive = models.BooleanField(default=True)
+
+#1
 class User(AbstractUser):
     role = models.CharField(max_length=20, choices=UserRole.choices)
     full_name = models.CharField(max_length=255)
@@ -32,18 +65,21 @@ class User(AbstractUser):
     avatar = CloudinaryField('avatar', blank = True, null = True)
     address = models.TextField(blank = True, null = True)
     created_date = models.DateTimeField(auto_now_add=True)
-    
-class Admin(models.Model):
+
+#2
+class Admin(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    
-class Landlord(models.Model):
+  
+ #3   
+class Landlord(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     landlord_name = models.CharField(max_length=255)
     citizen_id = models.CharField(max_length=20, unique=True)
     bank_account = models.CharField(max_length=100)
     is_verified = models.BooleanField(default=False)
-    
-class Tenant(models.Model):
+
+#4    
+class Tenant(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     tenant_name = models.CharField(max_length=255)
     citizen_id = models.CharField(max_length=20, unique=True)
@@ -51,8 +87,9 @@ class Tenant(models.Model):
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=20, choices=Gender.choices)
     bank_account = models.CharField(max_length=100, null = True)
-    
-class Motel (models.Model):
+
+#5
+class Motel (ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     motel_name = models.CharField(max_length=255)
@@ -66,10 +103,9 @@ class Motel (models.Model):
     latitude = models.FloatField()
     total_rooms = models.IntegerField()
     available_rooms = models.IntegerField()
-    status = models.BooleanField(default=True)
     rating_score = models.FloatField(default=0)
-    
-class Room(models.Model):
+ #6   
+class Room(ActiveModel):
     id = models.AutoField(primary_key=True)
     model = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
@@ -78,23 +114,25 @@ class Room(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     max_people = models.IntegerField()
     amenities = models.TextField()
-    status = models.BooleanField(default=True)
     
     class Meta:
         unique_together = ('room_name', 'motel')
 
-class MotelImage(models.Model):
+#7
+class MotelImage(BaseModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE)
     image_url = CloudinaryField('image')
     image_type = models.CharField(max_length=20, choices=ImageType.choices)
-    
-class RoomImage(models.Model):
+
+#8   
+class RoomImage(BaseModel):
     id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     image_url = CloudinaryField('image')
-    
-class Post(models.Model):
+
+#9  
+class Post(ActiveModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_type = models.CharField(max_length=20, choices=PostType.choices)
@@ -104,25 +142,42 @@ class Post(models.Model):
     desired_address = models.TextField(blank=True, null=True)
     min_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     max_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    status = models.CharField(default=True)
     redius_km = models.FloatField(blank=True, null=True)
     desired_latitude = models.FloatField(blank=True, null=True)
     desired_longitude = models.FloatField(blank=True, null=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, blank=True, null=True)
-    
-class Comment(models.Model):
+ 
+#10   
+class Comment(ActiveModel):
     id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = models.TextField()
-    created_date = models.DateTimeField(auto_now_add=True)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+
+#11
+class LikeComment(BaseModel):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE)
     
-class SearchHistory(models.Model):
+    class Meta:
+        unique_together = ('user', 'comment')
+
+#12
+class LikeMotel(BaseModel):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    motel = models.ForeignKey(Motel, on_delete=models.CASCADE)
+    
+    class Meta:
+        unique_together = ('user', 'motel')
+
+#13
+class SearchHistory(BaseModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="search_histories")
     search_params = models.JSONField()
-    created_date = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"Search by {self.user.username} on {self.created_date}"
@@ -133,3 +188,37 @@ class SearchHistory(models.Model):
     def set_search_params(self, params_dict):
         self.search_params = json.dumps(params_dict)
         self.save()
+        
+#14
+class Follow(BaseModel):
+    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
+    followed = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followeds')
+    
+#15
+class Notifications(BaseModel):
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    is_Read = models.BooleanField(default=False)
+    notification_type = models.CharField(max_length=20, choices=NotificationType.choices)
+    related_object_id = models.IntegerField()
+    
+#16
+class ChatRoom(BaseModel):
+    user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms1")
+    user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms2")
+    
+#17
+class RealTimeChat(BaseModel):
+    senser = models.ForeignKey(User, on_delete=models.CASCADE)
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE)
+    Chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
+    is_read = models.BooleanField(default=False)
+    
+#18
+class Payment(BaseModel):
+    Payer = models.ForeignKey(User, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
+    status = models.CharField(max_length=20, choices=PaymentStatus.choices)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
