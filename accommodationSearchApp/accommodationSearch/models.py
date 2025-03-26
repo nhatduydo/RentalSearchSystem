@@ -74,7 +74,7 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=UserRole.choices)
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, unique=True)
+    phone = models.CharField(max_length=20)
     avatar = CloudinaryField('avatar', blank = True, null = True)
     address = models.TextField(blank = True, null = True)
     created_date = models.DateTimeField(auto_now_add=True)
@@ -129,6 +129,10 @@ class Motel(ActiveModel):
     
     def __str__(self):
         return self.motel_name
+    
+    class Meta:
+        verbose_name = "Nhà trọ"
+        verbose_name_plural = "Danh sách nhà trọ"
  #6   
 class Room(ActiveModel):
     id = models.AutoField(primary_key=True)
@@ -139,6 +143,7 @@ class Room(ActiveModel):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     max_people = models.IntegerField()
     amenities = models.JSONField()
+    tenants = models.ManyToManyField('Tenant', through='RoomTenant', related_name='rented_rooms')
     
     class Meta:
         unique_together = ('room_name', 'motel')
@@ -148,8 +153,8 @@ class Room(ActiveModel):
 #20
 class RoomTenant(BaseModel):
     id = models.AutoField(primary_key=True)
-    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenants')
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='rooms')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenant_entries')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='room_entries')
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=20, choices=RoomTenantStatus.choices)

@@ -36,11 +36,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'accommodationSearch.apps.AccommodationsearchConfig',
     'ckeditor',
     'ckeditor_uploader',
     'cloudinary',
-    'accommodationSearch',
-    # 'accommodationSearchApp',
+    # 'accommodationSearch',
 
 ]
 
