@@ -64,7 +64,7 @@ class BaseModel(models.Model):
     
 
 class ActiveModel(BaseModel):
-    avtive = models.BooleanField(default=True)
+    active = models.BooleanField(default=True)
     
     class Meta:
         abstract = True
@@ -79,6 +79,10 @@ class User(AbstractUser):
     address = models.TextField(blank = True, null = True)
     created_date = models.DateTimeField(auto_now_add=True)
     
+    class Meta:
+        verbose_name = "Người dùng"
+        verbose_name_plural = "Danh sách người dùng"
+    
 #2
 class Admin(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
@@ -90,23 +94,28 @@ class Landlord(ActiveModel):
     citizen_id = models.CharField(max_length=20, unique=True)
     bank_account = models.CharField(max_length=100)
     is_verified = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return self.landlord_name
 
 #4    
 class Tenant(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     tenant_name = models.CharField(max_length=255)
     citizen_id = models.CharField(max_length=20, unique=True)
-    bank_account = models.CharField(max_length=100)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=20, choices=Gender.choices)
     bank_account = models.CharField(max_length=100, null = True)
+    
+    def __str__(self):
+        return self.tenant_name
 
 #5
 class Motel(ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
     motel_name = models.CharField(max_length=255)
-    slug = AutoSlugField(populate_from = 'model_name', unique=True)
+    slug = AutoSlugField(populate_from = 'motel_name', unique=True)
     description = models.TextField()
     address = models.TextField()
     district = models.CharField(max_length=255)
@@ -123,7 +132,7 @@ class Motel(ActiveModel):
  #6   
 class Room(ActiveModel):
     id = models.AutoField(primary_key=True)
-    model = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
+    motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
     description = models.TextField()
     area = models.FloatField()
@@ -136,14 +145,27 @@ class Room(ActiveModel):
         
     def __str__(self):
         return self.room_name
-
+#20
 class RoomTenant(BaseModel):
+    id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenants')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='rooms')
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=20, choices=RoomTenantStatus.choices)
     is_paid = models.BooleanField(default=False)
+
+#21 
+class MotelRating(BaseModel):
+    motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='ratings')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ratings')
+    rating = models.IntegerField()
+    Comment = models.TextField()
+
+#22
+class Favorite(BaseModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
+    motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='favorited_by')
 
 #7
 class MotelImage(BaseModel):
@@ -165,7 +187,6 @@ class Post(ActiveModel):
     post_type = models.CharField(max_length=20, choices=PostType.choices)
     title = models.CharField(max_length=255)
     content =RichTextField()
-    created_date = models.DateTimeField(auto_now_add=True)
     desired_address = models.TextField(blank=True, null=True)
     min_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     max_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -183,7 +204,7 @@ class Comment(ActiveModel):
     id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    content = models.TextField()
+    content = RichTextField()
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
     
         
@@ -225,17 +246,21 @@ class SearchHistory(BaseModel):
         
 #14
 class Follow(BaseModel):
+    id = models.AutoField(primary_key=True)
     follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
     followed = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followeds')
+    last_message_time = models.DateTimeField(auto_now_add=True)
     
+    class Meta:
+        unique_together = ('follower', 'followed')
 #15
 class Notifications(BaseModel):
     receiver = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     content = models.TextField()
-    is_Read = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False)
     notification_type = models.CharField(max_length=20, choices=NotificationType.choices)
-    related_object_id = models.IntegerField()
+    related_object_id = models.IntegerField(null=True, blank=True)
     
     def __str__(self):
         return self.title
@@ -247,15 +272,17 @@ class ChatRoom(BaseModel):
     
 #17
 class RealTimeChat(BaseModel):
-    senser = models.ForeignKey(User, on_delete=models.CASCADE)
-    receiver = models.ForeignKey(User, on_delete=models.CASCADE)
-    Chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
+    chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
     is_read = models.BooleanField(default=False)
     
 #18
 class Payment(BaseModel):
-    Payer = models.ForeignKey(User, on_delete=models.CASCADE)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    Payer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     status = models.CharField(max_length=20, choices=PaymentStatus.choices)
-    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    description = models.TextField()

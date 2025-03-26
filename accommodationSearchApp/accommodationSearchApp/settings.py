@@ -38,11 +38,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'ckeditor',
     'ckeditor_uploader',
-    "cloudinary",
+    'cloudinary',
+    'accommodationSearch',
+    # 'accommodationSearchApp',
+
 ]
 
 CKEDITOR_UPLOAD_PATH = "ckeditor/images/"
 
+AUTH_USER_MODEL = 'accommodationSearch.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
