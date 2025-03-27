@@ -5,6 +5,8 @@ from cloudinary.models import CloudinaryField
 import uuid
 import json
 from ckeditor.fields import RichTextField
+from django.core.exceptions import ValidationError
+from django.db.models import Count
 
 
 class UserRole(models.TextChoices):
@@ -97,6 +99,10 @@ class Landlord(ActiveModel):
     
     def __str__(self):
         return self.landlord_name
+    
+    class Meta:
+        verbose_name = "Chủ nhà trọ"
+        verbose_name_plural = "Danh sách chủ trọ"
 
 #4    
 class Tenant(ActiveModel):
@@ -109,6 +115,10 @@ class Tenant(ActiveModel):
     
     def __str__(self):
         return self.tenant_name
+    
+    class Meta:
+        verbose_name = "Người thuê trọ"
+        verbose_name_plural = "Danh sách người thuê trọ"
 
 #5
 class Motel(ActiveModel):
@@ -126,6 +136,15 @@ class Motel(ActiveModel):
     total_rooms = models.IntegerField()
     available_rooms = models.IntegerField()
     rating_score = models.FloatField(default=0)
+    is_verified = models.BooleanField(default=False)
+    
+    def check_verifivation(self):
+        if self.images.count() < 3:
+            self.is_verified = False
+        else:
+            self.is_verified = True
+        self.save()
+    
     
     def __str__(self):
         return self.motel_name
@@ -142,14 +161,51 @@ class Room(ActiveModel):
     area = models.FloatField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     max_people = models.IntegerField()
-    amenities = models.JSONField()
     tenants = models.ManyToManyField('Tenant', through='RoomTenant', related_name='rented_rooms')
+    amenities = models.ManyToManyField('Amenity')
+    is_verified = models.BooleanField(default=False)
     
+    def check_verifivation(self):
+        if self.images.count() < 3:
+            self.is_verified = False
+        else:
+            self.is_verified = True
+        self.save()
     class Meta:
         unique_together = ('room_name', 'motel')
         
     def __str__(self):
         return self.room_name
+class Amenity(BaseModel):
+    name = models.CharField(max_length=255, unique=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = "tiện nghi, tiện ích"
+        verbose_name_plural = "Danh sách các tiện ích"
+
+#7
+class MotelImage(BaseModel):
+    id = models.AutoField(primary_key=True)
+    motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name="images")
+    image_url = CloudinaryField('image')
+    image_type = models.CharField(max_length=20, choices=ImageType.choices)
+    
+    def __str__(self):
+        return f"Image for {self.motel.motel_name}"
+
+#8   
+class RoomImage(BaseModel):
+    id = models.AutoField(primary_key=True)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="images")
+    image_url = CloudinaryField('image')
+    
+    def __str__(self):
+        return f"Image for {self.room.room_name}"
+
+
 #20
 class RoomTenant(BaseModel):
     id = models.AutoField(primary_key=True)
@@ -172,18 +228,6 @@ class Favorite(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='favorited_by')
 
-#7
-class MotelImage(BaseModel):
-    id = models.AutoField(primary_key=True)
-    motel = models.ForeignKey(Motel, on_delete=models.CASCADE)
-    image_url = CloudinaryField('image')
-    image_type = models.CharField(max_length=20, choices=ImageType.choices)
-
-#8   
-class RoomImage(BaseModel):
-    id = models.AutoField(primary_key=True)
-    room = models.ForeignKey(Room, on_delete=models.CASCADE)
-    image_url = CloudinaryField('image')
 
 #9  
 class Post(ActiveModel):
