@@ -7,7 +7,7 @@ class MotelForm(forms.ModelForm):
         model = Motel
         fields = '__all__'
 
-class MyMotelAdmin(admin.ModelAdmin):
+class MyMotelAdmin(admin.ModelAdmin): 
     list_display = ['id', 'motel_name', 'created_date', 'address', 'active']
     form = MotelForm  
 
