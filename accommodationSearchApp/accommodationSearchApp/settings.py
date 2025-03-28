@@ -2,7 +2,7 @@ from pathlib import Path
 import pymysql
 import cloudinary
 import cloudinary.uploader
-from cloudinary.utils import cloudinary_url
+import os
 
 # Configuration       
 cloudinary.config( 
@@ -40,11 +40,12 @@ INSTALLED_APPS = [
     'ckeditor',
     'ckeditor_uploader',
     'cloudinary',
+    'rest_framework',
     # 'accommodationSearch',
 
 ]
 
-CKEDITOR_UPLOAD_PATH = "ckeditor/images/"
+CKEDITOR_UPLOAD_PATH = "ckeditors/images/"
 
 AUTH_USER_MODEL = 'accommodationSearch.User'
 
@@ -113,6 +114,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 pymysql.install_as_MySQLdb()
 
+
+
 ROOT_URLCONF = "accommodationSearchApp.urls"
 
 # Internationalization
@@ -130,6 +133,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+MEDIA_ROOT = '%s/accommodationSearch/static/' % BASE_DIR
 STATIC_URL = 'static/'
 
 # Default primary key field type

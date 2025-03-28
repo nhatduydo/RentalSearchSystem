@@ -7,6 +7,7 @@ import json
 from ckeditor.fields import RichTextField
 from django.core.exceptions import ValidationError
 from django.db.models import Count
+from django.utils.timezone import now
 
 
 class UserRole(models.TextChoices):
@@ -71,50 +72,62 @@ class ActiveModel(BaseModel):
     class Meta:
         abstract = True
 
+class InfomationUserModel(ActiveModel):
+    full_name = models.CharField(max_length=255)
+    citizen_id = models.CharField(max_length=20, unique=True)
+    phone = models.CharField(max_length=20, null = True)
+    avatar = CloudinaryField(null = True)
+    address = models.TextField(blank = True, null = True)
+    date_of_birth = models.DateField(blank = True, null = True)
+    gender = models.CharField(max_length=20, choices=Gender.choices, null = True)
+    bank_account = models.CharField(max_length=100, blank = True, null = True)
+    
+    class Meta:
+        abstract = True
+
 #1
 class User(AbstractUser):
     role = models.CharField(max_length=20, choices=UserRole.choices)
-    full_name = models.CharField(max_length=255)
-    email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20)
-    avatar = CloudinaryField('avatar', blank = True, null = True)
-    address = models.TextField(blank = True, null = True)
+    date_joined = models.DateTimeField(default=now)
+    last_login = None
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = "Người dùng"
-        verbose_name_plural = "Danh sách người dùng"
+        verbose_name = "User"
+        verbose_name_plural = "Danh sách User"
     
 #2
 class Admin(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
+    
+    def email(self):
+        return self.user.email
   
  #3   
-class Landlord(ActiveModel):
+class Landlord(InfomationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    landlord_name = models.CharField(max_length=255)
-    citizen_id = models.CharField(max_length=20, unique=True)
-    bank_account = models.CharField(max_length=100)
     is_verified = models.BooleanField(default=False)
     
     def __str__(self):
-        return self.landlord_name
+        return self.full_name
+    
+    def email(self):
+        return self.user.email
     
     class Meta:
         verbose_name = "Chủ nhà trọ"
         verbose_name_plural = "Danh sách chủ trọ"
 
 #4    
-class Tenant(ActiveModel):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    tenant_name = models.CharField(max_length=255)
-    citizen_id = models.CharField(max_length=20, unique=True)
-    date_of_birth = models.DateField()
-    gender = models.CharField(max_length=20, choices=Gender.choices)
-    bank_account = models.CharField(max_length=100, null = True)
+class Tenant(InfomationUserModel):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name="tenant_profile")
     
     def __str__(self):
-        return self.tenant_name
+        return self.full_name
+    
+    def email(self):
+        return self.user.email
     
     class Meta:
         verbose_name = "Người thuê trọ"
@@ -122,7 +135,6 @@ class Tenant(ActiveModel):
 
 #5
 class Motel(ActiveModel):
-    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
     motel_name = models.CharField(max_length=255)
     slug = AutoSlugField(populate_from = 'motel_name', unique=True)
@@ -131,8 +143,8 @@ class Motel(ActiveModel):
     district = models.CharField(max_length=255)
     city = models.CharField(max_length=255)
     province = models.CharField(max_length=255)
-    longitude = models.FloatField()
-    latitude = models.FloatField()
+    longitude = models.FloatField(null=True, blank=True)
+    latitude = models.FloatField(null=True, blank=True)
     total_rooms = models.IntegerField()
     available_rooms = models.IntegerField()
     rating_score = models.FloatField(default=0)
@@ -154,7 +166,6 @@ class Motel(ActiveModel):
         verbose_name_plural = "Danh sách nhà trọ"
  #6   
 class Room(ActiveModel):
-    id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
     description = models.TextField()
@@ -165,6 +176,7 @@ class Room(ActiveModel):
     amenities = models.ManyToManyField('Amenity')
     is_verified = models.BooleanField(default=False)
     
+    
     def check_verifivation(self):
         if self.images.count() < 3:
             self.is_verified = False
@@ -173,9 +185,12 @@ class Room(ActiveModel):
         self.save()
     class Meta:
         unique_together = ('room_name', 'motel')
+        verbose_name = "Phòng trọ"
+        verbose_name_plural = "Danh sách phòng trọ"
         
     def __str__(self):
         return self.room_name
+    
 class Amenity(BaseModel):
     name = models.CharField(max_length=255, unique=True)
     
@@ -188,27 +203,32 @@ class Amenity(BaseModel):
 
 #7
 class MotelImage(BaseModel):
-    id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name="images")
     image_url = CloudinaryField('image')
     image_type = models.CharField(max_length=20, choices=ImageType.choices)
     
     def __str__(self):
         return f"Image for {self.motel.motel_name}"
+    
+    class Meta:
+        verbose_name = 'hình ảnh'
+        verbose_name_plural = "Danh sách hình ảnh nhà trọ"
 
 #8   
 class RoomImage(BaseModel):
-    id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="images")
     image_url = CloudinaryField('image')
     
     def __str__(self):
         return f"Image for {self.room.room_name}"
+    
+    class Meta:
+        verbose_name = 'hình ảnh'
+        verbose_name_plural = "Danh sách hình ảnh phòng trọ"
 
 
 #20
 class RoomTenant(BaseModel):
-    id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenant_entries')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='room_entries')
     start_date = models.DateField()
@@ -221,7 +241,7 @@ class MotelRating(BaseModel):
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='ratings')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ratings')
     rating = models.IntegerField()
-    Comment = models.TextField()
+    comment = models.TextField()
 
 #22
 class Favorite(BaseModel):
@@ -239,7 +259,7 @@ class Post(ActiveModel):
     desired_address = models.TextField(blank=True, null=True)
     min_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     max_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    redius_km = models.FloatField(blank=True, null=True)
+    radius_km = models.FloatField(blank=True, null=True)
     desired_latitude = models.FloatField(blank=True, null=True)
     desired_longitude = models.FloatField(blank=True, null=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, blank=True, null=True)
@@ -250,7 +270,6 @@ class Post(ActiveModel):
  
 #10   
 class Comment(ActiveModel):
-    id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = RichTextField()
@@ -295,9 +314,8 @@ class SearchHistory(BaseModel):
         
 #14
 class Follow(BaseModel):
-    id = models.AutoField(primary_key=True)
     follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
-    followed = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followeds')
+    followed = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
     last_message_time = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -323,15 +341,19 @@ class ChatRoom(BaseModel):
 class RealTimeChat(BaseModel):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
-    chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
+    chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name="messages")
     is_read = models.BooleanField(default=False)
     
 #18
 class Payment(BaseModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    Payer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
+    payer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     status = models.CharField(max_length=20, choices=PaymentStatus.choices)
     description = models.TextField()
+    
+    class Meta:
+        verbose_name = "Thanh toán"
+        verbose_name_plural = "Danh sách thanh toán"
