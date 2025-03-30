@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django import forms
-from accommodationSearch.models import User, Admin,LikeComment, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
+from accommodationSearch.models import User, Admin,LikeComment, LikeMotel, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
 from django.urls import path
 from django.utils.safestring import mark_safe
 from django.utils.html import format_html
@@ -107,7 +107,7 @@ class RoomAdmin(admin.ModelAdmin):
     def motel_name (self, obj):
         return obj.motel.motel_name if obj.motel else 'No motel'
     motel_name.short_description = 'motel name'
-    s
+    
     @staticmethod
     def image_view(room):
         return mark_safe(f"<img src='{room.image.url}' width='200' />")
@@ -166,8 +166,6 @@ class MyAdminSite(admin.AdminSite):
         
 
 
-
-
 admin_site = MyAdminSite(name = 'accommodationSearchApp')
 admin_site.register(Group)
 admin_site.register(User, UserAdmin)
@@ -184,5 +182,6 @@ admin_site.register(Favorite, FavoriteAdmin)
 admin_site.register(Post, PostAdmin)
 admin_site.register(Comment, CommentAdmin)
 admin_site.register(LikeComment, LikeCommentAdmin)
+admin_site.register(LikeMotel)
 
 
