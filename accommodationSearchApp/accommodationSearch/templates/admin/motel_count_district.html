@@ -1,0 +1,59 @@
+
+{% extends 'admin/base_site.html' %}
+{% block content %}
+
+
+
+<h1>THỐNG KÊ BÁO BÁO: SỐ LƯỢNG NHÀ TRỌ THEO KHU VỰC</h1>
+
+<ul>
+    {% for s in stats %}
+    <li>{{ s.district }}: {{ s.motel_count }}</li>
+    {% endfor %}
+</ul>
+
+<div style="width: 50%;">
+  <canvas id="myChart"></canvas>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let data = [];
+    let labels = [];
+
+    {% for s in stats %}
+    data.push({{ s.motel_count }});
+    labels.push('{{ s.district }}')
+    {% endfor %}
+
+    window.onload = function() {
+        const ctx = document.getElementById('myChart');
+
+          new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'SỐ LƯỢNG NHÀ TRỌ THEO KHU VỰC',
+                data: data,
+                borderWidth: 1,
+                backgroundColor: [
+                'rgb(255, 99, 132)',
+                'rgb(54, 162, 235)',
+                'rgb(255, 205, 86)'
+              ],
+              hoverOffset: 4
+              }]
+            },
+            options: {
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+    }
+</script>
+{% endblock %}

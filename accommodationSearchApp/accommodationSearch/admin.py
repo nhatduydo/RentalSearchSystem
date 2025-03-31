@@ -2,9 +2,12 @@ from django.contrib import admin
 from django import forms
 from accommodationSearch.models import User, ChatRoom, Admin, RealTimeChat, LikeComment,SearchHistory, LikeMotel, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
 from django.urls import path
+from django.db.models import Count
 from django.utils.safestring import mark_safe
 from django.utils.html import format_html
 from django.contrib.auth.models import Group
+from django.urls import path
+from django.template.response import TemplateResponse
 
 
 class UserForm(forms.ModelForm):
@@ -16,8 +19,8 @@ class UserForm(forms.ModelForm):
     
     class Meta:
         model = User
-        fields = ['username', 'password', 'groups', 'role', 'email']
-
+        fields = '__all__'
+        
 class UserAdmin(admin.ModelAdmin):
     list_display = ['id','username', 'role', 'email']
     search_fields = ['full_name', 'email', 'role']
@@ -26,17 +29,11 @@ class UserAdmin(admin.ModelAdmin):
     exclude = ['user_permissions']
     form = UserForm
 
-
-class LandlordForm(forms.ModelForm):
-    class Meta:
-        model = Landlord
-        fields = ['full_name', 'citizen_id', 'phone', 'bank_account', 'is_verified']
-
 class LandlordAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'citizen_id', 'email', 'phone', 'bank_account', 'is_verified']
     search_fields = ['full_name', 'citizen_id', 'email', 'phone', 'bank_account']
     list_filter = ['is_verified', 'gender', 'date_of_birth']
-    form = LandlordForm
+    # form = LandlordForm
 
 class RoomTenantInline(admin.TabularInline):
     model = RoomTenant
@@ -49,17 +46,17 @@ class TenantAdmin(admin.ModelAdmin):
     
 
 
-class MotelForm(forms.ModelForm):
-    class Meta:
-        model = Motel
-        fields = ['id', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
+# class MotelForm(forms.ModelForm):
+#     class Meta:
+#         model = Motel
+#         fields = ['id', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
 
 
 class MotelAdmin(admin.ModelAdmin): 
-    list_display = ['id', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
+    list_display = ['id','user', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
     search_fields = ['motel_name', 'address','active',  'created_date']
     list_filter = ['city', 'province',  'created_date']
-    form = MotelForm 
+    # form = MotelForm 
     
     readonly_fields = ['slug']
     readonly_fields = ['rating_score']
@@ -79,17 +76,6 @@ class MotelImageAdmin(admin.ModelAdmin):
     
     motel_name.short_description = 'Tên nhà trọ'
     
-        
-    # def image_preview(self, obj):
-    #     return format_html('<img src="{}" width="50" height="50" />', obj.image_url.url)
-    # image_preview.short_description = 'Preview'
-  
-# class RoomForm(forms.ModelForm):
-#     class Meta:
-#         model = Room
-#         fields = ['room_name', 'area', 'price','max_people', 'is_verified']
-
-
      
 class RoomAdmin(admin.ModelAdmin):
     list_display = ['motel','room_name', 'area', 'price','max_people', 'is_verified', 'tenant_list']
@@ -174,6 +160,18 @@ class NotificationsAdmin(admin.ModelAdmin):
 class MyAdminSite(admin.AdminSite):
     site_header = 'HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ'
     
+    
+    def get_urls(self):
+        return [path('motel-count-district/', self.motel_count_district)] +  super().get_urls()
+    
+    def motel_count_district(self, request):
+        
+        data = Motel.objects.filter(active=True).values('district').annotate(motel_count = Count('id')).order_by('-motel_count')
+        return TemplateResponse(request, 'admin/motel_count_district.html', {
+            'stats': data
+        })
+        
+        
     class Media:
         js = ('/static/js/togglePassword.js', )
         

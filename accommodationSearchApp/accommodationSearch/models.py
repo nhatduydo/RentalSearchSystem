@@ -87,12 +87,13 @@ class InfomationUserModel(ActiveModel):
 
 #1 đã admin
 class User(AbstractUser):
+    id = models.AutoField(primary_key=True)
     role = models.CharField(max_length=20, choices=UserRole.choices)
     date_joined = models.DateTimeField(default=now)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     last_login = None
-    
+
     class Meta:
         verbose_name = "User"
         verbose_name_plural = "User"
@@ -139,14 +140,15 @@ class Tenant(InfomationUserModel):
 
 #5 đã admin
 class Motel(ActiveModel):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
     motel_name = models.CharField(max_length=255)
     slug = AutoSlugField(populate_from = 'motel_name', unique=True)
     description = models.TextField()
     address = models.TextField()
-    district = models.CharField(max_length=255)
+    district = models.CharField(max_length=255, null = True, blank=True)
     city = models.CharField(max_length=255)
-    province = models.CharField(max_length=255)
+    province = models.CharField(max_length=255, null = True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     latitude = models.FloatField(null=True, blank=True)
     total_rooms = models.IntegerField()
@@ -170,6 +172,7 @@ class Motel(ActiveModel):
         verbose_name_plural = "Nhà trọ"
  #6 đã admin
 class Room(ActiveModel):
+    id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
     description = models.TextField()
@@ -200,6 +203,7 @@ class Room(ActiveModel):
    
 #7 đã admin
 class Amenity(BaseModel):
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
     
     def __str__(self):
@@ -211,6 +215,7 @@ class Amenity(BaseModel):
 
 #8 đã admin
 class MotelImage(BaseModel):
+    id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name="images")
     image_url = CloudinaryField('image')
     image_type = models.CharField(max_length=20, choices=ImageType.choices)
@@ -224,6 +229,7 @@ class MotelImage(BaseModel):
 
 #9  đã admin
 class RoomImage(BaseModel):
+    id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="images")
     image_url = CloudinaryField('image')
     
@@ -237,6 +243,7 @@ class RoomImage(BaseModel):
 
 #10 chưa biết có cho qua admin hay không
 class RoomTenant(BaseModel):
+    id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenant_entries')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='room_entries')
     start_date = models.DateField()
@@ -246,6 +253,7 @@ class RoomTenant(BaseModel):
 
 #11 chưa admin
 class MotelRating(BaseModel):
+    id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='ratings')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ratings')
     rating = models.IntegerField()
@@ -257,6 +265,7 @@ class MotelRating(BaseModel):
 
 #12 chưa admin
 class Favorite(BaseModel):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='favorited_by')
 
@@ -293,6 +302,7 @@ class Post(ActiveModel):
  
 #14 chưa admin
 class Comment(ActiveModel):
+    id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = RichTextField()
@@ -307,6 +317,7 @@ class Comment(ActiveModel):
         
 #15 chưa admin
 class LikeComment(ActiveModel):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users')
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE)
     
@@ -321,6 +332,7 @@ class LikeComment(ActiveModel):
 
 #16 chưa admin
 class LikeMotel(ActiveModel):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE)
     
@@ -334,6 +346,7 @@ class LikeMotel(ActiveModel):
 
 #17 chưa admin
 class SearchHistory(BaseModel):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="search_histories")
     search_params = models.JSONField()
     
@@ -353,6 +366,7 @@ class SearchHistory(BaseModel):
         
 #18 chưa admin
 class Follow(BaseModel):
+    id = models.AutoField(primary_key=True)
     following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
     followers = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
     last_message_time = models.DateTimeField(auto_now_add=True)
@@ -364,6 +378,7 @@ class Follow(BaseModel):
 
 #19 chưa admin
 class Notifications(BaseModel):
+    id = models.AutoField(primary_key=True)
     receiver = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     content = models.TextField()
@@ -381,6 +396,7 @@ class Notifications(BaseModel):
     
 #20 chưa admin
 class ChatRoom(BaseModel):
+    id = models.AutoField(primary_key=True)
     user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms1")
     user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms2")
     
@@ -389,6 +405,7 @@ class ChatRoom(BaseModel):
     
 #21 chưa admin
 class RealTimeChat(BaseModel):
+    id = models.AutoField(primary_key=True)
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
     chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name="messages")
@@ -405,7 +422,7 @@ class Payment(BaseModel):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     status = models.CharField(max_length=20, choices=PaymentStatus.choices)
-    description = models.TextField()
+    description = models.TextField(null = True, blank=True)
     
     class Meta:
         verbose_name = "Thanh toán"
