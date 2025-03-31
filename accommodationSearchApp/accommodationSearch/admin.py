@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django import forms
-from accommodationSearch.models import User, Admin,LikeComment, LikeMotel, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
+from accommodationSearch.models import User, ChatRoom, Admin, RealTimeChat, LikeComment,SearchHistory, LikeMotel, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
 from django.urls import path
 from django.utils.safestring import mark_safe
 from django.utils.html import format_html
@@ -57,8 +57,8 @@ class MotelForm(forms.ModelForm):
 
 class MotelAdmin(admin.ModelAdmin): 
     list_display = ['id', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
-    search_fields = ['motel_name', 'address','active']
-    list_filter = ['city', 'province']
+    search_fields = ['motel_name', 'address','active',  'created_date']
+    list_filter = ['city', 'province',  'created_date']
     form = MotelForm 
     
     readonly_fields = ['slug']
@@ -92,9 +92,9 @@ class MotelImageAdmin(admin.ModelAdmin):
 
      
 class RoomAdmin(admin.ModelAdmin):
-    list_display = ['motel_name','room_name', 'area', 'price','max_people', 'is_verified', 'tenant_list']
-    search_fields = ['room_name', 'motel']
-    list_filter = [ 'price', 'max_people', 'motel']
+    list_display = ['motel','room_name', 'area', 'price','max_people', 'is_verified', 'tenant_list']
+    search_fields = ['room_name', 'motel', 'created_date']
+    list_filter = [ 'price', 'max_people', 'motel', 'created_date']
     
     inlines = [RoomTenantInline]
     
@@ -104,9 +104,6 @@ class RoomAdmin(admin.ModelAdmin):
     
     tenant_list.short_description = "tenant"
     
-    def motel_name (self, obj):
-        return obj.motel.motel_name if obj.motel else 'No motel'
-    motel_name.short_description = 'motel name'
     
     @staticmethod
     def image_view(room):
@@ -114,17 +111,14 @@ class RoomAdmin(admin.ModelAdmin):
     
 
 class RoomImageAdmin(admin.ModelAdmin):
-    list_display = ['room_id','image_url',  'room_name', 'motel_name']
-    search_fields = ['room', 'room__motel']
-    list_filter = ['room__motel', 'room']
+    list_display = ['room_id','image_url',  'room', 'motel_name']
+    search_fields = ['updated_date', 'created_date']
+    list_filter = [ 'updated_date', 'created_date']
     
-    def room_name(self, obj):
-        return obj.room.room_name if obj.room else 'No name'
-    room_name.short_description = 'Tên phòng trọ'
     
     def motel_name (self, obj):
         return obj.room.motel.motel_name if obj.room and obj.room.motel else 'No motel'
-    motel_name.short_description = 'Tên nhà trọ'
+    motel_name.short_description = 'motel name'
     
     # def image_preview(self, obj):
     #     return format_html('<img src="{}" width="50" height="50" />', obj.image_url.url)
@@ -133,14 +127,14 @@ class RoomImageAdmin(admin.ModelAdmin):
 #8
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['payer', 'room', 'amount', 'payment_method', 'status']
-    list_filter = ['payment_method', 'status']
-    search_fields = ['payer__full_name', 'room__room_name']
+    list_filter = ['payment_method', 'status',  'created_date']
+    search_fields = ['user', 'room',  'created_date']
 
 
 class MotelRatingAdmin(admin.ModelAdmin):
     list_display = ['motel', 'tenant', 'rating', 'comment']
-    search_fields = ['motel', 'tenant']
-    list_filter = ['rating']
+    search_fields = ['motel', 'tenant',  'created_date']
+    list_filter = ['rating',  'created_date']
     
 class FavoriteAdmin(admin.ModelAdmin):
     list_display = ['user', 'motel']   
@@ -148,15 +142,34 @@ class FavoriteAdmin(admin.ModelAdmin):
         
 class PostAdmin(admin.ModelAdmin):
     list_display = [ 'user_id', 'post_type', 'title','desired_address', 'min_price', 'max_price', 'radius_km', 'desired_latitude', 'desired_longitude', 'motel_id', 'created_date']
-    search_fields = ['title', 'user']
-    list_filter = ['post_type']
+    search_fields = ['title', 'user',  'created_date']
+    list_filter = ['post_type',  'created_date']
 
 class CommentAdmin(admin.ModelAdmin):
     list_display = ['user', 'post__post_type', 'post', 'parent']
 
 
 class LikeCommentAdmin(admin.ModelAdmin):
-    list_display = ['user']
+    list_display = ['user', 'comment', 'created_date']
+    search_fields = ['user', 'created_date']
+    list_filter = ['user', 'created_date']
+    
+class LikeMotelAdmin(admin.ModelAdmin):
+    list_display = ['user', 'motel', 'created_date']
+    search_fields = ['user', 'created_date']
+    list_filter = ['user', 'created_date']
+
+class SearchHistoryAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user']
+    search_fields = ['user']
+    list_filter = ['user']
+
+
+class NotificationsAdmin(admin.ModelAdmin):
+    list_display = ['receiver', 'title', 'is_read', 'notification_type', 'related_object_id', 'created_date']
+    search_fields = ['receiver', 'notification_type', 'created_date']
+    list_filter = ['receiver', 'notification_type', 'created_date']
+
 
 class MyAdminSite(admin.AdminSite):
     site_header = 'HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ'
@@ -182,6 +195,10 @@ admin_site.register(Favorite, FavoriteAdmin)
 admin_site.register(Post, PostAdmin)
 admin_site.register(Comment, CommentAdmin)
 admin_site.register(LikeComment, LikeCommentAdmin)
-admin_site.register(LikeMotel)
-
+admin_site.register(LikeMotel, LikeMotelAdmin)
+admin_site.register(SearchHistory, SearchHistoryAdmin)
+admin_site.register(Follow)
+admin_site.register(Notifications, NotificationsAdmin)
+admin_site.register(ChatRoom)
+admin_site.register(RealTimeChat)
 

@@ -95,7 +95,7 @@ class User(AbstractUser):
     
     class Meta:
         verbose_name = "User"
-        verbose_name_plural = "Danh sách User"
+        verbose_name_plural = "User"
         
     def __str__(self):
         return self.username
@@ -120,7 +120,7 @@ class Landlord(InfomationUserModel):
     
     class Meta:
         verbose_name = "Chủ nhà trọ"
-        verbose_name_plural = "Danh sách chủ trọ"
+        verbose_name_plural = "Chủ nhà trọ"
 
 #4  đã admin 
 class Tenant(InfomationUserModel):
@@ -135,7 +135,7 @@ class Tenant(InfomationUserModel):
     
     class Meta:
         verbose_name = "Người thuê trọ"
-        verbose_name_plural = "Danh sách người thuê trọ"
+        verbose_name_plural = "Người thuê trọ"
 
 #5 đã admin
 class Motel(ActiveModel):
@@ -167,7 +167,7 @@ class Motel(ActiveModel):
     
     class Meta:
         verbose_name = "Nhà trọ"
-        verbose_name_plural = "Danh sách nhà trọ"
+        verbose_name_plural = "Nhà trọ"
  #6 đã admin
 class Room(ActiveModel):
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
@@ -187,13 +187,15 @@ class Room(ActiveModel):
         else:
             self.is_verified = True
         self.save()
+        
     class Meta:
         unique_together = ('room_name', 'motel')
         verbose_name = "Phòng trọ"
-        verbose_name_plural = "Danh sách phòng trọ"
+        verbose_name_plural = "Phòng trọ"
         
     def __str__(self):
-        return f"{self.motel.motel_name} - {self.room_name}"
+        return self.room_name
+        # return f"{self.motel.motel_name} - {self.room_name}"
 
    
 #7 đã admin
@@ -204,8 +206,8 @@ class Amenity(BaseModel):
         return self.name
     
     class Meta:
-        verbose_name = "tiện nghi, tiện ích"
-        verbose_name_plural = "Danh sách các tiện ích"
+        verbose_name = "Tiện nghi, tiện ích"
+        verbose_name_plural = "Tiện nghi, tiện ích"
 
 #8 đã admin
 class MotelImage(BaseModel):
@@ -218,7 +220,7 @@ class MotelImage(BaseModel):
     
     class Meta:
         verbose_name = 'hình ảnh'
-        verbose_name_plural = "Danh sách hình ảnh nhà trọ"
+        verbose_name_plural = "Hình ảnh nhà trọ"
 
 #9  đã admin
 class RoomImage(BaseModel):
@@ -230,7 +232,7 @@ class RoomImage(BaseModel):
     
     class Meta:
         verbose_name = 'hình ảnh'
-        verbose_name_plural = "Danh sách hình ảnh phòng trọ"
+        verbose_name_plural = "Hình ảnh phòng trọ"
 
 
 #10 chưa biết có cho qua admin hay không
@@ -251,7 +253,7 @@ class MotelRating(BaseModel):
 
     class Meta:
         verbose_name = 'Đánh giá'
-        verbose_name_plural = 'Danh sách đánh giá'
+        verbose_name_plural = 'Đánh giá'
 
 #12 chưa admin
 class Favorite(BaseModel):
@@ -261,7 +263,7 @@ class Favorite(BaseModel):
     class Meta:
         unique_together = ('user', 'motel')
         verbose_name = "Yêu thích"
-        verbose_name_plural = "Danh sách yêu thích"
+        verbose_name_plural = "Yêu thích"
 
     def __str__(self):
         return f"{self.user.username} favorite {self.motel.motel_name}"
@@ -284,7 +286,7 @@ class Post(ActiveModel):
     
     class Meta:
         verbose_name = "Post"
-        verbose_name_plural = "Danh sách bài Post"
+        verbose_name_plural = "Bài Post"
     
     def __str__(self):
         return self.title
@@ -296,18 +298,25 @@ class Comment(ActiveModel):
     content = RichTextField()
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
     
+    def __str__(self):
+        return self.post.title
+    
     class Meta:
         verbose_name = "Bình Luận"
-        verbose_name_plural = "Danh sách bình luận"   
+        verbose_name_plural = "Bình luận"   
         
 #15 chưa admin
 class LikeComment(ActiveModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users')
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE)
     
+    def __str__(self):
+        return self.comment.post.title
+    
     class Meta:
         unique_together = ('user', 'comment')
- 
+        verbose_name = "Like bình luận"
+        verbose_name_plural = "Like bình luận"
     
 
 #16 chưa admin
@@ -317,13 +326,14 @@ class LikeMotel(ActiveModel):
     
     class Meta:
         unique_together = ('user', 'motel')
+        verbose_name = "Like nhà trọ"
+        verbose_name_plural = "Like nhà trọ"
         
     def __str__(self):
-        return f"{self.user.username} like {self.motel.motel_name}"
+        return self.user.username
 
 #17 chưa admin
 class SearchHistory(BaseModel):
-    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="search_histories")
     search_params = models.JSONField()
     
@@ -336,15 +346,21 @@ class SearchHistory(BaseModel):
     def set_search_params(self, params_dict):
         self.search_params = json.dumps(params_dict)
         self.save()
+    
+    class Meta:
+        verbose_name = "Lịch sử tìm kiếm"
+        verbose_name_plural = "Lịch sử tìm kiếm"
         
 #18 chưa admin
 class Follow(BaseModel):
-    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
-    followed = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
+    following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
+    followers = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
     last_message_time = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ('follower', 'followed')
+        unique_together = ('following', 'followers')
+        verbose_name = "Theo dõi"
+        verbose_name_plural = "Theo dõi"        
 
 #19 chưa admin
 class Notifications(BaseModel):
@@ -357,12 +373,19 @@ class Notifications(BaseModel):
     
     def __str__(self):
         return self.title
+    
 
+    class Meta:
+        verbose_name = "Thông báo"
+        verbose_name_plural = "Thông báo"  
+    
 #20 chưa admin
 class ChatRoom(BaseModel):
     user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms1")
     user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms2")
     
+    def __str__(self):
+        return f"{self.user1.username} -  {self.user2.username }"
     
 #21 chưa admin
 class RealTimeChat(BaseModel):
@@ -370,6 +393,9 @@ class RealTimeChat(BaseModel):
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
     chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name="messages")
     is_read = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"sender: {self.sender.username} - receiver: {self.receiver.username}"
     
 #22 đã admin
 class Payment(BaseModel):
@@ -383,4 +409,4 @@ class Payment(BaseModel):
     
     class Meta:
         verbose_name = "Thanh toán"
-        verbose_name_plural = "Danh sách thanh toán"
+        verbose_name_plural = "Thanh toán"
