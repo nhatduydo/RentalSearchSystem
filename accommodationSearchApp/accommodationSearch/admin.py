@@ -8,6 +8,7 @@ from django.utils.html import format_html
 from django.contrib.auth.models import Group
 from django.urls import path
 from django.template.response import TemplateResponse
+from django.db.models import Avg
 
 
 class UserForm(forms.ModelForm):
@@ -45,18 +46,10 @@ class TenantAdmin(admin.ModelAdmin):
     list_filter = ['gender', 'date_of_birth', 'active']
     
 
-
-# class MotelForm(forms.ModelForm):
-#     class Meta:
-#         model = Motel
-#         fields = ['id', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
-
-
 class MotelAdmin(admin.ModelAdmin): 
     list_display = ['id','user', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
     search_fields = ['motel_name', 'address','active',  'created_date']
     list_filter = ['city', 'province',  'created_date']
-    # form = MotelForm 
     
     readonly_fields = ['slug']
     readonly_fields = ['rating_score']
@@ -162,15 +155,40 @@ class MyAdminSite(admin.AdminSite):
     
     
     def get_urls(self):
-        return [path('motel-count-district/', self.motel_count_district)] +  super().get_urls()
-    
+        urls = [
+            path('motel-count-district/', self.motel_count_district) , 
+            path('motel-average-price/', self.room_average_price), 
+            path('top-favorite-motels/', self.top_favorite_motels)
+        ]
+        return urls + super().get_urls()
+
     def motel_count_district(self, request):
         
         data = Motel.objects.filter(active=True).values('district').annotate(motel_count = Count('id')).order_by('-motel_count')
         return TemplateResponse(request, 'admin/motel_count_district.html', {
             'stats': data
         })
+    
+    
+    def room_average_price(self, request):
+        data = Room.objects.filter(active = True).values('motel__district').annotate(avg_price = Avg('price')).order_by('-avg_price')
+        return TemplateResponse(request, 'admin/room_average_price.html', {
+            'stats': data
+        })
         
+    def top_favorite_motels(self, request):
+        
+        motels = Motel.objects.annotate(like_count = Count('likemotel')).filter(like_count__gt=0).order_by('-like_count')
+        
+        datas = []
+        for motel in motels:
+            datas.append({
+                'motel_name': motel.motel_name,
+                'like_count': motel.like_count
+            })
+        return TemplateResponse(request, 'admin/top_favorite_motels.html', {
+            'stats': datas
+        })
         
     class Media:
         js = ('/static/js/togglePassword.js', )
