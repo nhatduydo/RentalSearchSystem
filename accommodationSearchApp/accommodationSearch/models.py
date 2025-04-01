@@ -92,7 +92,9 @@ class User(AbstractUser):
     date_joined = models.DateTimeField(default=now)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    avatar = CloudinaryField(null=True)
     last_login = None
+    date_joined = None
 
     class Meta:
         verbose_name = "User"
@@ -138,7 +140,7 @@ class Tenant(InfomationUserModel):
         verbose_name = "Người thuê trọ"
         verbose_name_plural = "Người thuê trọ"
 
-#5 đã admin
+#5 đã admin, đã serializer
 class Motel(ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
@@ -170,7 +172,7 @@ class Motel(ActiveModel):
     class Meta:
         verbose_name = "Nhà trọ"
         verbose_name_plural = "Nhà trọ"
- #6 đã admin
+ #6 đã admin, đã seralizer
 class Room(ActiveModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')

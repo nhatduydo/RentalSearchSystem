@@ -23,7 +23,7 @@ class UserForm(forms.ModelForm):
         fields = '__all__'
         
 class UserAdmin(admin.ModelAdmin):
-    list_display = ['id','username', 'role', 'email']
+    list_display = ['id','username', 'role', 'email', 'avatar']
     search_fields = ['full_name', 'email', 'role']
     list_filter = ['role', 'created_date']
     ordering = ['id', 'created_date']

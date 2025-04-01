@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'ckeditor_uploader',
     'cloudinary',
     'rest_framework',
+    'drf_yasg',
     # 'accommodationSearch',
 
 ]

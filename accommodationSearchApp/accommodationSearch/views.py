@@ -1,23 +1,17 @@
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 import cloudinary.uploader
-from .models import Motel, MotelImage
-
+from .models import Motel, Room, MotelImage
+from rest_framework import viewsets, generics
+from accommodationSearch import serializers
 
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
-# def upload_motel_images(request, motel_id):
-#     motel = Motel.objects.get(id=motel_id)
-
-#     if request.method == 'POST':
-#         form = MotelImageForm(request.POST, request.FILES)
-#         if form.is_valid():
-#             images = request.FILES.getlist('images')  # Lấy danh sách ảnh tải lên
-#             for image in images:
-#                 MotelImage.objects.create(motel=motel, image_url=image, image_type="default")  
-#             return redirect('success_url')  # Chuyển hướng sau khi upload thành công
-#     else:
-#         form = MotelImageForm()
-
-#     return render(request, 'upload_images.html', {'form': form, 'motel': motel})
+class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
+    queryset = Motel.objects.filter(active = True)
+    serializer_class = serializers.MotelSerializer
+    
+class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
+    queryset = Room.objects.filter(active = True)
+    serializer_class = serializers.RoomSerializer
