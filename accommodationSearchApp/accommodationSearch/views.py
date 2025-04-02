@@ -72,40 +72,37 @@ class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
                 query = query.filter(motel = motel)
         return query
  
- 
-
-    
     
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Landlord.objects.filter(active = True)
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
 
-    # def retrieve(self, request, pk=None):
-    #     if pk.isdigit():
-    #         room = get_object_or_404(Room, id = pk)
-    #     else: 
-    #         room = get_object_or_404(Room, slug = pk)
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            landlord = get_object_or_404(Landlord, user_id = pk)
+        else: 
+            landlord = get_object_or_404(Landlord, slug = pk)
             
-    #     serializers = self.get_serializer(room)
-    #     return Response(serializers.data)
+        serializers = self.get_serializer(landlord)
+        return Response(serializers.data)
     
     def get_queryset(self):
         query = self.queryset
         
         if self.action.__eq__('list'):
+            
+            user_id = self.request.query_params.get('id')
+            if user_id:
+                query = query.filter(user_id = user_id)
+            
             search_query  = self.request.query_params.get('q')
             if search_query :
-                query = query.filter(room_name__icontains = search_query)
+                query = query.filter(full_name__icontains=search_query)
                 
-            motel_id = self.request.query_params.get('motel_id')
-            if motel_id:
-                query = query.filter(motel_id = motel_id)
-                
-            motel_slug = self.request.query_params.get('motel_slug')
-            if motel_slug:
-                motel = get_object_or_404(Motel, slug=motel_slug)
-                query = query.filter(motel = motel)
+            slug_source = self.request.query_params.get('slug_source')
+            if slug_source:
+                query = query.filter(slug = slug_source)
         return query
     
     
