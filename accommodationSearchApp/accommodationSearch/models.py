@@ -110,7 +110,7 @@ class Admin(ActiveModel):
     def email(self):
         return self.user.email
   
- #3  đã admin
+ #3  đã admin, đã qua serializer
 class Landlord(InfomationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     is_verified = models.BooleanField(default=False)
@@ -125,7 +125,7 @@ class Landlord(InfomationUserModel):
         verbose_name = "Chủ nhà trọ"
         verbose_name_plural = "Chủ nhà trọ"
 
-#4  đã admin 
+#4  đã admin, đang qua serializer
 class Tenant(InfomationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name="tenant_profile")
     rooms = models.ManyToManyField('Room', through='RoomTenant', related_name='roomer')

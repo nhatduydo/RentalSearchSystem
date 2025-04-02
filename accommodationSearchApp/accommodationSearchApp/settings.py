@@ -42,9 +42,16 @@ INSTALLED_APPS = [
     'cloudinary',
     'rest_framework',
     'drf_yasg',
+    'oauth2_provider',
     # 'accommodationSearch',
 
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ('oauth2_provider.contrib.rest_framework.OAuth2Authentication',),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 10
+}
 
 CKEDITOR_UPLOAD_PATH = "ckeditors/images/"
 
