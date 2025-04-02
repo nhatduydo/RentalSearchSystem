@@ -24,7 +24,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
         if pk.isdigit():
             motel = get_object_or_404(Motel, id = pk)
         else: 
-            motel = get_object_or_404(Motel, slug =pk)
+            motel = get_object_or_404(Motel, slug = pk)
             
         serializers = self.get_serializer(motel)
         return Response(serializers.data)

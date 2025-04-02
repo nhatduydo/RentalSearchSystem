@@ -74,6 +74,7 @@ class ActiveModel(BaseModel):
 
 class InfomationUserModel(ActiveModel):
     full_name = models.CharField(max_length=255)
+    slug = AutoSlugField(populate_from = 'full_name', unique=True, null = True)
     citizen_id = models.CharField(max_length=20, unique=True)
     phone = models.CharField(max_length=20, null = True)
     avatar = CloudinaryField(null = True)
@@ -90,6 +91,7 @@ class User(AbstractUser):
     id = models.AutoField(primary_key=True)
     role = models.CharField(max_length=20, choices=UserRole.choices)
     date_joined = models.DateTimeField(default=now)
+    slug = AutoSlugField(populate_from = 'username', unique=True, null = True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     avatar = CloudinaryField(null=True)
@@ -178,6 +180,7 @@ class Room(ActiveModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
+    slug = AutoSlugField(populate_from = 'room_name', unique=True, null = True)
     description = models.TextField()
     area = models.FloatField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -208,6 +211,7 @@ class Room(ActiveModel):
 class Amenity(BaseModel):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
+    slug = AutoSlugField(populate_from = 'name', unique=True, null = True)
     
     def __str__(self):
         return self.name
@@ -286,6 +290,7 @@ class Post(ActiveModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_type = models.CharField(max_length=20, choices=PostType.choices)
     title = models.CharField(max_length=255)
+    slug = AutoSlugField(populate_from = 'title', unique=True, null = True)
     content =RichTextField()
     desired_address = models.TextField(blank=True, null=True)
     min_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
