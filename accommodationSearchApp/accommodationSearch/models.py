@@ -5,16 +5,11 @@ from cloudinary.models import CloudinaryField
 import uuid
 import json
 from ckeditor.fields import RichTextField
-from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.utils.timezone import now
 from django.utils.text import slugify
 from unidecode import unidecode
 
-def save(self,name, *args, **kwargs):
-        if not self.slug:  # Chỉ tạo slug nếu chưa có
-            self.slug = slugify(unidecode(self.name))
-        super().save(*args, **kwargs)
 
 class UserRole(models.TextChoices):
     ADMIN = "ADMIN", 'Admin'
@@ -78,11 +73,24 @@ class ActiveModel(BaseModel):
     class Meta:
         abstract = True
         
-
-
-class InfomationUserModel(ActiveModel):
+class SlugModel(ActiveModel):
+    slug = AutoSlugField(populate_from='slug_source', unique=True, null = True)
+    
+    def save(self, *args, **kwargs):
+        if not self.slug and hasattr(self, "slug_source"):
+            value = getattr(self, self.slug_source, None)
+            if value:
+                self.slug = slugify(unidecode(value))
+        super().save(*args, **kwargs)
+    
+    
+    class Meta:
+        abstract = True
+    
+class InformationUserModel(SlugModel):
     full_name = models.CharField(max_length=255)
-    slug = AutoSlugField(populate_from = 'full_name', unique=True, null = True)
+    # slug = AutoSlugField(populate_from = 'full_name', unique=True, null = True)
+    
     citizen_id = models.CharField(max_length=20, unique=True)
     phone = models.CharField(max_length=20, null = True)
     avatar = CloudinaryField(null = True)
@@ -104,7 +112,7 @@ class User(AbstractUser):
     updated_date = models.DateTimeField(auto_now=True)
     avatar = CloudinaryField(null=True)
     last_login = None
-    date_joined = None
+    # date_joined = None
 
     class Meta:
         verbose_name = "User"
@@ -121,10 +129,10 @@ class Admin(ActiveModel):
         return self.user.email
   
  #3  đã admin, đã qua serializer
-class Landlord(InfomationUserModel):
+class Landlord(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     is_verified = models.BooleanField(default=False)
-    
+    slug_source = "full_name"
     def __str__(self):
         return self.full_name
     
@@ -136,10 +144,10 @@ class Landlord(InfomationUserModel):
         verbose_name_plural = "Chủ nhà trọ"
 
 #4  đã admin, đang qua serializer
-class Tenant(InfomationUserModel):
+class Tenant(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name="tenant_profile")
     rooms = models.ManyToManyField('Room', through='RoomTenant', related_name='roomer')
-    
+    slug_source = "full_name"
     def __str__(self):
         return self.full_name
     
@@ -151,11 +159,12 @@ class Tenant(InfomationUserModel):
         verbose_name_plural = "Người thuê trọ"
 
 #5 đã admin, đã serializer
-class Motel(ActiveModel):
+class Motel(SlugModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
     motel_name = models.CharField(max_length=255)
-    slug = AutoSlugField(populate_from = 'motel_name', unique=True)
+    # slug = AutoSlugField(populate_from = 'motel_name', unique=True)
+    slug_source = "motel_name"
     description = models.TextField()
     address = models.TextField()
     district = models.CharField(max_length=255, null = True, blank=True)
@@ -184,11 +193,12 @@ class Motel(ActiveModel):
         verbose_name_plural = "Nhà trọ"
         
  #6 đã admin, đã seralizer
-class Room(ActiveModel):
+class Room(SlugModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
-    slug = AutoSlugField(populate_from = 'room_name', unique=True, null = True)
+    # slug = AutoSlugField(populate_from = 'room_name', unique=True, null = True)
+    slug_source = "room_name"
     description = models.TextField()
     area = models.FloatField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -216,10 +226,11 @@ class Room(ActiveModel):
 
    
 #7 đã admin
-class Amenity(BaseModel):
+class Amenity(SlugModel):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
-    slug = AutoSlugField(populate_from = 'name', unique=True, null = True)
+    # slug = AutoSlugField(populate_from = 'name', unique=True, null = True)
+    slug_source = "name"
     
     def __str__(self):
         return self.name
@@ -293,12 +304,13 @@ class Favorite(BaseModel):
         return f"{self.user.username} favorite {self.motel.motel_name}"
 
 #13 chưa admin
-class Post(ActiveModel):
+class Post(SlugModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_type = models.CharField(max_length=20, choices=PostType.choices)
     title = models.CharField(max_length=255)
-    slug = AutoSlugField(populate_from = 'title', unique=True, null = True)
+    # slug = AutoSlugField(populate_from = 'title', unique=True, null = True)
+    slug_source = "title"
     content =RichTextField()
     desired_address = models.TextField(blank=True, null=True)
     min_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)

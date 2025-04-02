@@ -34,7 +34,7 @@ class LandlordAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'citizen_id', 'email', 'phone', 'bank_account', 'is_verified']
     search_fields = ['full_name', 'citizen_id', 'email', 'phone', 'bank_account']
     list_filter = ['is_verified', 'gender', 'date_of_birth']
-    # form = LandlordForm
+    exclude = ['slug']
 
 class RoomTenantInline(admin.TabularInline):
     model = RoomTenant
@@ -44,16 +44,16 @@ class TenantAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'citizen_id', 'email', 'phone', 'date_of_birth', 'gender', 'bank_account']
     search_fields = ['full_name', 'citizen_id', 'email', 'phone', 'bank_account']
     list_filter = ['gender', 'date_of_birth', 'active']
-    
+    exclude = ['slug']
 
 class MotelAdmin(admin.ModelAdmin): 
     list_display = ['id','user', 'motel_name','address','district','city','province','total_rooms','available_rooms', 'rating_score',  'active', 'is_verified']
     search_fields = ['motel_name', 'address','active',  'created_date']
     list_filter = ['city', 'province',  'created_date']
-    
     readonly_fields = ['slug']
     readonly_fields = ['rating_score']
-
+    exclude = ['slug']
+    
     @staticmethod
     def image_view(motel):
         return mark_safe(f"<img src='{motel.image.url}' width='200' />")
@@ -74,7 +74,7 @@ class RoomAdmin(admin.ModelAdmin):
     list_display = ['motel','room_name', 'area', 'price','max_people', 'is_verified', 'tenant_list']
     search_fields = ['room_name', 'motel', 'created_date']
     list_filter = [ 'price', 'max_people', 'motel', 'created_date']
-    
+    exclude = ['slug']
     inlines = [RoomTenantInline]
     
     
@@ -123,7 +123,8 @@ class PostAdmin(admin.ModelAdmin):
     list_display = [ 'user_id', 'post_type', 'title','desired_address', 'min_price', 'max_price', 'radius_km', 'desired_latitude', 'desired_longitude', 'motel_id', 'created_date']
     search_fields = ['title', 'user',  'created_date']
     list_filter = ['post_type',  'created_date']
-
+    exclude = ['slug']
+    
 class CommentAdmin(admin.ModelAdmin):
     list_display = ['user', 'post__post_type', 'post', 'parent']
 
