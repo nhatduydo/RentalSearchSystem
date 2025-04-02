@@ -11,6 +11,7 @@ router.register('rooms', views.RoomViewSet, basename='room')
 
 urlpatterns = [
      # path('', views.index, name="index")
-     path('', include(router.urls))
+     path('', include(router.urls)),
+     # path('motels/<slug:slug>/', views.MotelViewSet, name='motel_detail'),
 ]
 

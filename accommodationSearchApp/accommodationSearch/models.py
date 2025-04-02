@@ -172,6 +172,7 @@ class Motel(ActiveModel):
     class Meta:
         verbose_name = "Nhà trọ"
         verbose_name_plural = "Nhà trọ"
+        
  #6 đã admin, đã seralizer
 class Room(ActiveModel):
     id = models.AutoField(primary_key=True)

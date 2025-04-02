@@ -1,9 +1,10 @@
 from django.http import HttpResponse
-from django.shortcuts import redirect, render
-import cloudinary.uploader
-from .models import Motel, Room, MotelImage, Admin, Landlord
+from .models import Motel, Room, Admin, Landlord
 from rest_framework import viewsets, generics
 from accommodationSearch import serializers, paginators
+from django.shortcuts import get_object_or_404
+from rest_framework.response import Response
+
 
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
@@ -18,6 +19,23 @@ class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
     serializer_class = serializers.MotelSerializer
     pagination_class = paginators.ItemPanigator
     
+    
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            motel = get_object_or_404(Motel, id = pk)
+        else: 
+            motel = get_object_or_404(Motel, slug =pk)
+            
+        serializers = self.get_serializer(motel)
+        return Response(serializers.data)
+    
+    # @api_view(['GET'])
+    # def motel_detail(request, slug):
+    #     motel = get_object_or_404(Motel, slug = slug)
+    #     serializers = MotelSerializer(motel)
+    #     return Response(serializers.data)
+    
+    
 class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Room.objects.filter(active = True)
     serializer_class = serializers.RoomSerializer
@@ -29,11 +47,11 @@ class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
         if self.action.__eq__('list'):
             q = self.request.query_params.get('q')
             if q:
-                query = query.filter(subject__icontains = q)
+                query = query.filter(room_name__icontains = q)
                 
             motel_id = self.request.query_params.get('motel_id')
             if motel_id:
-                query = query.filter(motel_Id = motel_id)
+                query = query.filter(motel_id = motel_id)
         return query
     
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
