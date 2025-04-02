@@ -89,8 +89,6 @@ class SlugModel(ActiveModel):
     
 class InformationUserModel(SlugModel):
     full_name = models.CharField(max_length=255)
-    # slug = AutoSlugField(populate_from = 'full_name', unique=True, null = True)
-    
     citizen_id = models.CharField(max_length=20, unique=True)
     phone = models.CharField(max_length=20, null = True)
     avatar = CloudinaryField(null = True)
@@ -163,7 +161,6 @@ class Motel(SlugModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
     motel_name = models.CharField(max_length=255)
-    # slug = AutoSlugField(populate_from = 'motel_name', unique=True)
     slug_source = "motel_name"
     description = models.TextField()
     address = models.TextField()

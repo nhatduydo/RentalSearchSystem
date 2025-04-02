@@ -4,7 +4,7 @@ from rest_framework import viewsets, generics, permissions
 from accommodationSearch import serializers, paginators
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
-
+from unidecode import unidecode
 
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
@@ -122,3 +122,21 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
             
         serializers = self.get_serializer(tenant)
         return Response(serializers.data)
+    
+    def get_queryset(self):
+        query = self.queryset
+        
+        if self.action.__eq__('list'):
+            
+            user_id = self.request.query_params.get('id')
+            if user_id:
+                query = query.filter(user_id = user_id)
+            
+            search_query  = self.request.query_params.get('q')
+            if search_query :
+                query = query.filter(full_name__icontains=search_query)
+                
+            slug_source = self.request.query_params.get('slug_source')
+            if slug_source:
+                query = query.filter(slug = slug_source)
+        return query
