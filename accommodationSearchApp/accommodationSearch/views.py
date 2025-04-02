@@ -29,12 +29,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
         serializers = self.get_serializer(motel)
         return Response(serializers.data)
     
-    # @api_view(['GET'])
-    # def motel_detail(request, slug):
-    #     motel = get_object_or_404(Motel, slug = slug)
-    #     serializers = MotelSerializer(motel)
-    #     return Response(serializers.data)
-    
     
 class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Room.objects.filter(active = True)
