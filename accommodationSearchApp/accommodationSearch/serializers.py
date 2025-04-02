@@ -26,7 +26,7 @@ class UserSerializer(ModelSerializer):
         
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        if instance.avtar:
+        if instance.avatar:
             data['avatar'] = instance.avatar.url
         return data
     
@@ -48,6 +48,11 @@ class LandlordSerializer(ItemSerializer):
         model = Landlord
         fields = ['user','full_name', 'citizen_id', 'phone', 'avatar', 'address', 'date_of_birth','gender', 'bank_account', 'is_verified']
         
+
+class TenantSerializer(ItemSerializer):
+    class Meta:
+        model = Tenant
+        fields = ['user', 'full_name', 'citizen_id', 'phone', 'avatar', 'address', 'date_of_birth','gender', 'bank_account', 'rooms']
 
 class MotelSerializer(ItemSerializer):
     class Meta:

@@ -1,6 +1,6 @@
 from django.http import HttpResponse
-from .models import Motel, Room, Admin, Landlord
-from rest_framework import viewsets, generics
+from .models import Motel, Room, Admin, Landlord, User, Tenant
+from rest_framework import viewsets, generics, permissions
 from accommodationSearch import serializers, paginators
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
@@ -12,7 +12,17 @@ def index(request):
 class AdminViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Admin.objects.filter(active = True)
     serializer_class = serializers.AdminSerializer
+
+class UserViewSet(viewsets.ViewSet, generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = serializers.UserSerializer
+    pagination_class = paginators.ItemPanigator
     
+    def get_permissions(self):
+        if self.action in ['create', 'login']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
 
 class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Motel.objects.filter(active = True)
@@ -35,20 +45,80 @@ class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
     serializer_class = serializers.RoomSerializer
     pagination_class = paginators.ItemPanigator
 
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            room = get_object_or_404(Room, id = pk)
+        else: 
+            room = get_object_or_404(Room, slug = pk)
+            
+        serializers = self.get_serializer(room)
+        return Response(serializers.data)
+    
     def get_queryset(self):
         query = self.queryset
         
         if self.action.__eq__('list'):
-            q = self.request.query_params.get('q')
-            if q:
-                query = query.filter(room_name__icontains = q)
+            search_query  = self.request.query_params.get('q')
+            if search_query :
+                query = query.filter(room_name__icontains = search_query)
                 
             motel_id = self.request.query_params.get('motel_id')
             if motel_id:
                 query = query.filter(motel_id = motel_id)
+                
+            motel_slug = self.request.query_params.get('motel_slug')
+            if motel_slug:
+                motel = get_object_or_404(Motel, slug=motel_slug)
+                query = query.filter(motel = motel)
         return query
+ 
+ 
+
+    
     
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Landlord.objects.filter(active = True)
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
+
+    # def retrieve(self, request, pk=None):
+    #     if pk.isdigit():
+    #         room = get_object_or_404(Room, id = pk)
+    #     else: 
+    #         room = get_object_or_404(Room, slug = pk)
+            
+    #     serializers = self.get_serializer(room)
+    #     return Response(serializers.data)
+    
+    def get_queryset(self):
+        query = self.queryset
+        
+        if self.action.__eq__('list'):
+            search_query  = self.request.query_params.get('q')
+            if search_query :
+                query = query.filter(room_name__icontains = search_query)
+                
+            motel_id = self.request.query_params.get('motel_id')
+            if motel_id:
+                query = query.filter(motel_id = motel_id)
+                
+            motel_slug = self.request.query_params.get('motel_slug')
+            if motel_slug:
+                motel = get_object_or_404(Motel, slug=motel_slug)
+                query = query.filter(motel = motel)
+        return query
+    
+    
+class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
+    queryset = Tenant.objects.filter(active = True)
+    serializer_class = serializers.TenantSerializer
+    pagination_class = paginators.ItemPanigator
+    
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            tenant = get_object_or_404(Tenant, user_id = pk)
+        else: 
+            tenant = get_object_or_404(Tenant, slug = pk)
+            
+        serializers = self.get_serializer(tenant)
+        return Response(serializers.data)

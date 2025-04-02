@@ -8,7 +8,13 @@ from ckeditor.fields import RichTextField
 from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.utils.timezone import now
+from django.utils.text import slugify
+from unidecode import unidecode
 
+def save(self,name, *args, **kwargs):
+        if not self.slug:  # Chỉ tạo slug nếu chưa có
+            self.slug = slugify(unidecode(self.name))
+        super().save(*args, **kwargs)
 
 class UserRole(models.TextChoices):
     ADMIN = "ADMIN", 'Admin'
@@ -71,6 +77,8 @@ class ActiveModel(BaseModel):
     
     class Meta:
         abstract = True
+        
+
 
 class InfomationUserModel(ActiveModel):
     full_name = models.CharField(max_length=255)
@@ -86,7 +94,7 @@ class InfomationUserModel(ActiveModel):
     class Meta:
         abstract = True
 
-#1 đã admin
+#1 đã admin, đã serializer
 class User(AbstractUser):
     id = models.AutoField(primary_key=True)
     role = models.CharField(max_length=20, choices=UserRole.choices)
