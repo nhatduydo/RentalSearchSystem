@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from unidecode import unidecode
 from django.contrib.auth import authenticate
+from rest_framework.decorators import action
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
@@ -65,14 +66,43 @@ class UserViewSet(viewsets.ViewSet,
             return Response(serializers.UserSerializer(user).data)
         return Response(serializers.UserSerializer(request.user).data)
             
-    @action(method=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
+    @action(methods=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
     def login(self, request):
         username = request.data.get("username")
         password = request.data.get("password")
-        user = authenticate
+        user = authenticate(username=username, password=password)
         
-        # if user is not None:
-        #     if 
+        if user is not None:
+            if user.is_active:
+                return Response(self.serializer_class(user).data)
+            else:
+                return Response({"error": "user is inactive"}, status=403)
+        return Response({"error": "Thông tin đăng nhập không hợp lệ"}, status=401)
+    
+    @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
+    def change_password(self, request):
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+        confirm_password = request.data.get("confirm_password")
+        
+        if not request.user.check_password(old_password):
+            return Response({"error": "Mật khẩu cũ không chính xác"}, status=400)
+        
+        if new_password != confirm_password:
+            return Response({"error", "Mật khẩu mới không khớp"}, status=400)
+        
+        request.user.set_password(new_password)
+        request.user.save()
+        return Response({"success": "Thay đổi mật khẩu thành công"})
+    
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            username = get_object_or_404(User, id = pk)
+        else: 
+            username = get_object_or_404(User, slug = pk)
+            
+        serializers = self.get_serializer(username)
+        return Response(serializers.data)
         
 
 
