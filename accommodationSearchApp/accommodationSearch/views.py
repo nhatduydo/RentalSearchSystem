@@ -1,11 +1,11 @@
 from django.http import HttpResponse
 from .models import Motel, Room, Admin, Landlord, User, Tenant
-from rest_framework import viewsets, generics, permissions
+from rest_framework import viewsets, generics, permissions, parsers
 from accommodationSearch import serializers, paginators
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from unidecode import unidecode
-
+from django.contrib.auth import authenticate
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
@@ -13,22 +13,73 @@ class AdminViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Admin.objects.filter(active = True)
     serializer_class = serializers.AdminSerializer
 
-class UserViewSet(viewsets.ViewSet, generics.ListAPIView):
-    queryset = User.objects.all()
+    
+    
+
+class UserViewSet(viewsets.ViewSet,
+                  generics.ListAPIView,
+                  generics.RetrieveAPIView,
+                  generics.CreateAPIView,
+                  generics.UpdateAPIView,
+                  generics.DestroyAPIView):
+    queryset = User.objects.filter(is_active=True)
     serializer_class = serializers.UserSerializer
     pagination_class = paginators.ItemPanigator
-    
+    arser_classes = [parsers.MultiPartParser, ]
+
     def get_permissions(self):
         if self.action in ['create', 'login']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
+    
+    def create(self, request, *args, **kwargs):
+        role = request.data.get('role')
+        if role == "LANDLORD":
+            landlord_serializer = serializers.LandlordSerializer(data=request.data)
+            if landlord_serializer.is_valid():
+                landlord_serializer.save()
+            else:
+                return Response(landlord_serializer.errors, status=400)
+        elif role == "TENANT":
+            tenant_serializer = serializers.TenantSerializer(data=request.data)
+            if tenant_serializer.is_valid():
+                tenant_serializer.save()
+            else:
+                return Response(tenant_serializer.errors, status=400)
+        else:
+            return Response({"error": "Invalid role"}, status=400)
+
+        return super().create(request, *args, **kwargs)
+    
+    @action(methods=['GET', 'PATCH'], url_path = 'current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
+    def get_Current_user(self, request):
+        if request.method.__eq__("PATCH"):
+            user = request.user
+            for key, value in request.data.items():
+                if key in ['first_name', 'last_name']:
+                    setattr(user, key, value)
+                elif key == 'password':
+                    user.set_password(value)
+            user.save()
+
+            return Response(serializers.UserSerializer(user).data)
+        return Response(serializers.UserSerializer(request.user).data)
+            
+    @action(method=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
+    def login(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate
+        
+        # if user is not None:
+        #     if 
+        
 
 
-class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
-    queryset = Motel.objects.filter(active = True)
+class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView , generics.RetrieveUpdateDestroyAPIView):
+    queryset =  Motel.objects.filter(active = True)
     serializer_class = serializers.MotelSerializer
     pagination_class = paginators.ItemPanigator
-    
     
     def retrieve(self, request, pk=None):
         if pk.isdigit():
@@ -40,7 +91,8 @@ class MotelViewSet(viewsets.ViewSet, generics.ListAPIView):
         return Response(serializers.data)
     
     
-class RoomViewSet(viewsets.ViewSet, generics.ListAPIView):
+    
+class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Room.objects.filter(active = True)
     serializer_class = serializers.RoomSerializer
     pagination_class = paginators.ItemPanigator
@@ -137,3 +189,5 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
             if slug_source:
                 query = query.filter(slug = slug_source)
         return query
+    
+

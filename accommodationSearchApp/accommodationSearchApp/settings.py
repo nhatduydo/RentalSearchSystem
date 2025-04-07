@@ -122,7 +122,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 pymysql.install_as_MySQLdb()
 
-
+OAUTH2_PROVIDER = { 'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore' }
 
 ROOT_URLCONF = "accommodationSearchApp.urls"
 
@@ -150,3 +150,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CLIENT_ID = "LeKxiRY3qv6tqOmjlaP7rggheLuwo0ZsYRvurZEy"
+CLIENT_SECRET = "bElltJNA8zcmSPqKM7OrYN29dd64gnaJLCo4pYRwvJduq5cF67vBIyhDhT6EJyNKduEwEVn9Rkp5V7dC55zTSkJwMH1JC5T0axJ7rdjgSsn1b3vEudeGOl6rqG7u2q64"
