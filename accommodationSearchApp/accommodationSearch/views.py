@@ -1,18 +1,22 @@
 from django.http import HttpResponse
-from .models import Motel, Room, Admin, Landlord, User, Tenant
-from rest_framework import viewsets, generics, permissions, parsers
+from .models import Motel, Room, Admin, Landlord, User, Tenant, Comment, LikeComment
+from rest_framework import viewsets, generics, permissions, parsers, status
 from accommodationSearch import serializers, paginators
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from unidecode import unidecode
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action
+from .permissions import CommentOwner
+from rest_framework.permissions import IsAuthenticated, AllowAny
+
+
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
-class AdminViewSet(viewsets.ViewSet, generics.ListAPIView):
-    queryset = Admin.objects.filter(active = True)
-    serializer_class = serializers.AdminSerializer
+# class AdminViewSet(viewsets.ViewSet, generics.ListAPIView):
+#     queryset = Admin.objects.filter(active = True)
+#     serializer_class = serializers.AdminSerializer
 
     
     
@@ -220,4 +224,53 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
                 query = query.filter(slug = slug_source)
         return query
     
+class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateAPIView):
+    queryset = Comment.objects.filter(active=True)
+    permission_classes = [CommentOwner]
+    
+    def get_permissions(self):
+        if self.action in ['create', 'like_comment', 'reply_comment']:
+            return [IsAuthenticated()]
+        elif self.action in ['update', 'destroy']:
+            return [CommentOwner()]
+        return [AllowAny()]
+    
+    def list(self, request):
+        post_id = request.GET.get('post_id')
+        comments = Comment.objects.filter(post_id=post_id, active=True, parent=None).select_related('user')
+        return Response(serializers.CommentSerializer(comments, many=True, context={"request": request}).data)
+    
+    def create(self, request):
+        data = request.copy()
+        data['user'] = request.user.id
+        serializer_class = serializers.CommentSerializer(data = data, context = {'request': request}).is_valid(raise_exception=True)
+        serializer_class.save()
+        return Response(serializer_class.data, status=status.HTTP_201_CREATED)
+    
+    @action(methods=['POST'], detail=True, url_path='like')
+    def like_comment(self, request, pk):
+        comment = self.get_object()
+        like, created = LikeComment.objects.get_or_create(user= request.user, comment=comment)
+        if not created:
+            like.active = not like.active
+        like.save()
+        return Response(serializers.CommentSerializer(comment, context= {'request': request}).data)
+    
+    @action(methods=['POST'], detail=True, url_path='reply')
+    def reply_comment(self, request, pk):
+        parent = self.get_object()
+        data = {
+            'post': parent.post.id,
+            'user': request.user.username,
+            'content': request.data.get('content'),
+            'parent': parent.id
+        }
+        
+        serializer_class = serializers.CommentSerializer(data, context={'request':request}).is_valid(raise_exception=True)
+        serializer_class.save()
+        return Response(serializer_class.data, status=status.HTTP_201_CREATED)
+        
+    
+        
+
 

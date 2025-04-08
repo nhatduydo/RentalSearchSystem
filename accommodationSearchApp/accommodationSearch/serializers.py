@@ -1,5 +1,5 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
-from accommodationSearch.models import User, Admin, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
+from accommodationSearch.models import User, LikeComment, Admin, Landlord, Tenant, Motel, Room, Amenity, RoomTenant, MotelRating, Payment, Notifications, MotelImage, RoomImage, Post, Comment, Favorite, Follow
 from rest_framework import serializers
 
 
@@ -38,10 +38,10 @@ class UserSerializer(ModelSerializer):
        return u
 
 
-class AdminSerializer(ItemSerializer):
-    class Meta:
-        model = Admin
-        fields = '__all__'
+# class AdminSerializer(ItemSerializer):
+#     class Meta:
+#         model = Admin
+#         fields = '__all__'
 
 class LandlordSerializer(ItemSerializer):
     class Meta:
@@ -65,3 +65,27 @@ class RoomSerializer(ItemSerializer):
         fields = ['id', 'motel', 'room_name', 'description', 'area', 'price', 'max_people', 'tenants', 'amenities', 'is_verified']
         
         
+class CommentSerializer(ItemSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['user'] = UserSerializer(instance.user).data
+        return data
+    
+    def get_replies(self, comment):
+        child_comments = comment.replies.filter(active=True)
+        return CommentSerializer(child_comments, many=True, context=self.context)
+    
+    def get_liked(self, comment):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return LikeComment.object.filter(comment=comment, user=request.user, active=True).exists()
+        
+    
+    class Meta:
+        model = Comment
+        fields = ['id', 'post', 'user', 'content', 'parent', 'created_date', 'replies']
+        extra_kwargs = {
+            'post': {'write_only': True},
+            'parent': {'write_only': True}
+        }
+    

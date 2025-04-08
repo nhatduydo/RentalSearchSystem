@@ -331,8 +331,7 @@ class Comment(ActiveModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = RichTextField()
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
-    
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,  related_name='replies')
     def __str__(self):
         return self.post.title
     
