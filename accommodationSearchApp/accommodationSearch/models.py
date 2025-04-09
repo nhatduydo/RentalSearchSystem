@@ -100,7 +100,7 @@ class InformationUserModel(SlugModel):
     class Meta:
         abstract = True
 
-#1 đã admin, đã serializer
+#1 đã admin, đã serializer, đã API
 class User(AbstractUser):
     id = models.AutoField(primary_key=True)
     role = models.CharField(max_length=20, choices=UserRole.choices)
@@ -119,14 +119,14 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
     
-#2 chưa biết có phải cho qua trang admin không
+#2 chưa biết có phải cho qua trang admin không, quyết định không cho qua
 class Admin(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     
     def email(self):
         return self.user.email
   
- #3  đã admin, đã qua serializer
+ #3  đã admin, đã serializer, đã API
 class Landlord(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     is_verified = models.BooleanField(default=False)
@@ -141,7 +141,7 @@ class Landlord(InformationUserModel):
         verbose_name = "Chủ nhà trọ"
         verbose_name_plural = "Chủ nhà trọ"
 
-#4  đã admin, đang qua serializer
+#4  đã admin, đã serializer, đã API
 class Tenant(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name="tenant_profile")
     rooms = models.ManyToManyField('Room', through='RoomTenant', related_name='roomer')
@@ -156,7 +156,7 @@ class Tenant(InformationUserModel):
         verbose_name = "Người thuê trọ"
         verbose_name_plural = "Người thuê trọ"
 
-#5 đã admin, đã serializer
+#5 đã admin, đã serializer, đã API
 class Motel(SlugModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='motels')
@@ -189,12 +189,11 @@ class Motel(SlugModel):
         verbose_name = "Nhà trọ"
         verbose_name_plural = "Nhà trọ"
         
- #6 đã admin, đã seralizer
+ #6 đã admin, đã seralizer, đã API
 class Room(SlugModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='rooms')
     room_name = models.CharField(max_length=255)
-    # slug = AutoSlugField(populate_from = 'room_name', unique=True, null = True)
     slug_source = "room_name"
     description = models.TextField()
     area = models.FloatField()
@@ -300,7 +299,7 @@ class Favorite(BaseModel):
     def __str__(self):
         return f"{self.user.username} favorite {self.motel.motel_name}"
 
-#13 chưa admin
+#13 đã admin
 class Post(SlugModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -325,7 +324,7 @@ class Post(SlugModel):
     def __str__(self):
         return self.title
  
-#14 chưa admin
+#14 đã admin, đã serializer, đã API
 class Comment(ActiveModel):
     id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
@@ -339,7 +338,7 @@ class Comment(ActiveModel):
         verbose_name = "Bình Luận"
         verbose_name_plural = "Bình luận"   
         
-#15 chưa admin
+#15 đã admin
 class LikeComment(ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users')
@@ -354,7 +353,7 @@ class LikeComment(ActiveModel):
         verbose_name_plural = "Like bình luận"
     
 
-#16 chưa admin
+#16 đã admin
 class LikeMotel(ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -368,7 +367,7 @@ class LikeMotel(ActiveModel):
     def __str__(self):
         return self.user.username
 
-#17 chưa admin
+#17 đã admin
 class SearchHistory(BaseModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="search_histories")
@@ -388,7 +387,7 @@ class SearchHistory(BaseModel):
         verbose_name = "Lịch sử tìm kiếm"
         verbose_name_plural = "Lịch sử tìm kiếm"
         
-#18 chưa admin
+#18 đã admin
 class Follow(BaseModel):
     id = models.AutoField(primary_key=True)
     following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
@@ -400,7 +399,7 @@ class Follow(BaseModel):
         verbose_name = "Theo dõi"
         verbose_name_plural = "Theo dõi"        
 
-#19 chưa admin
+#19 đã admin
 class Notifications(BaseModel):
     id = models.AutoField(primary_key=True)
     receiver = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -418,7 +417,7 @@ class Notifications(BaseModel):
         verbose_name = "Thông báo"
         verbose_name_plural = "Thông báo"  
     
-#20 chưa admin
+#20 đã admin
 class ChatRoom(BaseModel):
     id = models.AutoField(primary_key=True)
     user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms1")
@@ -427,7 +426,7 @@ class ChatRoom(BaseModel):
     def __str__(self):
         return f"{self.user1.username} -  {self.user2.username }"
     
-#21 chưa admin
+#21 đã admin
 class RealTimeChat(BaseModel):
     id = models.AutoField(primary_key=True)
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
