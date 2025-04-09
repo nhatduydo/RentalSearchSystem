@@ -73,13 +73,19 @@ class CommentSerializer(ItemSerializer):
     
     def get_replies(self, comment):
         child_comments = comment.replies.filter(active=True)
-        return CommentSerializer(child_comments, many=True, context=self.context)
+        return CommentSerializer(child_comments, many=True, context=self.context).data
     
     def get_liked(self, comment):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return LikeComment.object.filter(comment=comment, user=request.user, active=True).exists()
-        
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['user'] = UserSerializer(instance.user).data
+        data['like'] = self.get_liked(instance)
+        data['replies'] = self.get_replies(instance)
+        return data
     
     class Meta:
         model = Comment
@@ -88,4 +94,5 @@ class CommentSerializer(ItemSerializer):
             'post': {'write_only': True},
             'parent': {'write_only': True}
         }
+    
     

@@ -227,6 +227,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
 class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateAPIView):
     queryset = Comment.objects.filter(active=True)
     permission_classes = [CommentOwner]
+    serializer_class = serializers.CommentSerializer
     
     def get_permissions(self):
         if self.action in ['create', 'like_comment', 'reply_comment']:
@@ -240,12 +241,6 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         comments = Comment.objects.filter(post_id=post_id, active=True, parent=None).select_related('user')
         return Response(serializers.CommentSerializer(comments, many=True, context={"request": request}).data)
     
-    def create(self, request):
-        data = request.copy()
-        data['user'] = request.user.id
-        serializer_class = serializers.CommentSerializer(data = data, context = {'request': request}).is_valid(raise_exception=True)
-        serializer_class.save()
-        return Response(serializer_class.data, status=status.HTTP_201_CREATED)
     
     @action(methods=['POST'], detail=True, url_path='like')
     def like_comment(self, request, pk):
@@ -266,9 +261,10 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
             'parent': parent.id
         }
         
-        serializer_class = serializers.CommentSerializer(data, context={'request':request}).is_valid(raise_exception=True)
-        serializer_class.save()
-        return Response(serializer_class.data, status=status.HTTP_201_CREATED)
+        serializer = serializers.CommentSerializer(data, context={'request':request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
         
     
         

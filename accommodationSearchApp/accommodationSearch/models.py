@@ -305,7 +305,6 @@ class Post(SlugModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_type = models.CharField(max_length=20, choices=PostType.choices)
     title = models.CharField(max_length=255)
-    # slug = AutoSlugField(populate_from = 'title', unique=True, null = True)
     slug_source = "title"
     content =RichTextField()
     desired_address = models.TextField(blank=True, null=True)
@@ -329,7 +328,7 @@ class Comment(ActiveModel):
     id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    content = RichTextField()
+    content = models.TextField(blank=True, null=True)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,  related_name='replies')
     def __str__(self):
         return self.post.title
