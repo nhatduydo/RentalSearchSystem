@@ -27,7 +27,7 @@ const Card = ({data, index, scrollX, cardWidth, activeCardIndex, navigation}) =>
         <Animated.View style={{...Homestyles.cardOverLay, opacity}} />
         <View style={Homestyles.priceTag}>
           <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>
-            ${data.price}
+            đ{data.price}
           </Text>
         </View>
         <Image source={data.image} style={Homestyles.cardImage} />

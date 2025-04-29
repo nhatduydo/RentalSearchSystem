@@ -1,45 +1,66 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, FlatList } from 'react-native';
+import dataDetailRoom from '../const/dataDetailRoom';
+import detailStyles from '../styles/detailStyles';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const DetailScreen = ({ route }) => {
-    const { room } = route.params;
+    const { id } = route.params;
+
+    const room = dataDetailRoom.find((item) => item.id === id);
+    console.log('Dữ liệu phòng:', room);
+
+    const costItems = [
+        { label: 'Điện', value: room.expense.electric, unit: 'kWh' },
+        { label: 'Nước', value: room.expense.water, unit: 'ng' },
+        { label: 'Xe', value: room.expense.cycle, unit: 'xe' },
+        { label: 'Quản lý', value: room.expense.manage, unit: 'ph' },
+        { label: 'Wifi', value: room.expense.internet, unit: 'ph' },
+        { label: 'Máy giặt', value: room.expense.wash, unit: 'ng' },
+    ];
+
 
     return (
-        <ScrollView style={styles.container}>
-            <Image source={room.image} style={styles.image} />
+        <ScrollView style={detailStyles.container}>
+            <ScrollView horizontal
+                pagingEnabled showsHorizontalScrollIndicator={true} style={detailStyles.scrollView} >
+                {room.images?.map((img, index) => (
+                    <Image key={index} source={img} style={detailStyles.carouselImage} />
+                ))}
+            </ScrollView>
 
-            <View style={styles.info}>
-                <Text style={styles.title}>{room.name}</Text>
-                <Text style={styles.price}>Giá: {room.price} triệu</Text>
-                <Text style={styles.location}>{room.location}</Text>
-                <Text style={styles.details}>{room.details}</Text>
-                <Text style={styles.total}>{room.total}</Text>
+            <View style={detailStyles.info}>
+                <Text style={detailStyles.title}>{room.name}</Text>
+                <Text style={detailStyles.price}>Giá: {room.price}</Text>
+                <Text style={detailStyles.location}>{room.location}</Text>
+                <Text style={detailStyles.details}>{room.details}</Text>
+                <Text style={detailStyles.total}>{room.total}</Text>
+
+                <View style={detailStyles.costGrid}>
+                    {costItems.map((item, index) => (
+                        <View key={index} style={detailStyles.costCell}>
+                            <Text style={detailStyles.costLabel}>{item.label}</Text>
+                            <Text style={detailStyles.costValue}>
+                                {item.value.toLocaleString()}
+                            </Text>
+                            <Text style={detailStyles.costUnit}>/{item.unit}</Text>
+                        </View>
+                    ))}
+                </View>
+
             </View>
 
-            <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>Đặt lịch xem phòng</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16 }}>
+                <TouchableOpacity style={detailStyles.button}>
+                    <Text style={detailStyles.buttonText}>Đặt lịch xem phòng</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ alignItems: 'center', marginLeft: 12 }}>
+                    <Icon name="chat" size={20} color='#007AFF'></Icon>
+                    <Text style={{ fontSize: 12, color: 'gray', marginTop: 4 }}>Chat ngay</Text>
+                </TouchableOpacity>
+            </View>
         </ScrollView>
     );
 };
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    image: { width: '100%', height: 200 },
-    info: { padding: 16 },
-    title: { fontSize: 18, fontWeight: 'bold' },
-    price: { fontSize: 16, color: 'red', marginVertical: 5 },
-    location: { fontSize: 14, marginBottom: 4 },
-    details: { fontSize: 14, marginBottom: 4 },
-    total: { fontSize: 14, color: 'gray' },
-    button: {
-        backgroundColor: '#007AFF',
-        margin: 16,
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-});
 
 export default DetailScreen;

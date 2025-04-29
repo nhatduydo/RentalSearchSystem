@@ -9,7 +9,7 @@ const ListCard = ({ room }) => {
   const navigation = useNavigation();
 
   return (
-    <TouchableOpacity onPress={() => navigation.navigate('Detail', { room })}>
+    <TouchableOpacity onPress={() => navigation.navigate('Detail', { id: room.id })}>
       <View style={[styles.card, { width: cardWidth }]}>
         <Image source={room.image} style={styles.image} />
         <View style={styles.detailsContainer}>

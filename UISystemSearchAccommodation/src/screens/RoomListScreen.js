@@ -3,8 +3,11 @@ import { SafeAreaView, View, Text, TextInput, FlatList, StyleSheet, TouchableOpa
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import dataListCate from '../const/dataListCate';
 import ListCard from '../components/ListCard';
+import { useNavigation } from '@react-navigation/native';
 
 const RoomListScreen = () => {
+    const navigation = useNavigation();
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
@@ -15,7 +18,7 @@ const RoomListScreen = () => {
 
                 <View style={styles.locationWrapper}>
                     <Text style={styles.locationText}>Khu vực: Thành phố Hồ Chí Minh</Text>
-                    <TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Filter')}>
                         <Icon name="filter-list" size={22} color="blue" />
                     </TouchableOpacity>
                 </View>
