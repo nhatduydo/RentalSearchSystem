@@ -5,7 +5,8 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-    startCommand: $HOME/.local/bin/gunicorn SystemForSearchingAccommodations.wsgi:application
+      chmod +x start.sh
+    startCommand: ./start.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
