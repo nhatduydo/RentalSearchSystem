@@ -9,6 +9,7 @@ router.register('landlords', views.LandlordViewSet, basename='landlord')
 router.register('tenants', views.TenantViewSet, basename='tenant')
 router.register('motels', views.MotelViewSet, basename='motel')
 router.register('rooms', views.RoomViewSet, basename='room')
+router.register('posts', views.PostViewSet, basename='post')
 router.register('comments', views.CommentViewSet, basename='comment')
 
 urlpatterns = [
