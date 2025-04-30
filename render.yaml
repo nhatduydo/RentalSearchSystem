@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: system-for-searching-accommodations
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn SystemForSearchingAccommodations.wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        value: system-for-searching-accommodations.onrender.com 

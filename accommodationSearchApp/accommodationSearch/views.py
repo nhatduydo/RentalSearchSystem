@@ -8,8 +8,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from unidecode import unidecode
 
-from .models import (Admin, Comment, Follow, Landlord, LikeComment, Motel,
-                     Notifications, Post, Room, Tenant, User)
+from .models import (Admin, Comment, Follow, Landlord, LikeComment, LikeMotel,
+                     Motel, MotelRating, Notifications, Post, Room, Tenant,
+                     User)
 from .permissions import IsOwnerOrReadOnly
 
 
@@ -114,6 +115,13 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     serializer_class = serializers.MotelSerializer
     pagination_class = paginators.ItemPanigator
 
+    def get_permissions(self):
+        if self.action in ['like_comment']:
+            return [IsAuthenticated()]
+        elif self.action in ['update', 'destroy']:
+            return [IsOwnerOrReadOnly()]
+        return [AllowAny()]
+
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             motel = get_object_or_404(Motel, id=pk)
@@ -123,6 +131,33 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         serializers = self.get_serializer(motel)
         return Response(serializers.data)
 
+    # like (thích) một khách sạn
+    @action(methods=['POST'], detail=True, url_path='like')
+    def like_motel(self, request, pk):
+        motel = self.get_object()
+        like, created = LikeMotel.objects.get_or_create(user=request.user, motel=motel)
+        if not created:
+            like.active = not like.active
+        like.save()
+        return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
+
+
+class MotelRatingViewSet(viewsets.ModelViewSet):
+    queryset = MotelRating.objects.filter(active=True)
+    serializer_class = serializers.MotelRatingSerializer
+    pagination_class = paginators.ItemPanigator
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        queryset = self.queryset
+        motel_id = self.request.query_params.get('motel_id')
+        if motel_id:
+            queryset = queryset.filter(motel_id=motel_id)
+        return queryset.select_related('user', 'motel')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        
 
 class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Room.objects.filter(active=True)
@@ -161,6 +196,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Landlord.objects.filter(active=True)
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def retrieve(self, request, pk=None):
         if pk.isdigit():
@@ -194,6 +230,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
     queryset = Tenant.objects.filter(active=True)
     serializer_class = serializers.TenantSerializer
     pagination_class = paginators.ItemPanigator
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def retrieve(self, request, pk=None):
         if pk.isdigit():
@@ -261,6 +298,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
     queryset = Comment.objects.filter(active=True)
     permission_classes = [IsOwnerOrReadOnly]
     serializer_class = serializers.CommentSerializer
+    pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
         if self.action in ['create', 'like_comment', 'reply_comment']:
@@ -304,7 +342,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         serializer = serializers.CommentSerializer(replies, many=True, context={'request': request})
         return Response(serializer.data)
 
-    # Phương thức này thực hiện thao tác like (thích) cho một bình luận.
+    # like (thích) cho một bình luận.
     @action(methods=['POST'], detail=True, url_path='like')
     def like_comment(self, request, pk):
         comment = self.get_object()
@@ -314,7 +352,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         like.save()
         return Response(serializers.CommentSerializer(comment, context={'request': request}).data)
 
-    # Phương thức này cho phép người dùng trả lời một bình luận.
+    # trả lời một bình luận.
     @action(methods=['POST'], detail=True, url_path='reply')
     def reply_comment(self, request, pk):
         parent = self.get_object()

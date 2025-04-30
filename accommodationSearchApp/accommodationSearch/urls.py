@@ -11,6 +11,7 @@ router.register('motels', views.MotelViewSet, basename='motel')
 router.register('rooms', views.RoomViewSet, basename='room')
 router.register('posts', views.PostViewSet, basename='post')
 router.register('comments', views.CommentViewSet, basename='comment')
+router.register('motelRatings', views.MotelRatingViewSet, basename='motelRating')
 
 urlpatterns = [
      # path('', views.index, name="index")

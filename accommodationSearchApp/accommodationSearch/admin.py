@@ -127,8 +127,8 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 class MotelRatingAdmin(admin.ModelAdmin):
-    list_display = ['motel', 'tenant', 'rating', 'comment']
-    search_fields = ['motel', 'tenant',  'created_date']
+    list_display = ['motel', 'user', 'rating', 'comment']
+    search_fields = ['motel', 'user',  'created_date']
     list_filter = ['rating',  'created_date']
 
 

@@ -311,13 +311,14 @@ class RoomTenant(BaseModel):
 class MotelRating(ActiveModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='ratings')
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ratings')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ratings', null=True, blank=True)
     rating = models.IntegerField()
     comment = models.TextField()
 
     class Meta:
         verbose_name = 'Đánh giá'
         verbose_name_plural = 'Đánh giá'
+        unique_together = ['motel', 'user']
 
 # 12 chưa admin
 

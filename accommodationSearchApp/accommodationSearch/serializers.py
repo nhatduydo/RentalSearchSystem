@@ -1,8 +1,9 @@
 from accommodationSearch.models import (Admin, Amenity, Comment, Favorite,
-                                        Follow, Landlord, LikeComment, Motel,
-                                        MotelImage, MotelRating, Notifications,
-                                        Payment, Post, Room, RoomImage,
-                                        RoomTenant, Tenant, User)
+                                        Follow, Landlord, LikeComment,
+                                        LikeMotel, Motel, MotelImage,
+                                        MotelRating, Notifications, Payment,
+                                        Post, Room, RoomImage, RoomTenant,
+                                        Tenant, User)
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -70,10 +71,40 @@ class TenantSerializer(ItemSerializer):
 
 
 class MotelSerializer(ItemSerializer):
+    def get_liked(self, motel):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return LikeMotel.objects.filter(motel=motel, user=request.user, active=True).exists()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['user'] = UserSerializer(instance.user).data
+        data['like'] = self.get_liked(instance)
+        return data
+
     class Meta:
         model = Motel
         fields = ['id', 'user', 'motel_name', 'description', 'address', 'district', 'city', 'province', 'longitude', 'latitude', 'total_rooms', 'available_rooms', 'rating_score', 'is_verified']
 
+
+class MotelRatingSerializer(ItemSerializer):
+    class Meta:
+        model = MotelRating
+        fields = ['id', 'motel', 'user', 'rating', 'comment', 'created_date']
+        read_only_fields = ['id', 'created_date']
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5")
+        return value
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['user'] = UserSerializer(instance.user).data
+        data['motel'] = MotelSerializer(instance.motel).data
+        return data
+
+    
 
 class RoomSerializer(ItemSerializer):
     class Meta:
@@ -117,12 +148,8 @@ class PostDetailSerializer(serializers.ModelSerializer):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
 
-class CommentSerializer(ItemSerializer):
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['user'] = UserSerializer(instance.user).data
-        return data
 
+class CommentSerializer(ItemSerializer):
     def get_replies(self, comment):
         child_comments = comment.replies.filter(active=True)
         return CommentSerializer(child_comments, many=True, context=self.context).data
