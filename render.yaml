@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: system-for-searching-accommodations
+    name: FindAccommodation
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn SystemForSearchingAccommodations.wsgi:application
@@ -8,8 +8,8 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SECRET_KEY
-        generateValue: true
+        value: "django-insecure-83fly(by7c4z()nq*&ris453kd*f3+1#o8n_e50=k=ei7u+7&&"
       - key: DEBUG
         value: False
       - key: ALLOWED_HOSTS
-        value: system-for-searching-accommodations.onrender.com 
+        value: findaccommodation.onrender.com 
