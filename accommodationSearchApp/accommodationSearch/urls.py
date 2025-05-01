@@ -13,11 +13,9 @@ router.register('rooms', views.RoomViewSet, basename='room')
 router.register('posts', views.PostViewSet, basename='post')
 router.register('comments', views.CommentViewSet, basename='comment')
 router.register('motelRatings', views.MotelRatingViewSet, basename='motelRating')
+router.register('vnpay', views.VNPayViewSet, basename='vnpay')
 
 urlpatterns = [
     # path('', views.index, name="index")
     path('', include(router.urls)),
-    # VNPay API endpoints
-    path('payment/create/', views.create_payment, name='create-payment'),
-    path('payment/return/', views.payment_return, name='payment-return'),
 ]
