@@ -3,6 +3,7 @@ from datetime import datetime
 from accommodationSearch import paginators, serializers
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.db.models import OuterRef, Q, Subquery
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -39,11 +40,13 @@ class UserViewSet(viewsets.ViewSet,
     pagination_class = paginators.ItemPanigator
     arser_classes = [parsers.MultiPartParser, ]
 
+    # Kiểm tra và trả về quyền truy cập cho các action
     def get_permissions(self):
         if self.action in ['create', 'login']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
+    # Tạo người dùng mới với vai trò chủ nhà hoặc người thuê
     def create(self, request, *args, **kwargs):
         role = request.data.get('role')
         if role == "LANDLORD":
@@ -63,6 +66,7 @@ class UserViewSet(viewsets.ViewSet,
 
         return super().create(request, *args, **kwargs)
 
+    # Lấy hoặc cập nhật thông tin người dùng hiện tại
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
     def get_Current_user(self, request):
         if request.method.__eq__("PATCH"):
@@ -77,6 +81,7 @@ class UserViewSet(viewsets.ViewSet,
             return Response(serializers.UserSerializer(user).data)
         return Response(serializers.UserSerializer(request.user).data)
 
+    # Xác thực đăng nhập người dùng
     @action(methods=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
     def login(self, request):
         username = request.data.get("username")
@@ -90,6 +95,7 @@ class UserViewSet(viewsets.ViewSet,
                 return Response({"error": "user is inactive"}, status=403)
         return Response({"error": "Thông tin đăng nhập không hợp lệ"}, status=401)
 
+    # Thay đổi mật khẩu người dùng
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
     def change_password(self, request):
         old_password = request.data.get("old_password")
@@ -106,6 +112,7 @@ class UserViewSet(viewsets.ViewSet,
         request.user.save()
         return Response({"success": "Thay đổi mật khẩu thành công"})
 
+    # Lấy thông tin chi tiết người dùng theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             username = get_object_or_404(User, id=pk)
@@ -121,6 +128,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     serializer_class = serializers.MotelSerializer
     pagination_class = paginators.ItemPanigator
 
+    # Kiểm tra và trả về quyền truy cập cho các action
     def get_permissions(self):
         if self.action in ['like_comment']:
             return [IsAuthenticated()]
@@ -128,6 +136,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             return [IsOwnerOrReadOnly()]
         return [AllowAny()]
 
+    # Lấy thông tin chi tiết nhà trọ theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             motel = get_object_or_404(Motel, id=pk)
@@ -154,6 +163,7 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    # Lấy danh sách đánh giá theo ID nhà trọ
     def get_queryset(self):
         queryset = self.queryset
         motel_id = self.request.query_params.get('motel_id')
@@ -161,6 +171,7 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(motel_id=motel_id)
         return queryset.select_related('user', 'motel')
 
+    # Tạo đánh giá mới và gán người dùng hiện tại
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
@@ -170,6 +181,7 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     serializer_class = serializers.RoomSerializer
     pagination_class = paginators.ItemPanigator
 
+    # Lấy thông tin chi tiết phòng theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             room = get_object_or_404(Room, id=pk)
@@ -179,6 +191,7 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         serializers = self.get_serializer(room)
         return Response(serializers.data)
 
+    # Lấy danh sách phòng với các điều kiện tìm kiếm
     def get_queryset(self):
         query = self.queryset
 
@@ -204,6 +217,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    # Lấy thông tin chi tiết chủ nhà theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             landlord = get_object_or_404(Landlord, user_id=pk)
@@ -213,6 +227,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
         serializers = self.get_serializer(landlord)
         return Response(serializers.data)
 
+    # Lấy danh sách chủ nhà với các điều kiện tìm kiếm
     def get_queryset(self):
         query = self.queryset
 
@@ -238,6 +253,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    # Lấy thông tin chi tiết người thuê theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             tenant = get_object_or_404(Tenant, user_id=pk)
@@ -247,6 +263,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
         serializers = self.get_serializer(tenant)
         return Response(serializers.data)
 
+    # Lấy danh sách người thuê với các điều kiện tìm kiếm
     def get_queryset(self):
         query = self.queryset
 
@@ -376,6 +393,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
 
 class VNPayViewSet(viewsets.ViewSet):
+    # Lấy địa chỉ IP của client gửi request
     def get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
@@ -384,6 +402,7 @@ class VNPayViewSet(viewsets.ViewSet):
             ip = request.META.get('REMOTE_ADDR')
         return ip
 
+    # Tạo URL thanh toán VNPay và trả về cho client
     @action(detail=False, methods=['post'])
     def create_payment(self, request):
         try:
@@ -430,6 +449,7 @@ class VNPayViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Xử lý kết quả thanh toán từ VNPay và trả về trạng thái giao dịch
     @action(detail=False, methods=['get'])
     def payment_return(self, request):
         inputData = request.GET
@@ -491,3 +511,63 @@ class VNPayViewSet(viewsets.ViewSet):
                 "status": "error",
                 "message": "Không có dữ liệu"
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SearchViewSet(viewsets.ViewSet):
+    # Tìm kiếm theo nhiều tiêu chí
+    def list(self, request):
+        # Tìm theo từ khóa
+        search_query = request.query_params.get('q')
+        if search_query:
+            motels = Motel.objects.filter(
+                Q(motel_name__icontains=search_query) |
+                Q(description__icontains=search_query)
+            )
+        else:
+            motels = Motel.objects.all()
+
+        # Tìm theo địa điểm
+        district = request.query_params.get('district')
+        if district:
+            motels = motels.filter(district__icontains=district)
+
+        city = request.query_params.get('city')
+        if city:
+            motels = motels.filter(city__icontains=city)
+
+        province = request.query_params.get('province')
+        if province:
+            motels = motels.filter(province__icontains=province)
+
+        # Tìm theo giá phòng (từ Post)
+        min_price = request.query_params.get('min_price')
+        max_price = request.query_params.get('max_price')
+        if min_price or max_price:
+            post_query = Post.objects.filter(motel=OuterRef('pk'))
+            if min_price:
+                post_query = post_query.filter(min_price__gte=min_price)
+            if max_price:
+                post_query = post_query.filter(max_price__lte=max_price)
+            motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
+
+        # Tìm theo số người (từ Room)
+        max_people = request.query_params.get('max_people')
+        if max_people:
+            room_query = Room.objects.filter(
+                motel=OuterRef('pk'),
+                max_people__lte=max_people
+            )
+            motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
+
+        # Tìm theo trạng thái phòng (từ Room)
+        status = request.query_params.get('status')
+        if status is not None:
+            room_query = Room.objects.filter(
+                motel=OuterRef('pk'),
+                is_available=status.lower() == 'true'
+            )
+            motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
+
+        # Serialize và trả về kết quả
+        serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
+        return Response(serializer.data)
