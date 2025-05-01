@@ -6,7 +6,7 @@ services:
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       chmod +x start.sh
-    startCommand: ./start.sh
+    startCommand: cd ./accommodationSearchApp/ && python manage.py runserver 127.0.0.1:8000
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
