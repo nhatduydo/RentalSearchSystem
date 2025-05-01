@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from accommodationSearch import paginators, serializers
@@ -9,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from unidecode import unidecode
@@ -16,9 +18,12 @@ from unidecode import unidecode
 from .forms import PaymentForm
 from .models import (Admin, Comment, Follow, Landlord, LikeComment, LikeMotel,
                      Motel, MotelRating, Notifications, Payment, PaymentStatus,
-                     Post, Room, Tenant, User)
+                     Post, Room, SearchHistory, Tenant, User)
 from .permissions import IsOwnerOrReadOnly
+from .utils import calculate_distance
 from .vnpay import vnpay
+
+logger = logging.getLogger(__name__)
 
 
 def index(request):
@@ -403,7 +408,7 @@ class VNPayViewSet(viewsets.ViewSet):
         return ip
 
     # Tạo URL thanh toán VNPay và trả về cho client
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='create')
     def create_payment(self, request):
         try:
             # Get data from request
@@ -450,7 +455,7 @@ class VNPayViewSet(viewsets.ViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     # Xử lý kết quả thanh toán từ VNPay và trả về trạng thái giao dịch
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='return')
     def payment_return(self, request):
         inputData = request.GET
         if inputData:
@@ -559,15 +564,105 @@ class SearchViewSet(viewsets.ViewSet):
             )
             motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
 
-        # Tìm theo trạng thái phòng (từ Room)
-        status = request.query_params.get('status')
-        if status is not None:
-            room_query = Room.objects.filter(
-                motel=OuterRef('pk'),
-                is_available=status.lower() == 'true'
-            )
-            motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
-
         # Serialize và trả về kết quả
         serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='nearby')
+    def nearby(self, request):
+        """
+        API tìm kiếm nhà trọ xung quanh một vị trí
+        Query Parameters:
+        - latitude: Vĩ độ (float)
+        - longitude: Kinh độ (float)
+        - radius: Bán kính tìm kiếm tính bằng km (float)
+        """
+        try:
+            # Lấy các tham số từ request
+            latitude = float(request.query_params.get('latitude'))
+            longitude = float(request.query_params.get('longitude'))
+            radius = float(request.query_params.get('radius', 5))  # Mặc định 5km nếu không có radius
+
+            # Kiểm tra giá trị hợp lệ
+            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                return Response(
+                    {"error": "Tọa độ không hợp lệ"},
+                    status=400
+                )
+
+            # Lấy tất cả nhà trọ có tọa độ
+            motels = Motel.objects.filter(
+                active=True,
+                latitude__isnull=False,
+                longitude__isnull=False
+            )
+
+            # Lọc nhà trọ trong bán kính
+            nearby_motels = []
+            for motel in motels:
+                distance = calculate_distance(
+                    latitude,
+                    longitude,
+                    motel.latitude,
+                    motel.longitude
+                )
+                if distance <= radius:
+                    motel.distance = distance  # Thêm khoảng cách vào object
+                    nearby_motels.append(motel)
+
+            # Sắp xếp theo khoảng cách
+            nearby_motels.sort(key=lambda x: x.distance)
+
+            # Phân trang
+            paginator = PageNumberPagination()
+            paginator.page_size = 10
+            paginator.page_size_query_param = 'page_size'
+            paginator.max_page_size = 100
+            result_page = paginator.paginate_queryset(nearby_motels, request)
+
+            # Serialize kết quả
+            serializer = serializers.MotelSerializer(result_page, many=True, context={'request': request})
+
+            # Thêm khoảng cách vào kết quả
+            response_data = serializer.data
+            for i, motel in enumerate(result_page):
+                response_data[i]['distance'] = round(motel.distance, 2)
+
+            logger.info(f"Tìm kiếm nhà trọ gần vị trí: {latitude}, {longitude}")
+            return paginator.get_paginated_response(response_data)
+
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Tham số không hợp lệ"},
+                status=400
+            )
+        except Exception as e:
+            logger.error(f"Lỗi khi tìm kiếm nhà trọ: {str(e)}")
+            return Response(
+                {"error": "Có lỗi xảy ra khi tìm kiếm"},
+                status=500
+            )
+
+
+class SearchHistoryViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.SearchHistorySerializer
+    permission_classes = [permissions.IsAuthenticated] 
+    pagination_class = paginators.ItemPanigator
+    
+    def get_queryset(self):
+        # Chỉ lấy lịch sử tìm kiếm của user hiện tại
+        return SearchHistory.objects.filter(
+            user=self.request.user,
+            active=True
+        ).order_by('-created_date')
+
+    def perform_create(self, serializer):
+        # Tự động gán user khi tạo mới
+        serializer.save(user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        # Xóa mềm - chỉ set active=False
+        instance = self.get_object()
+        instance.active = False
+        instance.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -3,7 +3,7 @@ from accommodationSearch.models import (Admin, Amenity, Comment, Favorite,
                                         LikeMotel, Motel, MotelImage,
                                         MotelRating, Notifications, Payment,
                                         Post, Room, RoomImage, RoomTenant,
-                                        Tenant, User)
+                                        SearchHistory, Tenant, User)
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -104,7 +104,6 @@ class MotelRatingSerializer(ItemSerializer):
         data['motel'] = MotelSerializer(instance.motel).data
         return data
 
-    
 
 class RoomSerializer(ItemSerializer):
     class Meta:
@@ -175,3 +174,10 @@ class CommentSerializer(ItemSerializer):
             'post': {'write_only': True},
             'parent': {'write_only': True}
         }
+
+
+class SearchHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SearchHistory
+        fields = ['id', 'search_params', 'created_date']
+        read_only_fields = ['user', 'created_date']

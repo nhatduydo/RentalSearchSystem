@@ -16,9 +16,9 @@ router.register('comments', views.CommentViewSet, basename='comment')
 router.register('motelRatings', views.MotelRatingViewSet, basename='motelRating')
 router.register('vnpay', views.VNPayViewSet, basename='vnpay')
 router.register('searchs', views.SearchViewSet, basename='search')
+router.register('search-historys', views.SearchHistoryViewSet, basename='search-history')
 
 urlpatterns = [
     # path('', views.index, name="index")
-    path('', include(router.urls)),
-    path('admin/', admin.site.urls),
+    path('', include(router.urls))
 ]

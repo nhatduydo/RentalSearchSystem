@@ -163,13 +163,13 @@ CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
 
 # Base URL for the application
-BASE_URL = 'https://dc22-2001-ee0-54f6-8f10-8d01-9d7e-a7fc-3ea8.ngrok-free.app'  # Update this when ngrok URL changes
+BASE_URL = 'https://4a9f-2001-ee0-54f6-8f10-11a6-ab5d-bef3-c139.ngrok-free.app'  # Update this when ngrok URL changes
 
 # VNPay settings
 VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website
 VNPAY_HASH_SECRET = 'PKRAT3EZUB2AXAW8A1V62R9FE837B0EY'  # Secret Key
 VNPAY_PAYMENT_URL = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'  # URL thanh toán môi trường TEST
-VNPAY_RETURN_URL = f'{BASE_URL}/vnpay/payment_return/'  # URL nhận kết quả thanh toán
+VNPAY_RETURN_URL = f'{BASE_URL}/vnpay/return/'  # URL nhận kết quả thanh toán
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
