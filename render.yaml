@@ -5,7 +5,8 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python accommodationSearchApp/manage.py collectstatic --noinput
-    startCommand: python accommodationSearchApp/manage.py runserver 0.0.0.0:$PORT
+      chmod +x start.sh
+    startCommand: ./start.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
