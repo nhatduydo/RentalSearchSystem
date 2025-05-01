@@ -4,8 +4,8 @@ services:
     env: python
     buildCommand: |
       pip install -r requirements.txt
-      python manage.py collectstatic --noinput
-    startCommand: python manage.py runserver 0.0.0.0:$PORT
+      python accommodationSearchApp/manage.py collectstatic --noinput
+    startCommand: python accommodationSearchApp/manage.py runserver 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
