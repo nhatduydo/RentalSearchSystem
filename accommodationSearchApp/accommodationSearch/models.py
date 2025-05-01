@@ -502,6 +502,14 @@ class Payment(ActiveModel):
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     status = models.CharField(max_length=20, choices=PaymentStatus.choices)
     description = models.TextField(null=True, blank=True)
+    # VNPay specific fields
+    vnp_transaction_no = models.CharField(max_length=15, null=True, blank=True)
+    vnp_bank_code = models.CharField(max_length=20, null=True, blank=True)
+    vnp_bank_tran_no = models.CharField(max_length=255, null=True, blank=True)
+    vnp_card_type = models.CharField(max_length=20, null=True, blank=True)
+    vnp_pay_date = models.DateTimeField(null=True, blank=True)
+    vnp_response_code = models.CharField(max_length=2, null=True, blank=True)
+    vnp_txn_ref = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         verbose_name = "Thanh toán"

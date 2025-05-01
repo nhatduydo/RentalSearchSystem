@@ -1,6 +1,7 @@
-from django.urls import path, include
-from . import views
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+
+from . import views
 
 router = DefaultRouter()
 # router.register('admins', views.AdminViewSet, basename='admin')
@@ -14,7 +15,9 @@ router.register('comments', views.CommentViewSet, basename='comment')
 router.register('motelRatings', views.MotelRatingViewSet, basename='motelRating')
 
 urlpatterns = [
-     # path('', views.index, name="index")
-     path('', include(router.urls)),
+    # path('', views.index, name="index")
+    path('', include(router.urls)),
+    # VNPay API endpoints
+    path('payment/create/', views.create_payment, name='create-payment'),
+    path('payment/return/', views.payment_return, name='payment-return'),
 ]
-

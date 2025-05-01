@@ -1,14 +1,15 @@
+import os
 from pathlib import Path
-import pymysql
+
 import cloudinary
 import cloudinary.uploader
-import os
+import pymysql
 
-# Configuration       
-cloudinary.config( 
-    cloud_name = "devtqlbho", 
-    api_key = "654785974366212", 
-    api_secret = "yBPftN_K0QlSh0mAUyCZ-ewTxUY",
+# Configuration
+cloudinary.config(
+    cloud_name="devtqlbho",
+    api_key="654785974366212",
+    api_secret="yBPftN_K0QlSh0mAUyCZ-ewTxUY",
     secure=True
 )
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
     'oauth2_provider',
+    'corsheaders',
     # 'accommodationSearch',
 
 ]
@@ -58,6 +60,7 @@ CKEDITOR_UPLOAD_PATH = "ckeditors/images/"
 AUTH_USER_MODEL = 'accommodationSearch.User'
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -93,11 +96,11 @@ WSGI_APPLICATION = 'accommodationSearchApp.wsgi.application'
 
 DATABASES = {
     'default': {
-    'ENGINE': 'django.db.backends.mysql',
-    'NAME': 'rentalmanagementdb',
-    'USER': 'root',
-    'PASSWORD': 'Admin@123',
-    'HOST': ''
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'rentalmanagementdb',
+        'USER': 'root',
+        'PASSWORD': 'Admin@123',
+        'HOST': ''
     }
 }
 
@@ -122,7 +125,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 pymysql.install_as_MySQLdb()
 
-OAUTH2_PROVIDER = { 'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore' }
+OAUTH2_PROVIDER = {'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore'}
 
 ROOT_URLCONF = "accommodationSearchApp.urls"
 
@@ -155,6 +158,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CLIENT_ID = "5ZSVyx7Z9CzRooRyodvOxyMnL5gVHt16UqBiwh7y"
 CLIENT_SECRET = "vxFust8TqAfft0AOPzK5R9Igc2WVpysm18wKX6AWgJidk5o9Eii2cmdhEvaeglbOBeAStBrI0RCl1YhM3QstIrmYrCsh189IIr79B0595eA3PJYWMWUnNpmdDKmuuHUa"
 
-#duy
+# duy
 CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
+
+# VNPay settings
+VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website
+VNPAY_HASH_SECRET = 'PKRAT3EZUB2AXAW8A1V62R9FE837B0EY'  # Secret Key
+VNPAY_PAYMENT_URL = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'  # URL thanh toán môi trường TEST
+VNPAY_RETURN_URL = 'https://dc22-2001-ee0-54f6-8f10-8d01-9d7e-a7fc-3ea8.ngrok-free.app/payment/return/'  # URL nhận kết quả thanh toán
+
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://sandbox.vnpayment.vn",
+]

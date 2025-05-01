@@ -1,17 +1,23 @@
+from datetime import datetime
+
 from accommodationSearch import paginators, serializers
+from django.conf import settings
 from django.contrib.auth import authenticate
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, parsers, permissions, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from unidecode import unidecode
 
+from .forms import PaymentForm
 from .models import (Admin, Comment, Follow, Landlord, LikeComment, LikeMotel,
-                     Motel, MotelRating, Notifications, Post, Room, Tenant,
-                     User)
+                     Motel, MotelRating, Notifications, Payment, PaymentStatus,
+                     Post, Room, Tenant, User)
 from .permissions import IsOwnerOrReadOnly
+from .vnpay import vnpay
 
 
 def index(request):
@@ -157,7 +163,7 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-        
+
 
 class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Room.objects.filter(active=True)
@@ -367,3 +373,163 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+def get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
+def payment(request):
+    if request.method == 'POST':
+        form = PaymentForm(request.POST)
+        if form.is_valid():
+            order_type = form.cleaned_data['order_type']
+            order_id = form.cleaned_data['order_id']
+            amount = form.cleaned_data['amount']
+            order_desc = form.cleaned_data['order_desc']
+            bank_code = form.cleaned_data['bank_code']
+            language = form.cleaned_data['language']
+            ipaddr = get_client_ip(request)
+
+            vnp = vnpay()
+            vnp.requestData['vnp_Version'] = '2.1.0'
+            vnp.requestData['vnp_Command'] = 'pay'
+            vnp.requestData['vnp_TmnCode'] = settings.VNPAY_TMN_CODE
+            vnp.requestData['vnp_Amount'] = amount * 100
+            vnp.requestData['vnp_CurrCode'] = 'VND'
+            vnp.requestData['vnp_TxnRef'] = order_id
+            vnp.requestData['vnp_OrderInfo'] = order_desc
+            vnp.requestData['vnp_OrderType'] = order_type
+
+            if language and language != '':
+                vnp.requestData['vnp_Locale'] = language
+            else:
+                vnp.requestData['vnp_Locale'] = 'vn'
+
+            if bank_code and bank_code != "":
+                vnp.requestData['vnp_BankCode'] = bank_code
+
+            vnp.requestData['vnp_CreateDate'] = datetime.now().strftime('%Y%m%d%H%M%S')
+            vnp.requestData['vnp_IpAddr'] = ipaddr
+            vnp.requestData['vnp_ReturnUrl'] = settings.VNPAY_RETURN_URL
+            vnpay_payment_url = vnp.get_payment_url(settings.VNPAY_PAYMENT_URL, settings.VNPAY_HASH_SECRET)
+            return redirect(vnpay_payment_url)
+        else:
+            print("Form input not validate")
+    else:
+        return render(request, "payment.html", {"title": "Thanh toán"})
+
+
+@api_view(['POST'])
+def create_payment(request):
+    try:
+        # Get data from request
+        data = request.data
+        order_id = data.get('order_id')
+        amount = data.get('amount')
+        order_desc = data.get('order_desc', 'Thanh toan don hang')
+        order_type = data.get('order_type', 'other')
+        bank_code = data.get('bank_code', '')
+        language = data.get('language', 'vn')
+
+        # Get client IP
+        ipaddr = get_client_ip(request)
+
+        # Initialize VNPay
+        vnp = vnpay()
+        vnp.requestData['vnp_Version'] = '2.1.0'
+        vnp.requestData['vnp_Command'] = 'pay'
+        vnp.requestData['vnp_TmnCode'] = settings.VNPAY_TMN_CODE
+        vnp.requestData['vnp_Amount'] = amount * 100
+        vnp.requestData['vnp_CurrCode'] = 'VND'
+        vnp.requestData['vnp_TxnRef'] = order_id
+        vnp.requestData['vnp_OrderInfo'] = order_desc
+        vnp.requestData['vnp_OrderType'] = order_type
+        vnp.requestData['vnp_Locale'] = language
+
+        if bank_code:
+            vnp.requestData['vnp_BankCode'] = bank_code
+
+        vnp.requestData['vnp_CreateDate'] = datetime.now().strftime('%Y%m%d%H%M%S')
+        vnp.requestData['vnp_IpAddr'] = ipaddr
+        vnp.requestData['vnp_ReturnUrl'] = settings.VNPAY_RETURN_URL
+
+        # Get payment URL
+        vnpay_payment_url = vnp.get_payment_url(settings.VNPAY_PAYMENT_URL, settings.VNPAY_HASH_SECRET)
+
+        return Response({
+            'payment_url': vnpay_payment_url,
+            'order_id': order_id,
+            'amount': amount
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def payment_return(request):
+    inputData = request.GET
+    if inputData:
+        vnp = vnpay()
+        vnp.responseData = inputData.dict()
+        order_id = inputData['vnp_TxnRef']
+        amount = int(inputData['vnp_Amount']) / 100
+        order_desc = inputData['vnp_OrderInfo']
+        vnp_TransactionNo = inputData['vnp_TransactionNo']
+        vnp_ResponseCode = inputData['vnp_ResponseCode']
+        vnp_TmnCode = inputData['vnp_TmnCode']
+        vnp_PayDate = inputData['vnp_PayDate']
+        vnp_BankCode = inputData['vnp_BankCode']
+        vnp_CardType = inputData['vnp_CardType']
+
+        if vnp.validate_response(settings.VNPAY_HASH_SECRET):
+            if vnp_ResponseCode == "00":
+                return Response({
+                    "status": "success",
+                    "message": "Thanh toán thành công",
+                    "data": {
+                        "order_id": order_id,
+                        "amount": amount,
+                        "order_desc": order_desc,
+                        "vnp_TransactionNo": vnp_TransactionNo,
+                        "vnp_ResponseCode": vnp_ResponseCode,
+                        "vnp_BankCode": vnp_BankCode,
+                        "vnp_CardType": vnp_CardType,
+                        "vnp_PayDate": vnp_PayDate
+                    }
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "status": "error",
+                    "message": "Thanh toán thất bại",
+                    "data": {
+                        "order_id": order_id,
+                        "amount": amount,
+                        "order_desc": order_desc,
+                        "vnp_TransactionNo": vnp_TransactionNo,
+                        "vnp_ResponseCode": vnp_ResponseCode
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                "status": "error",
+                "message": "Sai checksum",
+                "data": {
+                    "order_id": order_id,
+                    "amount": amount,
+                    "order_desc": order_desc,
+                    "vnp_TransactionNo": vnp_TransactionNo,
+                    "vnp_ResponseCode": vnp_ResponseCode
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        return Response({
+            "status": "error",
+            "message": "Không có dữ liệu"
+        }, status=status.HTTP_400_BAD_REQUEST)
