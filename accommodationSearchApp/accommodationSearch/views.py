@@ -646,9 +646,9 @@ class SearchViewSet(viewsets.ViewSet):
 
 class SearchHistoryViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.SearchHistorySerializer
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
-    
+
     def get_queryset(self):
         # Chỉ lấy lịch sử tìm kiếm của user hiện tại
         return SearchHistory.objects.filter(
@@ -666,3 +666,38 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
         instance.active = False
         instance.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NotificationViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.NotificationSerializer
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        return Notifications.objects.filter(user=self.request.user, active=True)
+
+    # lấy danh sách thông báo chưa đọc
+    @action(detail=False, methods=['get'], url_path='unread')
+    def unread(self, request):
+        notifications = self.get_queryset().filter(is_read=False).order_by('-created_date')
+        serializer = self.serializer_class(notifications, many=True)
+        return Response(serializer.data)
+
+    # Đánh dấu một thông báo là đã đọc
+    @action(detail=True, methods=['put'], url_path='read')
+    def read(self, request, pk=None):
+        try:
+            notification = self.get_queryset().get(pk=pk)
+            notification.is_read=True
+            notification.save()
+            return Response({'message': 'Notification marked as read'})
+        except Notifications.DoesNotExist:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_200_OK)
+    
+    # Đánh dấu tất cả thông báo là đã đọc
+    @action(detail=False, methods=['put'], url_path='read_all')
+    def read_all(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'message': 'All notifications marked as read'})
+
+    
