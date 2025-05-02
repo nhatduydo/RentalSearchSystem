@@ -16,9 +16,10 @@ from rest_framework.response import Response
 from unidecode import unidecode
 
 from .forms import PaymentForm
-from .models import (Admin, Comment, Follow, Landlord, LikeComment, LikeMotel,
-                     Motel, MotelRating, Notifications, Payment, PaymentStatus,
-                     Post, Room, SearchHistory, Tenant, User)
+from .models import (Admin, ChatRoom, Comment, Follow, Landlord, LikeComment,
+                     LikeMotel, Message, Motel, MotelRating, Notifications,
+                     Payment, PaymentStatus, Post, Room, SearchHistory, Tenant,
+                     User)
 from .permissions import IsOwnerOrReadOnly
 from .utils import calculate_distance
 from .vnpay import vnpay
@@ -650,14 +651,14 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
-        # Chỉ lấy lịch sử tìm kiếm của user hiện tại
+        if getattr(self, 'swagger_fake_view', False):
+            return SearchHistory.objects.none()
         return SearchHistory.objects.filter(
             user=self.request.user,
             active=True
         ).order_by('-created_date')
 
     def perform_create(self, serializer):
-        # Tự động gán user khi tạo mới
         serializer.save(user=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
@@ -674,7 +675,9 @@ class NotificationViewSet(viewsets.ViewSet):
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
-        return Notifications.objects.filter(user=self.request.user, active=True)
+        if getattr(self, 'swagger_fake_view', False):
+            return Notifications.objects.none()
+        return Notifications.objects.filter(receiver=self.request.user, active=True)
 
     # lấy danh sách thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread')
@@ -688,16 +691,55 @@ class NotificationViewSet(viewsets.ViewSet):
     def read(self, request, pk=None):
         try:
             notification = self.get_queryset().get(pk=pk)
-            notification.is_read=True
+            notification.is_read = True
             notification.save()
             return Response({'message': 'Notification marked as read'})
         except Notifications.DoesNotExist:
             return Response({'error': 'Notification not found'}, status=status.HTTP_200_OK)
-    
+
     # Đánh dấu tất cả thông báo là đã đọc
     @action(detail=False, methods=['put'], url_path='read_all')
     def read_all(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'message': 'All notifications marked as read'})
 
-    
+
+class ChatRoomViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.ChatRoomSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return ChatRoom.objects.none()
+        return ChatRoom.objects.filter(
+            participants=self.request.user,
+            active=True
+        ).order_by('-updated_date')
+
+    def perform_create(self, serializer):
+        chat_room = serializer.save()
+        chat_room.participants.add(self.request.user)
+
+
+class MessageViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.MessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        chat_room_id = self.kwargs.get('chat_room_id')
+        return Message.objects.filter(
+            chat_room_id=chat_room_id,
+            active=True
+        ).order_by('created_date')
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
+
+    @action(detail=True, methods=['put'], url_path='read')
+    def read(self, request, pk=None):
+        message = self.get_object()
+        message.is_read = True
+        message.save()
+        return Response({'status': 'message marked as read'})

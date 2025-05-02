@@ -1,9 +1,10 @@
-from accommodationSearch.models import (Admin, Amenity, Comment, Favorite,
-                                        Follow, Landlord, LikeComment,
-                                        LikeMotel, Motel, MotelImage,
-                                        MotelRating, Notifications, Payment,
-                                        Post, Room, RoomImage, RoomTenant,
-                                        SearchHistory, Tenant, User)
+from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
+                                        Favorite, Follow, Landlord,
+                                        LikeComment, LikeMotel, Message, Motel,
+                                        MotelImage, MotelRating, Notifications,
+                                        Payment, Post, Room, RoomImage,
+                                        RoomTenant, SearchHistory, Tenant,
+                                        User)
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -193,3 +194,36 @@ class NotificationSerializer(ItemSerializer):
         data = super().to_representation(instance)
         data['user'] = UserSerializer(instance.user).data
         return data
+
+
+class ChatRoomSerializer(ItemSerializer):
+    participants = UserSerializer(many=True, read_only=True)
+    last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'name', 'participants', 'created_date', 'updated_date', 'last_message', 'unread_count']
+        read_only_fields = ['created_date', 'updated_date']
+
+    def get_last_message(self, obj):
+        last_message = obj.messages.filter(active=True).order_by('-created_date').first()
+        if last_message:
+            return MessageSerializer(last_message).data
+        return None
+
+    def get_unread_count(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.messages.filter(active=True, is_read=False).exclude(sender=request.user).count()
+        return 0
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    chat_room = ChatRoomSerializer(read_only=True)
+
+    class Meta:
+        model = Message
+        fields = ['id', 'content', 'sender', 'chat_room', 'is_read', 'created_date']
+        read_only_fields = ['sender', 'created_date']

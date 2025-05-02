@@ -1,10 +1,10 @@
 from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
                                         Favorite, Follow, Landlord,
-                                        LikeComment, LikeMotel, Motel,
+                                        LikeComment, LikeMotel, Message, Motel,
                                         MotelImage, MotelRating, Notifications,
-                                        Payment, Post, RealTimeChat, Room,
-                                        RoomImage, RoomTenant, SearchHistory,
-                                        Tenant, User)
+                                        Payment, Post, Room, RoomImage,
+                                        RoomTenant, SearchHistory, Tenant,
+                                        User)
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
@@ -171,6 +171,11 @@ class NotificationsAdmin(admin.ModelAdmin):
     list_filter = ['receiver', 'notification_type', 'created_date']
 
 
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ['id', 'chat_room', 'sender', 'content', 'is_read', 'created_date']
+    list_filter = ['is_read', 'created_date']
+    search_fields = ['content', 'sender__username']
+
 class MyAdminSite(admin.AdminSite):
     site_header = 'HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ'
 
@@ -234,4 +239,4 @@ admin_site.register(SearchHistory, SearchHistoryAdmin)
 admin_site.register(Follow)
 admin_site.register(Notifications, NotificationsAdmin)
 admin_site.register(ChatRoom)
-admin_site.register(RealTimeChat)
+

@@ -143,8 +143,6 @@ class Admin(ActiveModel):
         return self.user.email
 
  # 3  đã admin, đã serializer, đã API
-
-
 class Landlord(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     is_verified = models.BooleanField(default=False)
@@ -472,26 +470,29 @@ class Notifications(ActiveModel):
 
 class ChatRoom(ActiveModel):
     id = models.AutoField(primary_key=True)
-    user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms1")
-    user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatrooms2")
+    name = models.CharField(max_length=255, null=True, blank=True)  # Tên phòng chat (cho nhóm)
+    participants = models.ManyToManyField(User, related_name="chat_rooms")
 
     def __str__(self):
-        return f"{self.user1.username} -  {self.user2.username }"
+        if self.name:
+            return self.name
+        participants = self.participants.all()
+        if len(participants) == 2:
+            return f"{participants[0].username} - {participants[1].username}"
+        return f"Group chat with {len(participants)} participants"
 
-# 21 đã admin
 
-
-class RealTimeChat(ActiveModel):
+class Message(ActiveModel):
     id = models.AutoField(primary_key=True)
+    chat_room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
-    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
-    chatroom = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name="messages")
+    content = models.TextField()
     is_read = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"sender: {self.sender.username} - receiver: {self.receiver.username}"
+        return f"Message from {self.sender.username} in {self.chat_room}"
 
-# 22 đã admin
+# 21 đã admin
 
 
 class Payment(ActiveModel):
