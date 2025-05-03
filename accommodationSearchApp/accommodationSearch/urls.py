@@ -20,6 +20,7 @@ router.register('search-historys', views.SearchHistoryViewSet, basename='search-
 router.register('notifications', views.NotificationViewSet, basename='notification')
 router.register('chat-rooms', views.ChatRoomViewSet, basename='chat-room')
 router.register(r'chat-rooms/(?P<chat_room_id>\d+)/messages', views.MessageViewSet, basename='message')
+router.register('follows', views.FollowViewSet, basename='follows')
 
 urlpatterns = [
     # path('', views.index, name="index")

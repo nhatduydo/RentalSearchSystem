@@ -743,3 +743,63 @@ class MessageViewSet(viewsets.ModelViewSet):
         message.is_read = True
         message.save()
         return Response({'status': 'message marked as read'})
+
+
+class FollowViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.FollowSerializer
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        return Follow.objects.filter(followers=self.request.user, active=True)
+
+    def list(self, request):
+        """
+        Lấy danh sách những người mà người dùng đang theo dõi
+        """
+        follows = self.get_queryset()
+        serializer = self.serializer_class(follows, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        """
+        Theo dõi một người dùng
+        """
+        following_id = request.data.get('following_id')
+        if not following_id:
+            return Response({"error": "Thiếu ID người dùng cần theo dõi"}, status=400)
+
+        try:
+            following_user = User.objects.get(id=following_id)
+        except User.DoesNotExist:
+            return Response({"error": "Người dùng không tồn tại"}, status=404)
+
+        if following_user == request.user:
+            return Response({"error": "Không thể theo dõi chính mình"}, status=400)
+
+        follow, created = Follow.objects.get_or_create(
+            following=following_user,
+            followers=request.user
+        )
+
+        if not created:
+            follow.active = not follow.active
+            follow.save()
+
+        serializer = self.serializer_class(follow)
+        return Response(serializer.data)
+
+    def destroy(self, request, pk=None):
+        """
+        Hủy theo dõi một người dùng
+        """
+        try:
+            follow = Follow.objects.get(
+                following_id=pk,
+                followers=request.user
+            )
+            follow.active = False
+            follow.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Follow.DoesNotExist:
+            return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=404)

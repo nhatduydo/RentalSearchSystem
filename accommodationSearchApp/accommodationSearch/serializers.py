@@ -227,3 +227,10 @@ class MessageSerializer(serializers.ModelSerializer):
         model = Message
         fields = ['id', 'content', 'sender', 'chat_room', 'is_read', 'created_date']
         read_only_fields = ['sender', 'created_date']
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = ['id', 'following', 'followers', 'last_message_time']
+        read_only_fields = ['id', 'last_message_time']
