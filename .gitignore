@@ -34,3 +34,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+/.history
+/.history/accommodationSearchApp/accommodationSearch
+/venv
+/accommodationSearchApp/accommodationSearch/__pycache__
