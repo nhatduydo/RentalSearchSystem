@@ -4,7 +4,7 @@ from datetime import datetime
 from accommodationSearch import paginators, serializers
 from django.conf import settings
 from django.contrib.auth import authenticate
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -18,8 +18,8 @@ from unidecode import unidecode
 from .forms import PaymentForm
 from .models import (Admin, ChatRoom, Comment, Follow, Landlord, LikeComment,
                      LikeMotel, Message, Motel, MotelRating, Notifications,
-                     Payment, PaymentStatus, Post, Room, SearchHistory, Tenant,
-                     User)
+                     Payment, PaymentMethod, PaymentStatus, Post, Room,
+                     RoomTenant, RoomTenantStatus, SearchHistory, Tenant, User)
 from .permissions import IsOwnerOrReadOnly
 from .utils import calculate_distance
 from .vnpay import vnpay
@@ -215,6 +215,73 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                 motel = get_object_or_404(Motel, slug=motel_slug)
                 query = query.filter(motel=motel)
         return query
+
+
+class RoomTenantViewSet(viewsets.ModelViewSet):
+    # Lấy tất cả các bản ghi RoomTenant
+    queryset = RoomTenant.objects.all()
+    serializer_class = serializers.RoomTenantSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        # Khởi tạo queryset ban đầu
+        queryset = self.queryset
+
+        # Chỉ lọc khi là action list (GET /api/room-tenants/)
+        if self.action == 'list':
+            # Lọc theo người thuê
+            tenant_id = self.request.query_params.get('tenant_id')
+            if tenant_id:
+                queryset = queryset.filter(tenant_id=tenant_id)
+
+            # Lọc theo phòng
+            room_id = self.request.query_params.get('room_id')
+            if room_id:
+                queryset = queryset.filter(room_id=room_id)
+
+            # Lọc theo trạng thái
+            status = self.request.query_params.get('status')
+            if status:
+                queryset = queryset.filter(status=status)
+
+        return queryset.select_related('room', 'tenant')
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    @action(detail=True, methods=['put'], url_path='status')
+    def update_status(self, request, pk=None):
+        room_tenant = self.get_object()
+
+        new_status = request.data.get('status')
+
+        valid_statuses = []
+        for status_tuple in RoomTenantStatus.choices:
+            status_code = status_tuple[0]
+            valid_statuses.append(status_code)
+
+        if new_status not in valid_statuses:
+            return Response(
+                {'error': 'Trạng thái không hợp lệ'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        room_tenant.status = new_status
+        room_tenant.save()
+
+        # Tạo thông báo cho người thuê
+        Notifications.objects.create(
+            receiver=room_tenant.tenant.user,
+            title="Cập nhật trạng thái thuê phòng",
+            content=f"Trạng thái thuê phòng {room_tenant.room.room_name} đã được cập nhật thành {new_status}",
+            notification_type="ROOM_TENANT_STATUS",
+            related_object_id=room_tenant.id
+        )
+
+        # Trả về dữ liệu đã cập nhật
+        serializer = self.get_serializer(room_tenant)
+        return Response(serializer.data)
 
 
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
@@ -751,6 +818,10 @@ class FollowViewSet(viewsets.ViewSet):
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Follow.objects.none()
+        if not self.request.user.is_authenticated:
+            return Follow.objects.none()
         return Follow.objects.filter(followers=self.request.user, active=True)
 
     def list(self, request):
@@ -803,3 +874,112 @@ class FollowViewSet(viewsets.ViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Follow.DoesNotExist:
             return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=404)
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    queryset = Payment.objects.filter(active=True)
+    serializer_class = serializers.PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        queryset = self.queryset
+        if self.action == 'list':
+            queryset = queryset.filter(payer=self.request.user)
+        return queryset.select_related('payer', 'room')
+
+    def perform_create(self, serializer):
+        serializer.save(payer=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
+    def room_payments(self, request, room_id=None):
+        try:
+            room = Room.objects.get(id=room_id)
+            payments = self.get_queryset().filter(room=room)
+            serializer = self.get_serializer(payments, many=True)
+            return Response(serializer.data)
+        except Room.DoesNotExist:
+            return Response({'error': 'Phòng không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
+    def status_payments(self, request, status=None):
+        valid_statuses = []
+        for status_tuple in PaymentStatus.choices:
+            status_code = status_tuple[0]
+            valid_statuses.append(status_code)
+
+        if status not in valid_statuses:
+            return Response({'error': 'Trạng thái không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payments = self.get_queryset().filter(status=status)
+        serializer = self.get_serializer(payments, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='method/(?P<method>[^/.]+)')
+    def method_payments(self, request, method=None):
+        valid_methods = []
+        for method_tuple in PaymentMethod.choices:
+            method_code = method_tuple[0]
+            valid_methods.append(method_code)
+
+        if method not in valid_methods:
+            return Response({'error': 'Phương thức thanh toán không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payments = self.get_queryset().filter(payment_method=method)
+        serializer = self.get_serializer(payments, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['patch'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        payment = self.get_object()
+        new_status = request.data.get('status')
+
+        valid_statuses = []
+        for status_tuple in PaymentStatus.choices:
+            status_code = status_tuple[0]
+            valid_statuses.append(status_code)
+
+        if new_status not in valid_statuses:
+            return Response({'error': 'Trạng thái không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment.status = new_status
+        payment.save()
+
+        if new_status == PaymentStatus.COMPLETED:
+            Notifications.objects.create(
+                receiver=payment.payer,
+                title="Thanh toán thành công",
+                content=f"Thanh toán cho phòng {payment.room.room_name} đã hoàn tất",
+                notification_type=NotificationType.PAYMENT,
+                related_object_id=payment.id
+            )
+
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data)
+
+    # # Thống kê thanh toán
+    # @action(detail=False, methods=['get'], url_path='statistics')
+    # def payment_statistics(self, request):
+    #     # Thống kê theo trạng thái
+    #     status_stats = self.get_queryset().values('status').annotate(
+    #         count=models.Count('id'),
+    #         total_amount=models.Sum('amount')
+    #     )
+
+    #     # Thống kê theo phương thức thanh toán
+    #     method_stats = self.get_queryset().values('payment_method').annotate(
+    #         count=models.Count('id'),
+    #         total_amount=models.Sum('amount')
+    #     )
+
+    #     # Tổng số thanh toán và tổng tiền
+    #     total_stats = self.get_queryset().aggregate(
+    #         total_count=models.Count('id'),
+    #         total_amount=models.Sum('amount')
+    #     )
+
+    #     return Response({
+    #         'status_stats': status_stats,
+    #         'method_stats': method_stats,
+    #         'total_stats': total_stats
+    #     })

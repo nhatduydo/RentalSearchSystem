@@ -112,6 +112,12 @@ class RoomSerializer(ItemSerializer):
         fields = ['id', 'motel', 'room_name', 'description', 'area', 'price', 'max_people', 'tenants', 'amenities', 'is_verified']
 
 
+class RoomTenantSerializer(ItemSerializer):
+    class Meta:
+        model = RoomTenant
+        fields = ['id', 'room', 'tenant', 'start_date', 'end_date', 'status', 'is_paid', 'created_date', 'updated_date']
+
+
 class PostSerializer(ItemSerializer):
     user = UserSerializer(read_only=True)
     comments_count = serializers.SerializerMethodField()
@@ -234,3 +240,19 @@ class FollowSerializer(serializers.ModelSerializer):
         model = Follow
         fields = ['id', 'following', 'followers', 'last_message_time']
         read_only_fields = ['id', 'last_message_time']
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    payer = serializers.SlugRelatedField(
+        slug_field='username',
+        queryset=User.objects.all()
+    )
+    room = serializers.SlugRelatedField(
+        slug_field='room_name',
+        queryset=Room.objects.all()
+    )
+
+    class Meta:
+        model = Payment
+        fields = ['id', 'payer', 'room', 'amount', 'payment_method', 'status', 'description', 'vnp_transaction_no', 'vnp_bank_code', 'vnp_bank_tran_no', 'vnp_card_type', 'vnp_pay_date', 'vnp_response_code', 'vnp_txn_ref', 'created_date', 'updated_date']
+        read_only_fields = ['id', 'created_date', 'updated_date']

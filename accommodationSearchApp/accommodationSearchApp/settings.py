@@ -163,7 +163,7 @@ CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
 
 # Base URL for the application
-BASE_URL = 'https://4a9f-2001-ee0-54f6-8f10-11a6-ab5d-bef3-c139.ngrok-free.app'  # Update this when ngrok URL changes
+BASE_URL = 'https://donhatduy.pythonanywhere.com'  # Update this when ngrok URL changes
 
 # VNPay settings
 VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website

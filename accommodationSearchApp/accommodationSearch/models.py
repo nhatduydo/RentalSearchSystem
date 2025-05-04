@@ -143,6 +143,8 @@ class Admin(ActiveModel):
         return self.user.email
 
  # 3  đã admin, đã serializer, đã API
+
+
 class Landlord(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     is_verified = models.BooleanField(default=False)
@@ -294,7 +296,7 @@ class RoomImage(ActiveModel):
 
 
 # 10 chưa biết có cho qua admin hay không
-class RoomTenant(BaseModel):
+class RoomTenant(ActiveModel):
     id = models.AutoField(primary_key=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='tenant_entries')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='room_entries')
@@ -321,7 +323,7 @@ class MotelRating(ActiveModel):
 # 12 chưa admin
 
 
-class Favorite(BaseModel):
+class Favorite(ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='favorited_by')
@@ -435,7 +437,7 @@ class SearchHistory(ActiveModel):
 # 18 đã admin
 
 
-class Follow(BaseModel):
+class Follow(ActiveModel):
     id = models.AutoField(primary_key=True)
     following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
     followers = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
