@@ -20,7 +20,7 @@ from .models import (Admin, ChatRoom, Comment, Follow, Landlord, LikeComment,
                      LikeMotel, Message, Motel, MotelRating, Notifications,
                      Payment, PaymentMethod, PaymentStatus, Post, Room,
                      RoomTenant, RoomTenantStatus, SearchHistory, Tenant, User)
-from .permissions import IsOwnerOrReadOnly
+from .permissions import IsOwnerOrAdmin, IsOwnerOrReadOnly
 from .utils import calculate_distance
 from .vnpay import vnpay
 
@@ -305,15 +305,23 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             return [permissions.IsAdminUser()]
         return [permissions.IsAuthenticatedOrReadOnly()]
 
-    # Lấy thông tin chi tiết chủ nhà theo ID hoặc slug
+    # Lấy thông tin chi tiết chủ nhà theo ID hoặc username
     def retrieve(self, request, pk=None):
-        if pk.isdigit():
-            landlord = get_object_or_404(Landlord, user_id=pk)
-        else:
-            landlord = get_object_or_404(Landlord, slug=pk)
+        try:
+            if pk.isdigit():
+                landlord = get_object_or_404(Landlord, user_id=pk)
+            else:
+                # Tìm theo username của user
+                landlord = get_object_or_404(Landlord, user__username=pk)
 
-        serializers = self.get_serializer(landlord)
-        return Response(serializers.data)
+            serializers = self.get_serializer(landlord)
+            return Response(serializers.data)
+        except Exception as e:
+            logger.error(f"Error retrieving landlord: {str(e)}")
+            return Response(
+                {"error": f"Không tìm thấy chủ nhà với username: {pk}"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     # Lấy danh sách chủ nhà với các điều kiện tìm kiếm
     def get_queryset(self):
@@ -336,12 +344,17 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     # Cập nhật thông tin chủ nhà
     def update(self, request, *args, **kwargs):
         try:
-            landlord = self.get_object()
+            pk = kwargs.get('pk')
+            if pk.isdigit():
+                landlord = get_object_or_404(Landlord, user_id=pk)
+            else:
+                # Tìm theo username của user
+                landlord = get_object_or_404(Landlord, user__username=pk)
 
             # Kiểm tra quyền cập nhật
             if request.user != landlord.user and not request.user.is_staff:
                 return Response(
-                    {'error': 'You do not have permission to update this landlord'},
+                    {'error': 'Bạn không có quyền cập nhật thông tin này'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
@@ -352,10 +365,11 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
 
             return Response({
                 'landlord': serializer.data,
-                'message': 'Landlord information updated successfully'
+                'message': 'Cập nhật thông tin thành công'
             })
 
         except Exception as e:
+            logger.error(f"Error updating landlord: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
@@ -365,16 +379,19 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     @action(methods=['PATCH'], detail=True, url_path='verify')
     def verify(self, request, pk=None):
         try:
-            landlord = self.get_object()
+            if pk.isdigit():
+                landlord = get_object_or_404(Landlord, user_id=pk)
+            else:
+                # Tìm theo username của user
+                landlord = get_object_or_404(Landlord, user__username=pk)
 
             # Kiểm tra quyền xác thực
             if not request.user.is_staff:
                 return Response(
-                    {'error': 'Only admin can verify landlords'},
+                    {'error': 'Chỉ admin mới có quyền xác thực chủ nhà'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Cập nhật trạng thái xác thực
             landlord.is_verified = True
             landlord.save()
 
@@ -384,15 +401,16 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 title="Tài khoản đã được xác thực",
                 content="Tài khoản chủ nhà của bạn đã được xác thực thành công",
                 notification_type="VERIFICATION",
-                related_object_id=landlord.id
+                related_object_id=landlord.user.id
             )
 
             return Response({
                 'landlord': self.get_serializer(landlord).data,
-                'message': 'Landlord verified successfully'
+                'message': 'Xác thực chủ nhà thành công'
             })
 
         except Exception as e:
+            logger.error(f"Error verifying landlord: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
