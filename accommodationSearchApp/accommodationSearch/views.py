@@ -429,15 +429,23 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticatedOrReadOnly()]
 
-    # Lấy thông tin chi tiết người thuê theo ID hoặc slug
+    # Lấy thông tin chi tiết người thuê theo ID hoặc username
     def retrieve(self, request, pk=None):
-        if pk.isdigit():
-            tenant = get_object_or_404(Tenant, user_id=pk)
-        else:
-            tenant = get_object_or_404(Tenant, slug=pk)
+        try:
+            if pk.isdigit():
+                tenant = get_object_or_404(Tenant, user_id=pk)
+            else:
+                # Tìm theo username của user
+                tenant = get_object_or_404(Tenant, user__username=pk)
 
-        serializers = self.get_serializer(tenant)
-        return Response(serializers.data)
+            serializers = self.get_serializer(tenant)
+            return Response(serializers.data)
+        except Exception as e:
+            logger.error(f"Error retrieving tenant: {str(e)}")
+            return Response(
+                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     # Lấy danh sách người thuê với các điều kiện tìm kiếm
     def get_queryset(self):
@@ -479,12 +487,17 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     # Cập nhật thông tin người thuê
     def update(self, request, *args, **kwargs):
         try:
-            tenant = self.get_object()
+            pk = kwargs.get('pk')
+            if pk.isdigit():
+                tenant = get_object_or_404(Tenant, user_id=pk)
+            else:
+                # Tìm theo username của user
+                tenant = get_object_or_404(Tenant, user__username=pk)
 
             # Kiểm tra quyền cập nhật
             if request.user != tenant.user and not request.user.is_staff:
                 return Response(
-                    {'error': 'You do not have permission to update this tenant'},
+                    {'error': 'Bạn không có quyền cập nhật thông tin này'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
@@ -493,17 +506,13 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             serializer.is_valid(raise_exception=True)
             serializer.save()
 
-            # Nếu có cập nhật avatar, cập nhật cả trong User model
-            if 'avatar' in request.data and tenant.user:
-                tenant.user.avatar = request.data['avatar']
-                tenant.user.save()
-
             return Response({
                 'tenant': serializer.data,
-                'message': 'Tenant information updated successfully'
+                'message': 'Cập nhật thông tin thành công'
             })
 
         except Exception as e:
+            logger.error(f"Error updating tenant: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
@@ -512,38 +521,74 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     # Lấy danh sách phòng đã thuê
     @action(detail=True, methods=['get'], url_path='rooms')
     def get_rented_rooms(self, request, pk=None):
-        tenant = self.get_object()
-        room_tenants = RoomTenant.objects.filter(
-            tenant=tenant,
-            active=True
-        ).select_related('room', 'room__motel')
+        try:
+            if pk.isdigit():
+                tenant = get_object_or_404(Tenant, user_id=pk)
+            else:
+                # Tìm theo username của user
+                tenant = get_object_or_404(Tenant, user__username=pk)
 
-        serializer = serializers.RoomTenantSerializer(room_tenants, many=True)
-        return Response(serializer.data)
+            room_tenants = RoomTenant.objects.filter(
+                tenant=tenant,
+                active=True
+            ).select_related('room', 'room__motel')
+
+            serializer = serializers.RoomTenantSerializer(room_tenants, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error getting rented rooms: {str(e)}")
+            return Response(
+                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     # Lấy lịch sử thanh toán
     @action(detail=True, methods=['get'], url_path='payments')
     def get_payment_history(self, request, pk=None):
-        tenant = self.get_object()
-        payments = Payment.objects.filter(
-            payer=tenant.user,
-            active=True
-        ).select_related('room')
+        try:
+            if pk.isdigit():
+                tenant = get_object_or_404(Tenant, user_id=pk)
+            else:
+                # Tìm theo username của user
+                tenant = get_object_or_404(Tenant, user__username=pk)
 
-        serializer = serializers.PaymentSerializer(payments, many=True)
-        return Response(serializer.data)
+            payments = Payment.objects.filter(
+                payer=tenant.user,
+                active=True
+            ).select_related('room')
+
+            serializer = serializers.PaymentSerializer(payments, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error getting payment history: {str(e)}")
+            return Response(
+                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     # Lấy danh sách bài đăng đã lưu
     @action(detail=True, methods=['get'], url_path='saved-posts')
     def get_saved_posts(self, request, pk=None):
-        tenant = self.get_object()
-        saved_posts = Post.objects.filter(
-            likers=tenant.user,
-            active=True
-        )
+        try:
+            if pk.isdigit():
+                tenant = get_object_or_404(Tenant, user_id=pk)
+            else:
+                # Tìm theo username của user
+                tenant = get_object_or_404(Tenant, user__username=pk)
 
-        serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
-        return Response(serializer.data)
+            saved_posts = Post.objects.filter(
+                likers=tenant.user,
+                active=True
+            )
+
+            serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error getting saved posts: {str(e)}")
+            return Response(
+                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
