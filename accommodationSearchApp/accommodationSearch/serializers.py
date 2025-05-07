@@ -22,7 +22,7 @@ class ItemSerializer(ModelSerializer):
 class UserSerializer(ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'role', 'created_date', 'avatar']
+        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 'role', 'created_date', 'avatar']
         extra_kwargs = {
             'password': {
                 'write_only': True
@@ -62,13 +62,14 @@ class UserSerializer(ModelSerializer):
 class LandlordSerializer(ItemSerializer):
     class Meta:
         model = Landlord
-        fields = ['user', 'full_name', 'citizen_id', 'phone', 'avatar', 'address', 'date_of_birth', 'gender', 'bank_account', 'is_verified']
+        fields = ['user', 'full_name', 'citizen_id', 'phone', 'address', 'date_of_birth', 'gender', 'bank_account', 'is_verified']
+        read_only_fields = ['is_verified']
 
 
 class TenantSerializer(ItemSerializer):
     class Meta:
         model = Tenant
-        fields = ['user', 'full_name', 'citizen_id', 'phone', 'avatar', 'address', 'date_of_birth', 'gender', 'bank_account', 'rooms']
+        fields = ['user', 'full_name', 'citizen_id', 'phone', 'address', 'date_of_birth', 'gender', 'bank_account', 'rooms']
 
 
 class MotelSerializer(ItemSerializer):

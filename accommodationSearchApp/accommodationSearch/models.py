@@ -102,7 +102,6 @@ class InformationUserModel(SlugModel):
     full_name = models.CharField(max_length=255)
     citizen_id = models.CharField(max_length=20, unique=True)
     phone = models.CharField(max_length=20, null=True)
-    avatar = CloudinaryField(null=True)
     address = models.TextField(blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=20, choices=Gender.choices, null=True)

@@ -47,58 +47,53 @@ class UserViewSet(viewsets.ViewSet,
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
-        if self.action in ['create', 'login']:
+        if self.action in ['create']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
-        role = request.data.get('role')
-        if role == "LANDLORD":
-            landlord_serializer = serializers.LandlordSerializer(data=request.data)
-            if landlord_serializer.is_valid():
-                landlord_serializer.save()
-            else:
-                return Response(landlord_serializer.errors, status=400)
-        elif role == "TENANT":
-            tenant_serializer = serializers.TenantSerializer(data=request.data)
-            if tenant_serializer.is_valid():
-                tenant_serializer.save()
-            else:
-                return Response(tenant_serializer.errors, status=400)
-        else:
-            return Response({"error": "Invalid role"}, status=400)
-        return Response(user_serializer.data, status=201)
+        # Create user first
+        user_serializer = serializers.UserSerializer(data=request.data)
+        if user_serializer.is_valid():
+            user = user_serializer.save()
 
-    @action(methods=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
-    def login(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
-        user = authenticate(username=username, password=password)
-
-        if user is not None:
-            if user.is_active:
-                # Get additional profile data based on role
-                response_data = self.serializer_class(user).data
-                if user.role == 'LANDLORD':
-                    try:
-                        landlord = Landlord.objects.get(user=user)
-                        profile_data = serializers.LandlordSerializer(landlord).data
-                        profile_data['avatar'] = user.avatar  # Use user's avatar
-                        response_data['profile'] = profile_data
-                    except Landlord.DoesNotExist:
-                        pass
-                elif user.role == 'TENANT':
-                    try:
-                        tenant = Tenant.objects.get(user=user)
-                        profile_data = serializers.TenantSerializer(tenant).data
-                        profile_data['avatar'] = user.avatar  # Use user's avatar
-                        response_data['profile'] = profile_data
-                    except Tenant.DoesNotExist:
-                        pass
-                return Response(response_data)
-            else:
-                return Response({"error": "user is inactive"}, status=403)
-        return Response({"error": "Thông tin đăng nhập không hợp lệ"}, status=401)
+            # Create profile based on role
+            if user.role == "LANDLORD":
+                profile_data = {
+                    'user': user.id,
+                    'full_name': f"{user.first_name} {user.last_name}",
+                    'phone': request.data.get('phone', ''),
+                    'address': request.data.get('address', ''),
+                    'date_of_birth': request.data.get('date_of_birth'),
+                    'gender': request.data.get('gender'),
+                    'bank_account': request.data.get('bank_account', ''),
+                    'citizen_id': request.data.get('citizen_id', '')
+                }
+                landlord_serializer = serializers.LandlordSerializer(data=profile_data)
+                if landlord_serializer.is_valid():
+                    landlord_serializer.save()
+                else:
+                    user.delete()
+                    return Response(landlord_serializer.errors, status=400)
+            elif user.role == "TENANT":
+                profile_data = {
+                    'user': user.id,
+                    'full_name': f"{user.first_name} {user.last_name}",
+                    'phone': request.data.get('phone', ''),
+                    'address': request.data.get('address', ''),
+                    'date_of_birth': request.data.get('date_of_birth'),
+                    'gender': request.data.get('gender'),
+                    'bank_account': request.data.get('bank_account', ''),
+                    'citizen_id': request.data.get('citizen_id', '')
+                }
+                tenant_serializer = serializers.TenantSerializer(data=profile_data)
+                if tenant_serializer.is_valid():
+                    tenant_serializer.save()
+                else:
+                    user.delete()
+                    return Response(tenant_serializer.errors, status=400)
+            return Response(user_serializer.data, status=201)
+        return Response(user_serializer.errors, status=400)
 
     # Lấy hoặc cập nhật thông tin người dùng hiện tại
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
