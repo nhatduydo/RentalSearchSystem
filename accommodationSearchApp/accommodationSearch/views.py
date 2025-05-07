@@ -44,15 +44,13 @@ class UserViewSet(viewsets.ViewSet,
     queryset = User.objects.filter(is_active=True)
     serializer_class = serializers.UserSerializer
     pagination_class = paginators.ItemPanigator
-    arser_classes = [parsers.MultiPartParser, ]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
-    # Kiểm tra và trả về quyền truy cập cho các action
     def get_permissions(self):
         if self.action in ['create', 'login']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
-    # Tạo người dùng mới với vai trò chủ nhà hoặc người thuê
     def create(self, request, *args, **kwargs):
         role = request.data.get('role')
         if role == "LANDLORD":
@@ -69,8 +67,38 @@ class UserViewSet(viewsets.ViewSet,
                 return Response(tenant_serializer.errors, status=400)
         else:
             return Response({"error": "Invalid role"}, status=400)
+        return Response(user_serializer.data, status=201)
 
-        return super().create(request, *args, **kwargs)
+    @action(methods=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
+    def login(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(username=username, password=password)
+
+        if user is not None:
+            if user.is_active:
+                # Get additional profile data based on role
+                response_data = self.serializer_class(user).data
+                if user.role == 'LANDLORD':
+                    try:
+                        landlord = Landlord.objects.get(user=user)
+                        profile_data = serializers.LandlordSerializer(landlord).data
+                        profile_data['avatar'] = user.avatar  # Use user's avatar
+                        response_data['profile'] = profile_data
+                    except Landlord.DoesNotExist:
+                        pass
+                elif user.role == 'TENANT':
+                    try:
+                        tenant = Tenant.objects.get(user=user)
+                        profile_data = serializers.TenantSerializer(tenant).data
+                        profile_data['avatar'] = user.avatar  # Use user's avatar
+                        response_data['profile'] = profile_data
+                    except Tenant.DoesNotExist:
+                        pass
+                return Response(response_data)
+            else:
+                return Response({"error": "user is inactive"}, status=403)
+        return Response({"error": "Thông tin đăng nhập không hợp lệ"}, status=401)
 
     # Lấy hoặc cập nhật thông tin người dùng hiện tại
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
@@ -86,20 +114,6 @@ class UserViewSet(viewsets.ViewSet,
 
             return Response(serializers.UserSerializer(user).data)
         return Response(serializers.UserSerializer(request.user).data)
-
-    # Xác thực đăng nhập người dùng
-    @action(methods=['POST'], url_path='login', detail=False, permission_classes=[permissions.AllowAny])
-    def login(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
-        user = authenticate(username=username, password=password)
-
-        if user is not None:
-            if user.is_active:
-                return Response(self.serializer_class(user).data)
-            else:
-                return Response({"error": "user is inactive"}, status=403)
-        return Response({"error": "Thông tin đăng nhập không hợp lệ"}, status=401)
 
     # Thay đổi mật khẩu người dùng
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
@@ -284,11 +298,17 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
+class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.UpdateAPIView):
     queryset = Landlord.objects.filter(active=True)
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+
+    def get_permissions(self):
+        if self.action == 'verify':
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticatedOrReadOnly()]
 
     # Lấy thông tin chi tiết chủ nhà theo ID hoặc slug
     def retrieve(self, request, pk=None):
@@ -305,7 +325,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
         query = self.queryset
 
         if self.action.__eq__('list'):
-
             user_id = self.request.query_params.get('id')
             if user_id:
                 query = query.filter(user_id=user_id)
@@ -319,12 +338,83 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView):
                 query = query.filter(slug=slug_source)
         return query
 
+    # Cập nhật thông tin chủ nhà
+    def update(self, request, *args, **kwargs):
+        try:
+            landlord = self.get_object()
 
-class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
+            # Kiểm tra quyền cập nhật
+            if request.user != landlord.user and not request.user.is_staff:
+                return Response(
+                    {'error': 'You do not have permission to update this landlord'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Cập nhật thông tin
+            serializer = self.get_serializer(landlord, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response({
+                'landlord': serializer.data,
+                'message': 'Landlord information updated successfully'
+            })
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # Xác thực chủ nhà (chỉ admin mới có quyền)
+    @action(methods=['PATCH'], detail=True, url_path='verify')
+    def verify(self, request, pk=None):
+        try:
+            landlord = self.get_object()
+
+            # Kiểm tra quyền xác thực
+            if not request.user.is_staff:
+                return Response(
+                    {'error': 'Only admin can verify landlords'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Cập nhật trạng thái xác thực
+            landlord.is_verified = True
+            landlord.save()
+
+            # Tạo thông báo cho chủ nhà
+            Notifications.objects.create(
+                receiver=landlord.user,
+                title="Tài khoản đã được xác thực",
+                content="Tài khoản chủ nhà của bạn đã được xác thực thành công",
+                notification_type="VERIFICATION",
+                related_object_id=landlord.id
+            )
+
+            return Response({
+                'landlord': self.get_serializer(landlord).data,
+                'message': 'Landlord verified successfully'
+            })
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.UpdateAPIView):
     queryset = Tenant.objects.filter(active=True)
     serializer_class = serializers.TenantSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticatedOrReadOnly()]
 
     # Lấy thông tin chi tiết người thuê theo ID hoặc slug
     def retrieve(self, request, pk=None):
@@ -341,7 +431,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
         query = self.queryset
 
         if self.action.__eq__('list'):
-
             user_id = self.request.query_params.get('id')
             if user_id:
                 query = query.filter(user_id=user_id)
@@ -353,7 +442,95 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView):
             slug_source = self.request.query_params.get('slug_source')
             if slug_source:
                 query = query.filter(slug=slug_source)
+
+            # Lọc theo giới tính
+            gender = self.request.query_params.get('gender')
+            if gender:
+                query = query.filter(gender=gender)
+
+            # Lọc theo khoảng tuổi
+            min_age = self.request.query_params.get('min_age')
+            max_age = self.request.query_params.get('max_age')
+            if min_age or max_age:
+                from datetime import date
+                today = date.today()
+                if min_age:
+                    max_date = today.replace(year=today.year - int(min_age))
+                    query = query.filter(date_of_birth__lte=max_date)
+                if max_age:
+                    min_date = today.replace(year=today.year - int(max_age) - 1)
+                    query = query.filter(date_of_birth__gt=min_date)
+
         return query
+
+    # Cập nhật thông tin người thuê
+    def update(self, request, *args, **kwargs):
+        try:
+            tenant = self.get_object()
+
+            # Kiểm tra quyền cập nhật
+            if request.user != tenant.user and not request.user.is_staff:
+                return Response(
+                    {'error': 'You do not have permission to update this tenant'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Cập nhật thông tin
+            serializer = self.get_serializer(tenant, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            # Nếu có cập nhật avatar, cập nhật cả trong User model
+            if 'avatar' in request.data and tenant.user:
+                tenant.user.avatar = request.data['avatar']
+                tenant.user.save()
+
+            return Response({
+                'tenant': serializer.data,
+                'message': 'Tenant information updated successfully'
+            })
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # Lấy danh sách phòng đã thuê
+    @action(detail=True, methods=['get'], url_path='rooms')
+    def get_rented_rooms(self, request, pk=None):
+        tenant = self.get_object()
+        room_tenants = RoomTenant.objects.filter(
+            tenant=tenant,
+            active=True
+        ).select_related('room', 'room__motel')
+
+        serializer = serializers.RoomTenantSerializer(room_tenants, many=True)
+        return Response(serializer.data)
+
+    # Lấy lịch sử thanh toán
+    @action(detail=True, methods=['get'], url_path='payments')
+    def get_payment_history(self, request, pk=None):
+        tenant = self.get_object()
+        payments = Payment.objects.filter(
+            payer=tenant.user,
+            active=True
+        ).select_related('room')
+
+        serializer = serializers.PaymentSerializer(payments, many=True)
+        return Response(serializer.data)
+
+    # Lấy danh sách bài đăng đã lưu
+    @action(detail=True, methods=['get'], url_path='saved-posts')
+    def get_saved_posts(self, request, pk=None):
+        tenant = self.get_object()
+        saved_posts = Post.objects.filter(
+            likers=tenant.user,
+            active=True
+        )
+
+        serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
+        return Response(serializer.data)
 
 
 class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
