@@ -305,21 +305,21 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             return [permissions.IsAdminUser()]
         return [permissions.IsAuthenticatedOrReadOnly()]
 
-    # Lấy thông tin chi tiết chủ nhà theo ID hoặc username
+    # Lấy thông tin chi tiết chủ nhà theo ID, username hoặc slug
     def retrieve(self, request, pk=None):
         try:
             if pk.isdigit():
                 landlord = get_object_or_404(Landlord, user_id=pk)
             else:
-                # Tìm theo username của user
-                landlord = get_object_or_404(Landlord, user__username=pk)
+                # Tìm theo username hoặc slug
+                landlord = get_object_or_404(Landlord, Q(user__username=pk) | Q(slug=pk))
 
             serializers = self.get_serializer(landlord)
             return Response(serializers.data)
         except Exception as e:
             logger.error(f"Error retrieving landlord: {str(e)}")
             return Response(
-                {"error": f"Không tìm thấy chủ nhà với username: {pk}"},
+                {"error": f"Không tìm thấy chủ nhà với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -348,8 +348,8 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             if pk.isdigit():
                 landlord = get_object_or_404(Landlord, user_id=pk)
             else:
-                # Tìm theo username của user
-                landlord = get_object_or_404(Landlord, user__username=pk)
+                # Tìm theo username hoặc slug
+                landlord = get_object_or_404(Landlord, Q(user__username=pk) | Q(slug=pk))
 
             # Kiểm tra quyền cập nhật
             if request.user != landlord.user and not request.user.is_staff:
@@ -382,8 +382,8 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             if pk.isdigit():
                 landlord = get_object_or_404(Landlord, user_id=pk)
             else:
-                # Tìm theo username của user
-                landlord = get_object_or_404(Landlord, user__username=pk)
+                # Tìm theo username hoặc slug
+                landlord = get_object_or_404(Landlord, Q(user__username=pk) | Q(slug=pk))
 
             # Kiểm tra quyền xác thực
             if not request.user.is_staff:
@@ -429,21 +429,21 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticatedOrReadOnly()]
 
-    # Lấy thông tin chi tiết người thuê theo ID hoặc username
+    # Lấy thông tin chi tiết người thuê theo ID, username hoặc slug
     def retrieve(self, request, pk=None):
         try:
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username của user
-                tenant = get_object_or_404(Tenant, user__username=pk)
+                # Tìm theo username hoặc slug
+                tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             serializers = self.get_serializer(tenant)
             return Response(serializers.data)
         except Exception as e:
             logger.error(f"Error retrieving tenant: {str(e)}")
             return Response(
-                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -491,8 +491,8 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username của user
-                tenant = get_object_or_404(Tenant, user__username=pk)
+                # Tìm theo username hoặc slug
+                tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             # Kiểm tra quyền cập nhật
             if request.user != tenant.user and not request.user.is_staff:
@@ -525,8 +525,8 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username của user
-                tenant = get_object_or_404(Tenant, user__username=pk)
+                # Tìm theo username hoặc slug
+                tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             room_tenants = RoomTenant.objects.filter(
                 tenant=tenant,
@@ -538,7 +538,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
         except Exception as e:
             logger.error(f"Error getting rented rooms: {str(e)}")
             return Response(
-                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -549,8 +549,8 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username của user
-                tenant = get_object_or_404(Tenant, user__username=pk)
+                # Tìm theo username hoặc slug
+                tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             payments = Payment.objects.filter(
                 payer=tenant.user,
@@ -562,7 +562,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
         except Exception as e:
             logger.error(f"Error getting payment history: {str(e)}")
             return Response(
-                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -573,8 +573,8 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username của user
-                tenant = get_object_or_404(Tenant, user__username=pk)
+                # Tìm theo username hoặc slug
+                tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             saved_posts = Post.objects.filter(
                 likers=tenant.user,
@@ -586,7 +586,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
         except Exception as e:
             logger.error(f"Error getting saved posts: {str(e)}")
             return Response(
-                {"error": f"Không tìm thấy người thuê với username: {pk}"},
+                {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
