@@ -4,6 +4,7 @@ from datetime import datetime
 from accommodationSearch import paginators, serializers
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -51,49 +52,62 @@ class UserViewSet(viewsets.ViewSet,
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # Create user first
-        user_serializer = serializers.UserSerializer(data=request.data)
-        if user_serializer.is_valid():
-            user = user_serializer.save()
+        try:
+            # Create user first
+            user_serializer = serializers.UserSerializer(data=request.data)
+            if user_serializer.is_valid():
+                # If avatar is already uploaded to Cloudinary (URL from client)
+                if 'avatar' in request.data and isinstance(request.data['avatar'], str):
+                    # Use the URL directly
+                    user = user_serializer.save()
+                else:
+                    # Handle local file upload
+                    user = user_serializer.save()
 
-            # Create profile based on role
-            if user.role == "LANDLORD":
-                profile_data = {
-                    'user': user.id,
-                    'full_name': f"{user.first_name} {user.last_name}",
-                    'phone': request.data.get('phone', ''),
-                    'address': request.data.get('address', ''),
-                    'date_of_birth': request.data.get('date_of_birth'),
-                    'gender': request.data.get('gender'),
-                    'bank_account': request.data.get('bank_account', ''),
-                    'citizen_id': request.data.get('citizen_id', '')
-                }
-                landlord_serializer = serializers.LandlordSerializer(data=profile_data)
-                if landlord_serializer.is_valid():
-                    landlord_serializer.save()
-                else:
-                    user.delete()
-                    return Response(landlord_serializer.errors, status=400)
-            elif user.role == "TENANT":
-                profile_data = {
-                    'user': user.id,
-                    'full_name': f"{user.first_name} {user.last_name}",
-                    'phone': request.data.get('phone', ''),
-                    'address': request.data.get('address', ''),
-                    'date_of_birth': request.data.get('date_of_birth'),
-                    'gender': request.data.get('gender'),
-                    'bank_account': request.data.get('bank_account', ''),
-                    'citizen_id': request.data.get('citizen_id', '')
-                }
-                tenant_serializer = serializers.TenantSerializer(data=profile_data)
-                if tenant_serializer.is_valid():
-                    tenant_serializer.save()
-                else:
-                    user.delete()
-                    return Response(tenant_serializer.errors, status=400)
-            return Response(user_serializer.data, status=201)
-        return Response(user_serializer.errors, status=400)
+                user.save()  # Ensure user is saved to database
+
+                # Create profile based on role
+                if user.role == "LANDLORD":
+                    profile_data = {
+                        'user': user.id,
+                        'full_name': f"{user.first_name} {user.last_name}",
+                        'phone': request.data.get('phone', ''),
+                        'address': request.data.get('address', ''),
+                        'date_of_birth': request.data.get('date_of_birth'),
+                        'gender': request.data.get('gender'),
+                        'bank_account': request.data.get('bank_account', ''),
+                        'citizen_id': request.data.get('citizen_id', '')
+                    }
+                    landlord_serializer = serializers.LandlordSerializer(data=profile_data)
+                    if landlord_serializer.is_valid():
+                        landlord_serializer.save()
+                    else:
+                        raise Exception(landlord_serializer.errors)
+                elif user.role == "TENANT":
+                    profile_data = {
+                        'user': user.id,
+                        'full_name': f"{user.first_name} {user.last_name}",
+                        'phone': request.data.get('phone', ''),
+                        'address': request.data.get('address', ''),
+                        'date_of_birth': request.data.get('date_of_birth'),
+                        'gender': request.data.get('gender'),
+                        'bank_account': request.data.get('bank_account', ''),
+                        'citizen_id': request.data.get('citizen_id', '')
+                    }
+                    tenant_serializer = serializers.TenantSerializer(data=profile_data)
+                    if tenant_serializer.is_valid():
+                        tenant_serializer.save()
+                    else:
+                        raise Exception(tenant_serializer.errors)
+
+                return Response(user_serializer.data, status=201)
+            return Response(user_serializer.errors, status=400)
+        except Exception as e:
+            # If any error occurs, rollback the transaction
+            transaction.set_rollback(True)
+            return Response({'error': str(e)}, status=400)
 
     # Lấy hoặc cập nhật thông tin người dùng hiện tại
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
