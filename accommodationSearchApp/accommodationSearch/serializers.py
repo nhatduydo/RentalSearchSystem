@@ -194,12 +194,12 @@ class SearchHistorySerializer(serializers.ModelSerializer):
 class NotificationSerializer(ItemSerializer):
     class Meta:
         model = Notifications
-        fields = ['id', 'user', 'content', 'is_read', 'created_date']
+        fields = ['id', 'receiver', 'title', 'content', 'is_read', 'notification_type', 'created_date']
         read_only_fields = ['id', 'created_date']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['user'] = UserSerializer(instance.user).data
+        data['receiver'] = UserSerializer(instance.receiver).data
         return data
 
 
