@@ -2,9 +2,9 @@ from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
                                         Favorite, Follow, Landlord,
                                         LikeComment, LikeMotel, Message, Motel,
                                         MotelImage, MotelRating, Notifications,
-                                        Payment, Post, Room, RoomImage,
-                                        RoomTenant, SearchHistory, Tenant,
-                                        User)
+                                        NotificationType, Payment, Post, Room,
+                                        RoomImage, RoomTenant, SearchHistory,
+                                        Tenant, User)
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -71,6 +71,13 @@ class TenantSerializer(ItemSerializer):
         model = Tenant
         fields = ['user', 'full_name', 'citizen_id', 'phone', 'address', 'date_of_birth', 'gender', 'bank_account', 'rooms']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Loại bỏ các giá trị trùng lặp trong rooms
+        if 'rooms' in data:
+            data['rooms'] = list(set(data['rooms']))
+        return data
+
 
 class MotelSerializer(ItemSerializer):
     def get_liked(self, motel):
@@ -112,11 +119,61 @@ class RoomSerializer(ItemSerializer):
         model = Room
         fields = ['id', 'motel', 'room_name', 'description', 'area', 'price', 'max_people', 'tenants', 'amenities', 'is_verified']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Loại bỏ các giá trị trùng lặp trong tenants
+        if 'tenants' in data:
+            data['tenants'] = list(set(data['tenants']))
+        return data
+
 
 class RoomTenantSerializer(ItemSerializer):
     class Meta:
         model = RoomTenant
         fields = ['id', 'room', 'tenant', 'start_date', 'end_date', 'status', 'is_paid', 'created_date', 'updated_date']
+        read_only_fields = ['tenant', 'status', 'is_paid', 'created_date', 'updated_date']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['room'] = RoomSerializer(instance.room).data
+        data['tenant'] = TenantSerializer(instance.tenant).data
+        return data
+
+    def validate(self, data):
+        if data.get('start_date') and data.get('end_date'):
+            if data['start_date'] > data['end_date']:
+                raise serializers.ValidationError("Ngày bắt đầu phải trước ngày kết thúc")
+        return data
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError("Bạn cần đăng nhập để thực hiện chức năng này")
+
+        # Lấy tenant từ user hiện tại
+        try:
+            tenant = Tenant.objects.get(user=request.user)
+        except Tenant.DoesNotExist:
+            raise serializers.ValidationError("Tài khoản của bạn không phải là người thuê")
+
+        room = validated_data.get('room')
+
+        # Tự động set status là PENDING
+        validated_data['status'] = 'PENDING'
+        validated_data['tenant'] = tenant
+
+        room_tenant = RoomTenant.objects.create(**validated_data)
+
+        # Tạo thông báo cho chủ nhà
+        Notifications.objects.create(
+            receiver=room.motel.user,
+            title="Yêu cầu thuê phòng mới",
+            content=f"Có yêu cầu thuê phòng {room.room_name} từ {tenant.full_name}",
+            notification_type=NotificationType.MOTEL_UPDATE,
+            related_object_id=room_tenant.id
+        )
+
+        return room_tenant
 
 
 class PostSerializer(ItemSerializer):
@@ -228,7 +285,7 @@ class ChatRoomSerializer(ItemSerializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
-    chat_room = ChatRoomSerializer(read_only=True)
+    chat_room = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Message

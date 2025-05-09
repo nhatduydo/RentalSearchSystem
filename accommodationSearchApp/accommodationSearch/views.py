@@ -11,16 +11,18 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from unidecode import unidecode
 
 from .forms import PaymentForm
-from .models import (Admin, ChatRoom, Comment, Follow, Landlord, LikeComment,
-                     LikeMotel, Message, Motel, MotelRating, Notifications,
-                     Payment, PaymentMethod, PaymentStatus, Post, Room,
-                     RoomTenant, RoomTenantStatus, SearchHistory, Tenant, User)
+from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
+                     Landlord, LikeComment, LikeMotel, Message, Motel,
+                     MotelImage, MotelRating, Notifications, NotificationType,
+                     Payment, Post, Room, RoomImage, RoomTenant,
+                     RoomTenantStatus, SearchHistory, Tenant, User)
 from .permissions import IsOwnerOrAdmin, IsOwnerOrReadOnly
 from .utils import calculate_distance
 from .vnpay import vnpay
@@ -157,13 +159,25 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     serializer_class = serializers.MotelSerializer
     pagination_class = paginators.ItemPanigator
 
-    # Kiểm tra và trả về quyền truy cập cho các action
     def get_permissions(self):
         if self.action in ['like_comment']:
             return [IsAuthenticated()]
         elif self.action in ['update', 'destroy']:
             return [IsOwnerOrReadOnly()]
         return [AllowAny()]
+
+    def perform_create(self, serializer):
+        motel = serializer.save()
+        # Thông báo cho followers khi chủ nhà tạo mới nhà trọ
+        followers = Follow.objects.filter(following=self.request.user)
+        for follow in followers:
+            Notifications.objects.create(
+                receiver=follow.followers,
+                title="Nhà trọ mới",
+                content=f"{self.request.user.username} vừa đăng một nhà trọ mới: {motel.motel_name}",
+                notification_type=NotificationType.MOTEL_UPDATE,
+                related_object_id=motel.id
+            )
 
     # Lấy thông tin chi tiết nhà trọ theo ID hoặc slug
     def retrieve(self, request, pk=None):
@@ -183,6 +197,17 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         if not created:
             like.active = not like.active
         like.save()
+
+        # Thông báo cho chủ nhà khi có người like nhà trọ
+        if like.active:
+            Notifications.objects.create(
+                receiver=motel.user,
+                title="Nhà trọ được yêu thích",
+                content=f"{request.user.username} đã thích nhà trọ {motel.motel_name} của bạn",
+                notification_type=NotificationType.MOTEL_UPDATE,
+                related_object_id=motel.id
+            )
+
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
 
 
@@ -241,29 +266,23 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
 
 
 class RoomTenantViewSet(viewsets.ModelViewSet):
-    # Lấy tất cả các bản ghi RoomTenant
     queryset = RoomTenant.objects.all()
     serializer_class = serializers.RoomTenantSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
-        # Khởi tạo queryset ban đầu
         queryset = self.queryset
 
-        # Chỉ lọc khi là action list (GET /api/room-tenants/)
         if self.action == 'list':
-            # Lọc theo người thuê
             tenant_id = self.request.query_params.get('tenant_id')
             if tenant_id:
                 queryset = queryset.filter(tenant_id=tenant_id)
 
-            # Lọc theo phòng
             room_id = self.request.query_params.get('room_id')
             if room_id:
                 queryset = queryset.filter(room_id=room_id)
 
-            # Lọc theo trạng thái
             status = self.request.query_params.get('status')
             if status:
                 queryset = queryset.filter(status=status)
@@ -271,12 +290,19 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         return queryset.select_related('room', 'tenant')
 
     def perform_create(self, serializer):
-        serializer.save()
+        room_tenant = serializer.save()
+        # Thông báo cho chủ nhà khi có yêu cầu thuê phòng mới
+        Notifications.objects.create(
+            receiver=room_tenant.room.motel.user,
+            title="Yêu cầu thuê phòng mới",
+            content=f"{self.request.user.username} đã gửi yêu cầu thuê phòng {room_tenant.room.room_name}",
+            notification_type=NotificationType.MOTEL_UPDATE,
+            related_object_id=room_tenant.id
+        )
 
     @action(detail=True, methods=['put'], url_path='status')
     def update_status(self, request, pk=None):
         room_tenant = self.get_object()
-
         new_status = request.data.get('status')
 
         valid_statuses = []
@@ -293,16 +319,24 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         room_tenant.status = new_status
         room_tenant.save()
 
-        # Tạo thông báo cho người thuê
+        # Thông báo cho người thuê khi trạng thái thay đổi
         Notifications.objects.create(
             receiver=room_tenant.tenant.user,
             title="Cập nhật trạng thái thuê phòng",
             content=f"Trạng thái thuê phòng {room_tenant.room.room_name} đã được cập nhật thành {new_status}",
-            notification_type="ROOM_TENANT_STATUS",
+            notification_type=NotificationType.MOTEL_UPDATE,
             related_object_id=room_tenant.id
         )
 
-        # Trả về dữ liệu đã cập nhật
+        # Thông báo cho chủ nhà khi trạng thái thay đổi
+        Notifications.objects.create(
+            receiver=room_tenant.room.motel.user,
+            title="Cập nhật trạng thái thuê phòng",
+            content=f"Trạng thái thuê phòng {room_tenant.room.room_name} đã được cập nhật thành {new_status}",
+            notification_type=NotificationType.MOTEL_UPDATE,
+            related_object_id=room_tenant.id
+        )
+
         serializer = self.get_serializer(room_tenant)
         return Response(serializer.data)
 
@@ -670,7 +704,18 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         }
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        comment = serializer.save()
+
+        # Thông báo cho chủ bài viết khi có bình luận mới
+        if comment.post.user != request.user:
+            Notifications.objects.create(
+                receiver=comment.post.user,
+                title="Bình luận mới",
+                content=f"{request.user.username} đã bình luận bài viết của bạn: {comment.content[:50]}...",
+                notification_type=NotificationType.NEW_COMMENT,
+                related_object_id=comment.id
+            )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     # Chi tiết 1 bình luận
@@ -695,6 +740,17 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         if not created:
             like.active = not like.active
         like.save()
+
+        # Thông báo cho người viết bình luận khi có người like
+        if like.active and comment.user != request.user:
+            Notifications.objects.create(
+                receiver=comment.user,
+                title="Bình luận được yêu thích",
+                content=f"{request.user.username} đã thích bình luận của bạn",
+                notification_type=NotificationType.NEW_COMMENT,
+                related_object_id=comment.id
+            )
+
         return Response(serializers.CommentSerializer(comment, context={'request': request}).data)
 
     # trả lời một bình luận.
@@ -710,7 +766,18 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        reply = serializer.save()
+
+        # Thông báo cho người viết bình luận gốc khi có phản hồi
+        if parent.user != request.user:
+            Notifications.objects.create(
+                receiver=parent.user,
+                title="Phản hồi bình luận",
+                content=f"{request.user.username} đã phản hồi bình luận của bạn: {reply.content[:50]}...",
+                notification_type=NotificationType.NEW_COMMENT,
+                related_object_id=reply.id
+            )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -995,6 +1062,36 @@ class NotificationViewSet(viewsets.ViewSet):
             return Notifications.objects.none()
         return Notifications.objects.filter(receiver=self.request.user, active=True)
 
+    # Lấy danh sách tất cả thông báo
+    def list(self, request):
+        notifications = self.get_queryset().order_by('-created_date')
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(notifications, request)
+        if page is not None:
+            serializer = self.serializer_class(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        serializer = self.serializer_class(notifications, many=True)
+        return Response(serializer.data)
+
+    # Lấy chi tiết một thông báo
+    def retrieve(self, request, pk=None):
+        try:
+            notification = self.get_queryset().get(pk=pk)
+            serializer = self.serializer_class(notification)
+            return Response(serializer.data)
+        except Notifications.DoesNotExist:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Xóa một thông báo
+    def destroy(self, request, pk=None):
+        try:
+            notification = self.get_queryset().get(pk=pk)
+            notification.active = False
+            notification.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Notifications.DoesNotExist:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+
     # lấy danh sách thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread')
     def unread(self, request):
@@ -1019,6 +1116,29 @@ class NotificationViewSet(viewsets.ViewSet):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'message': 'All notifications marked as read'})
 
+    # Xóa tất cả thông báo
+    @action(detail=False, methods=['delete'], url_path='delete_all')
+    def delete_all(self, request):
+        self.get_queryset().update(active=False)
+        return Response({'message': 'All notifications deleted'})
+
+    # Đếm số thông báo chưa đọc
+    @action(detail=False, methods=['get'], url_path='unread_count')
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread_count': count})
+
+    # Lọc thông báo theo loại
+    @action(detail=False, methods=['get'], url_path='by_type')
+    def by_type(self, request):
+        notification_type = request.query_params.get('type')
+        if not notification_type:
+            return Response({'error': 'Notification type is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        notifications = self.get_queryset().filter(notification_type=notification_type).order_by('-created_date')
+        serializer = self.serializer_class(notifications, many=True)
+        return Response(serializer.data)
+
 
 class ChatRoomViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.ChatRoomSerializer
@@ -1035,7 +1155,16 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         chat_room = serializer.save()
+        # Thêm người tạo phòng
         chat_room.participants.add(self.request.user)
+        # Thêm các participants khác từ request
+        participants = self.request.data.get('participants', [])
+        for participant_id in participants:
+            try:
+                user = User.objects.get(id=participant_id)
+                chat_room.participants.add(user)
+            except User.DoesNotExist:
+                continue
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -1051,11 +1180,39 @@ class MessageViewSet(viewsets.ModelViewSet):
         ).order_by('created_date')
 
     def perform_create(self, serializer):
-        serializer.save(sender=self.request.user)
+        chat_room_id = self.kwargs.get('chat_room_id')
+        try:
+            chat_room = ChatRoom.objects.get(id=chat_room_id)
+            # Kiểm tra xem người dùng có trong phòng chat không
+            if self.request.user not in chat_room.participants.all():
+                raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
+            serializer.save(sender=self.request.user, chat_room=chat_room)
+        except ChatRoom.DoesNotExist:
+            raise NotFound("Không tìm thấy phòng chat")
+
+    def update(self, request, *args, **kwargs):
+        message = self.get_object()
+        # Kiểm tra xem người dùng có phải là người gửi tin nhắn không
+        if message.sender != request.user:
+            raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        message = self.get_object()
+        # Kiểm tra xem người dùng có phải là người gửi tin nhắn không
+        if message.sender != request.user:
+            raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
+        # Xóa mềm tin nhắn
+        message.active = False
+        message.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['put'], url_path='read')
-    def read(self, request, pk=None):
+    def read(self, request, chat_room_id=None, pk=None):
         message = self.get_object()
+        # Kiểm tra xem người dùng có trong phòng chat không
+        if request.user not in message.chat_room.participants.all():
+            raise PermissionDenied("Bạn không có quyền đánh dấu tin nhắn này là đã đọc")
         message.is_read = True
         message.save()
         return Response({'status': 'message marked as read'})
@@ -1138,7 +1295,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return queryset.select_related('payer', 'room')
 
     def perform_create(self, serializer):
-        serializer.save(payer=self.request.user)
+        payment = serializer.save(payer=self.request.user)
+        # Thông báo cho chủ nhà khi có thanh toán mới
+        Notifications.objects.create(
+            receiver=payment.room.motel.user,
+            title="Thanh toán mới",
+            content=f"Có thanh toán mới cho phòng {payment.room.room_name} từ {self.request.user.username}",
+            notification_type=NotificationType.PAYMENT,
+            related_object_id=payment.id
+        )
 
     @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
     def room_payments(self, request, room_id=None):
@@ -1194,11 +1359,36 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment.status = new_status
         payment.save()
 
+        # Thông báo cho người thanh toán khi trạng thái thay đổi
         if new_status == PaymentStatus.COMPLETED:
             Notifications.objects.create(
                 receiver=payment.payer,
                 title="Thanh toán thành công",
                 content=f"Thanh toán cho phòng {payment.room.room_name} đã hoàn tất",
+                notification_type=NotificationType.PAYMENT,
+                related_object_id=payment.id
+            )
+            # Thông báo cho chủ nhà
+            Notifications.objects.create(
+                receiver=payment.room.motel.user,
+                title="Thanh toán thành công",
+                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã hoàn tất",
+                notification_type=NotificationType.PAYMENT,
+                related_object_id=payment.id
+            )
+        elif new_status == PaymentStatus.FAILED:
+            Notifications.objects.create(
+                receiver=payment.payer,
+                title="Thanh toán thất bại",
+                content=f"Thanh toán cho phòng {payment.room.room_name} đã thất bại",
+                notification_type=NotificationType.PAYMENT,
+                related_object_id=payment.id
+            )
+            # Thông báo cho chủ nhà
+            Notifications.objects.create(
+                receiver=payment.room.motel.user,
+                title="Thanh toán thất bại",
+                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã thất bại",
                 notification_type=NotificationType.PAYMENT,
                 related_object_id=payment.id
             )
