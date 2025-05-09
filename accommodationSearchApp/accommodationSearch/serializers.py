@@ -294,10 +294,21 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class FollowSerializer(serializers.ModelSerializer):
+    following = UserSerializer(read_only=True)
+    followers = UserSerializer(read_only=True)
+
     class Meta:
         model = Follow
         fields = ['id', 'following', 'followers', 'last_message_time']
         read_only_fields = ['id', 'last_message_time']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Thêm thông tin chi tiết của người được theo dõi
+        data['following'] = UserSerializer(instance.following).data
+        # Thêm thông tin chi tiết của người theo dõi
+        data['followers'] = UserSerializer(instance.followers).data
+        return data
 
 
 class PaymentSerializer(serializers.ModelSerializer):
