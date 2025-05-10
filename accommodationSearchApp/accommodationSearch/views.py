@@ -51,30 +51,30 @@ class UserViewSet(viewsets.ViewSet,
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
-    @transaction.atomic #đảm bảo tính toàn vẹn dữ liệu
+    @transaction.atomic  # đảm bảo tính toàn vẹn dữ liệu
     def create(self, request, *args, **kwargs):
         try:
             user_serializer = serializers.UserSerializer(data=request.data)
             if user_serializer.is_valid():
                 user = user_serializer.save()
-                # user.save() 
+                # user.save()
 
                 profile_data = {
-                        'user': user.id,
-                        'full_name': f"{user.first_name} {user.last_name}",
-                        'phone': request.data.get('phone', ''),
-                        'address': request.data.get('address', ''),
-                        'date_of_birth': request.data.get('date_of_birth'),
-                        'gender': request.data.get('gender'),
-                        'bank_account': request.data.get('bank_account', ''),
-                        'citizen_id': request.data.get('citizen_id', '')
-                    }
-                
+                    'user': user.id,
+                    'full_name': f"{user.first_name} {user.last_name}",
+                    'phone': request.data.get('phone', ''),
+                    'address': request.data.get('address', ''),
+                    'date_of_birth': request.data.get('date_of_birth'),
+                    'gender': request.data.get('gender'),
+                    'bank_account': request.data.get('bank_account', ''),
+                    'citizen_id': request.data.get('citizen_id', '')
+                }
+
                 role_serializers = {
                     "LANDLORD": serializers.LandlordSerializer,
                     "TENANT": serializers.TenantSerializer
                 }
-                
+
                 if user.role in role_serializers:
                     profile_serializer = role_serializers[user.role](data=profile_data)
                     profile_serializer.save()
@@ -134,7 +134,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
-        if self.action in ['like_comment']:
+        if self.action in ['like_motel']:
             return [IsAuthenticated()]
         elif self.action in ['update', 'destroy']:
             return [IsOwnerOrReadOnly()]
@@ -142,12 +142,13 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
     def perform_create(self, serializer):
         motel = serializer.save()
-        
+
         # Thông báo cho followers khi chủ nhà tạo mới nhà trọ
-        followers = Follow.objects.filter(following=self.request.user)
+        followers = Follow.objects.filter(followed_user=self.request.user)
+        #  lấy tất cả các bản ghi Follow mà self.request.user (chủ nhà) là người được theo dõi
         for follow in followers:
             Notifications.objects.create(
-                receiver=follow.followers,
+                receiver=follow.follower_user, # lấy người theo dõi từ mỗi bản ghi Follow
                 title="Nhà trọ mới",
                 content=f"{self.request.user.username} vừa đăng một nhà trọ mới: {motel.motel_name}",
                 notification_type=NotificationType.MOTEL_UPDATE,
@@ -164,7 +165,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         serializers = self.get_serializer(motel)
         return Response(serializers.data)
 
-    # like (thích) một khách sạn
+    # like (thích) một phòng trọ
     @action(methods=['POST'], detail=True, url_path='like')
     def like_motel(self, request, pk):
         motel = self.get_object()
@@ -182,7 +183,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 notification_type=NotificationType.MOTEL_UPDATE,
                 related_object_id=motel.id
             )
-
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
 
 
@@ -629,10 +629,10 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         post = serializer.save(user=self.request.user)
 
         if post.post_type == 'RENT_OUT' and post.motel:
-            followers = Follow.objects.filter(following=self.request.user)
+            followers = Follow.objects.filter(followed_user=self.request.user)
             for follow in followers:
                 Notifications.objects.create(
-                    receiver=follow.followers,  # Người nhận thông báo là người theo dõi
+                    receiver=follow.follower_user,  # Người nhận thông báo là người theo dõi
                     title="New Post",
                     content=f"{self.request.user.username} đã đăng một bài đăng mới: {post.title}",
                     notification_type="NEW_POST",
@@ -1203,7 +1203,7 @@ class FollowViewSet(viewsets.ViewSet):
             return Follow.objects.none()
         if not self.request.user.is_authenticated:
             return Follow.objects.none()
-        return Follow.objects.filter(followers=self.request.user, active=True)
+        return Follow.objects.filter(follower_user=self.request.user, active=True)
 
     def list(self, request):
         """
@@ -1217,21 +1217,21 @@ class FollowViewSet(viewsets.ViewSet):
         """
         Theo dõi một người dùng
         """
-        following_id = request.data.get('following_id')
-        if not following_id:
+        followed_user_id = request.data.get('followed_user_id')
+        if not followed_user_id:
             return Response({"error": "Thiếu ID người dùng cần theo dõi"}, status=400)
 
         try:
-            following_user = User.objects.get(id=following_id)
+            followed_user = User.objects.get(id=followed_user_id)
         except User.DoesNotExist:
             return Response({"error": "Người dùng không tồn tại"}, status=404)
 
-        if following_user == request.user:
+        if followed_user == request.user:
             return Response({"error": "Không thể theo dõi chính mình"}, status=400)
 
         follow, created = Follow.objects.get_or_create(
-            following=following_user,
-            followers=request.user
+            followed_user=followed_user,
+            follower_user=request.user
         )
 
         if not created:
@@ -1247,8 +1247,8 @@ class FollowViewSet(viewsets.ViewSet):
         """
         try:
             follow = Follow.objects.get(
-                following_id=pk,
-                followers=request.user
+                followed_user_id=pk,
+                follower_user=request.user
             )
             follow.active = False
             follow.save()

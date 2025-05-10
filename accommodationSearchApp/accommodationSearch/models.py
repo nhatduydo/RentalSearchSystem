@@ -438,12 +438,12 @@ class SearchHistory(ActiveModel):
 
 class Follow(ActiveModel):
     id = models.AutoField(primary_key=True)
-    following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
-    followers = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
+    followed_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers') # Người được theo dõi
+    follower_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following') #  Người đi theo dõi
     last_message_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('following', 'followers')
+        unique_together = ('followed_user', 'follower_user')
         verbose_name = "Theo dõi"
         verbose_name_plural = "Theo dõi"
 
