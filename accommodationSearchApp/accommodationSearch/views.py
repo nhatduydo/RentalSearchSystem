@@ -11,8 +11,8 @@ from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import (SAFE_METHODS, AllowAny,
-                                        IsAuthenticated)
+from rest_framework.permissions import (SAFE_METHODS, AllowAny, BasePermission,
+                                        IsAdminUser, IsAuthenticated)
 from rest_framework.response import Response
 
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
@@ -32,6 +32,16 @@ def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
 
+class IsOwnerOrAdmin(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Cho phép nếu là admin hoặc là chủ sở hữu (user)
+        if hasattr(obj, 'user'):
+            return request.user.is_staff or request.user == obj.user
+        if hasattr(obj, 'motel') and hasattr(obj.motel, 'user'):
+            return request.user.is_staff or request.user == obj.motel.user
+        return request.user.is_staff
+
+
 class UserViewSet(viewsets.ViewSet,
                   generics.ListAPIView,
                   generics.RetrieveAPIView,
@@ -43,9 +53,11 @@ class UserViewSet(viewsets.ViewSet,
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
-        if self.action in ['create']:
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        if self.action == 'create':
+            return [AllowAny()]
+        return [AllowAny()]
 
     @transaction.atomic  # đảm bảo tính toàn vẹn dữ liệu
     def create(self, request, *args, **kwargs):
@@ -130,10 +142,10 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
-        if self.action in ['like_motel']:
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        if self.action == 'create':
             return [IsAuthenticated()]
-        elif self.action in ['update', 'destroy']:
-            return [IsOwnerOrReadOnly()]
         return [AllowAny()]
 
     def perform_create(self, serializer):
@@ -205,13 +217,12 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     queryset = Room.objects.filter(active=True)
     serializer_class = serializers.RoomSerializer
     pagination_class = paginators.ItemPanigator
-    permission_classes = [AllowAny]
 
     def get_permissions(self):
-        if self.action in ['create']:
-            return [IsAuthenticated()]
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
+        if self.action == 'create':
+            return [IsAuthenticated()]
         return [AllowAny()]
 
     def retrieve(self, request, pk=None):
@@ -301,7 +312,6 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             status_code = status_tuple[0]
             valid_statuses.append(status_code)
 
-        
         #   [
         #     ('PENDING', 'Chờ duyệt'),
         #     ('APPROVED', 'Đã duyệt'),
@@ -311,8 +321,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         # Lấy phần tử đầu tiên của mỗi tuple (chính là giá trị code: 'PENDING', 'APPROVED', 'REJECTED', ...)
         # Thêm vào list valid_statuses.
         # Kết quả    ['PENDING', 'APPROVED', 'REJECTED']
-        
-        
+
         if new_status not in valid_statuses:
             return Response(
                 {'error': 'Trạng thái không hợp lệ'},
@@ -348,12 +357,14 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     queryset = Landlord.objects.filter(active=True)
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]
 
     def get_permissions(self):
-        if self.action == 'verify':
-            return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticatedOrReadOnly()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        if self.action == 'create':
+            return [IsAuthenticated()]
+        return [AllowAny()]
 
     # Lấy thông tin chi tiết chủ nhà theo ID, username hoặc slug
     def retrieve(self, request, pk=None):
@@ -470,12 +481,14 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     queryset = Tenant.objects.filter(active=True)
     serializer_class = serializers.TenantSerializer
     pagination_class = paginators.ItemPanigator
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]
 
     def get_permissions(self):
-        if self.action in ['update', 'partial_update']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticatedOrReadOnly()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        if self.action == 'create':
+            return [IsAuthenticated()]
+        return [AllowAny()]
 
     # Lấy thông tin chi tiết người thuê theo ID, username hoặc slug
     def retrieve(self, request, pk=None):
@@ -483,7 +496,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             serializers = self.get_serializer(tenant)
@@ -529,7 +541,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 if max_age:
                     min_date = today.replace(year=today.year - int(max_age) - 1)
                     query = query.filter(date_of_birth__gt=min_date)
-
         return query
 
     # Cập nhật thông tin người thuê
@@ -539,17 +550,14 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
-            # Kiểm tra quyền cập nhật
             if request.user != tenant.user and not request.user.is_staff:
                 return Response(
                     {'error': 'Bạn không có quyền cập nhật thông tin này'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Cập nhật thông tin
             serializer = self.get_serializer(tenant, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -573,7 +581,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             room_tenants = RoomTenant.objects.filter(
@@ -1467,12 +1474,11 @@ class RoomImageViewSet(viewsets.ModelViewSet):
 class AmenityViewSet(viewsets.ModelViewSet):
     queryset = Amenity.objects.filter(active=True)
     serializer_class = serializers.AmenitySerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.AllowAny()]
+            return [IsAdminUser()]
+        return [AllowAny()]
 
     def perform_destroy(self, instance):
         instance.active = False

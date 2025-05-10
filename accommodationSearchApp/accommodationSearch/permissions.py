@@ -23,5 +23,10 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         # Admin có quyền truy cập tất cả
         if request.user.is_staff:
             return True
-        # User chỉ có thể xem thông tin của chính họ
-        return obj == request.user
+        # Nếu object có thuộc tính user
+        if hasattr(obj, 'user'):
+            return request.user == obj.user
+        # Nếu object có thuộc tính motel và motel có user
+        if hasattr(obj, 'motel') and hasattr(obj.motel, 'user'):
+            return request.user == obj.motel.user
+        return False
