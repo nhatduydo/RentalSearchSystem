@@ -277,6 +277,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             if status:
                 queryset = queryset.filter(status=status)
 
+        # tối ưu hóa truy vấn cơ sở dữ liệu khi bạn làm việc với các quan hệ ForeignKey hoặc OneToOneField.
         return queryset.select_related('room', 'tenant')
 
     def perform_create(self, serializer):
@@ -300,6 +301,18 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             status_code = status_tuple[0]
             valid_statuses.append(status_code)
 
+        
+        #   [
+        #     ('PENDING', 'Chờ duyệt'),
+        #     ('APPROVED', 'Đã duyệt'),
+        #     ('REJECTED', 'Từ chối')
+        # ]
+        # Duyệt qua từng tuple trong RoomTenantStatus.choices.
+        # Lấy phần tử đầu tiên của mỗi tuple (chính là giá trị code: 'PENDING', 'APPROVED', 'REJECTED', ...)
+        # Thêm vào list valid_statuses.
+        # Kết quả    ['PENDING', 'APPROVED', 'REJECTED']
+        
+        
         if new_status not in valid_statuses:
             return Response(
                 {'error': 'Trạng thái không hợp lệ'},
@@ -336,7 +349,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.action == 'verify':
@@ -355,7 +367,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             serializers = self.get_serializer(landlord)
             return Response(serializers.data)
         except Exception as e:
-            logger.error(f"Lỗi khi tìm chủ nhà: {str(e)}")
             return Response(
                 {"error": f"Không tìm thấy chủ nhà với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
@@ -460,7 +471,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     serializer_class = serializers.TenantSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.action in ['update', 'partial_update']:
