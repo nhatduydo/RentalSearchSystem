@@ -66,8 +66,7 @@ class UserViewSet(viewsets.ViewSet,
                     user = user_serializer.save()
                 user.save() 
 
-                if user.role == "LANDLORD":
-                    profile_data = {
+                profile_data = {
                         'user': user.id,
                         'full_name': f"{user.first_name} {user.last_name}",
                         'phone': request.data.get('phone', ''),
@@ -77,22 +76,14 @@ class UserViewSet(viewsets.ViewSet,
                         'bank_account': request.data.get('bank_account', ''),
                         'citizen_id': request.data.get('citizen_id', '')
                     }
+                
+                if user.role == "LANDLORD":
                     landlord_serializer = serializers.LandlordSerializer(data=profile_data)
                     if landlord_serializer.is_valid():
                         landlord_serializer.save()
                     else:
                         raise Exception(landlord_serializer.errors)
                 elif user.role == "TENANT":
-                    profile_data = {
-                        'user': user.id,
-                        'full_name': f"{user.first_name} {user.last_name}",
-                        'phone': request.data.get('phone', ''),
-                        'address': request.data.get('address', ''),
-                        'date_of_birth': request.data.get('date_of_birth'),
-                        'gender': request.data.get('gender'),
-                        'bank_account': request.data.get('bank_account', ''),
-                        'citizen_id': request.data.get('citizen_id', '')
-                    }
                     tenant_serializer = serializers.TenantSerializer(data=profile_data)
                     if tenant_serializer.is_valid():
                         tenant_serializer.save()
@@ -102,11 +93,9 @@ class UserViewSet(viewsets.ViewSet,
                 return Response(user_serializer.data, status=201)
             return Response(user_serializer.errors, status=400)
         except Exception as e:
-            # If any error occurs, rollback the transaction
             transaction.set_rollback(True)
             return Response({'error': str(e)}, status=400)
 
-    # Lấy hoặc cập nhật thông tin người dùng hiện tại
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
     def get_Current_user(self, request):
         if request.method.__eq__("PATCH"):
@@ -121,7 +110,6 @@ class UserViewSet(viewsets.ViewSet,
             return Response(serializers.UserSerializer(user).data)
         return Response(serializers.UserSerializer(request.user).data)
 
-    # Thay đổi mật khẩu người dùng
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
     def change_password(self, request):
         old_password = request.data.get("old_password")
@@ -163,6 +151,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
     def perform_create(self, serializer):
         motel = serializer.save()
+        
         # Thông báo cho followers khi chủ nhà tạo mới nhà trọ
         followers = Follow.objects.filter(following=self.request.user)
         for follow in followers:
@@ -360,7 +349,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             serializers = self.get_serializer(landlord)
             return Response(serializers.data)
         except Exception as e:
-            logger.error(f"Error retrieving landlord: {str(e)}")
+            logger.error(f"Lỗi khi tìm chủ nhà: {str(e)}")
             return Response(
                 {"error": f"Không tìm thấy chủ nhà với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
@@ -412,7 +401,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             })
 
         except Exception as e:
-            logger.error(f"Error updating landlord: {str(e)}")
+            logger.error(f"Lỗi khi cập nhật chủ nhà: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
@@ -453,7 +442,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             })
 
         except Exception as e:
-            logger.error(f"Error verifying landlord: {str(e)}")
+            logger.error(f"Lỗi khi xác minh chủ nhà: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
@@ -484,7 +473,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             serializers = self.get_serializer(tenant)
             return Response(serializers.data)
         except Exception as e:
-            logger.error(f"Error retrieving tenant: {str(e)}")
+            logger.error(f"Lỗi khi truy xuất người thuê: {str(e)}")
             return Response(
                 {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
@@ -555,7 +544,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             })
 
         except Exception as e:
-            logger.error(f"Error updating tenant: {str(e)}")
+            logger.error(f"Lỗi khi cập nhật người thuê: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
@@ -579,7 +568,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             serializer = serializers.RoomTenantSerializer(room_tenants, many=True)
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Error getting rented rooms: {str(e)}")
+            logger.error(f"Lỗi khi thuê phòng: {str(e)}")
             return Response(
                 {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
@@ -603,7 +592,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             serializer = serializers.PaymentSerializer(payments, many=True)
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Error getting payment history: {str(e)}")
+            logger.error(f"Lỗi khi lấy lịch sử thanh toán: {str(e)}")
             return Response(
                 {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
@@ -627,7 +616,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Error getting saved posts: {str(e)}")
+            logger.error(f"Lỗi khi lưu bài viết: {str(e)}")
             return Response(
                 {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
@@ -654,7 +643,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                 Notifications.objects.create(
                     receiver=follow.followers,  # Người nhận thông báo là người theo dõi
                     title="New Post",
-                    content=f"{self.request.user.username} has posted a new property: {post.title}",
+                    content=f"{self.request.user.username} đã đăng một bài đăng mới: {post.title}",
                     notification_type="NEW_POST",
                     related_object_id=post.id
                 )
@@ -1075,7 +1064,7 @@ class NotificationViewSet(viewsets.ViewSet):
             serializer = self.serializer_class(notification)
             return Response(serializer.data)
         except Notifications.DoesNotExist:
-            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_404_NOT_FOUND)
 
     # Xóa một thông báo
     def destroy(self, request, pk=None):
@@ -1085,7 +1074,7 @@ class NotificationViewSet(viewsets.ViewSet):
             notification.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Notifications.DoesNotExist:
-            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_404_NOT_FOUND)
 
     # lấy danh sách thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread')
@@ -1101,21 +1090,21 @@ class NotificationViewSet(viewsets.ViewSet):
             notification = self.get_queryset().get(pk=pk)
             notification.is_read = True
             notification.save()
-            return Response({'message': 'Notification marked as read'})
+            return Response({'message': 'Thông báo được đánh dấu là đã đọc'})
         except Notifications.DoesNotExist:
-            return Response({'error': 'Notification not found'}, status=status.HTTP_200_OK)
+            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_200_OK)
 
     # Đánh dấu tất cả thông báo là đã đọc
     @action(detail=False, methods=['put'], url_path='read_all')
     def read_all(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
-        return Response({'message': 'All notifications marked as read'})
+        return Response({'message': 'Tất cả thông báo được đánh dấu là đã đọc'})
 
     # Xóa tất cả thông báo
     @action(detail=False, methods=['delete'], url_path='delete_all')
     def delete_all(self, request):
         self.get_queryset().update(active=False)
-        return Response({'message': 'All notifications deleted'})
+        return Response({'message': 'Tất cả thông báo đã bị xóa'})
 
     # Đếm số thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread_count')
@@ -1128,7 +1117,7 @@ class NotificationViewSet(viewsets.ViewSet):
     def by_type(self, request):
         notification_type = request.query_params.get('type')
         if not notification_type:
-            return Response({'error': 'Notification type is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Notification type là bắt buộc'}, status=status.HTTP_400_BAD_REQUEST)
 
         notifications = self.get_queryset().filter(notification_type=notification_type).order_by('-created_date')
         serializer = self.serializer_class(notifications, many=True)
@@ -1210,7 +1199,7 @@ class MessageViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Bạn không có quyền đánh dấu tin nhắn này là đã đọc")
         message.is_read = True
         message.save()
-        return Response({'status': 'message marked as read'})
+        return Response({'status': 'tin nhắn được đánh dấu là đã đọc'})
 
 
 class FollowViewSet(viewsets.ViewSet):
