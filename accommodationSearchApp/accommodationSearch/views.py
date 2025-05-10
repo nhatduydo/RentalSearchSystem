@@ -21,8 +21,9 @@ from .forms import PaymentForm
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      Landlord, LikeComment, LikeMotel, Message, Motel,
                      MotelImage, MotelRating, Notifications, NotificationType,
-                     Payment, Post, Room, RoomImage, RoomTenant,
-                     RoomTenantStatus, SearchHistory, Tenant, User)
+                     Payment, PaymentMethod, PaymentStatus, Post, Room,
+                     RoomImage, RoomTenant, RoomTenantStatus, SearchHistory,
+                     Tenant, User)
 from .permissions import IsOwnerOrAdmin, IsOwnerOrReadOnly
 from .utils import calculate_distance
 from .vnpay import vnpay
@@ -57,20 +58,14 @@ class UserViewSet(viewsets.ViewSet,
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         try:
-            # Create user first
             user_serializer = serializers.UserSerializer(data=request.data)
             if user_serializer.is_valid():
-                # If avatar is already uploaded to Cloudinary (URL from client)
                 if 'avatar' in request.data and isinstance(request.data['avatar'], str):
-                    # Use the URL directly
                     user = user_serializer.save()
                 else:
-                    # Handle local file upload
                     user = user_serializer.save()
+                user.save() 
 
-                user.save()  # Ensure user is saved to database
-
-                # Create profile based on role
                 if user.role == "LANDLORD":
                     profile_data = {
                         'user': user.id,

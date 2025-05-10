@@ -314,14 +314,13 @@ class FollowSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     payer = serializers.SlugRelatedField(
         slug_field='username',
-        queryset=User.objects.all()
+        read_only=True
     )
-    room = serializers.SlugRelatedField(
-        slug_field='room_name',
+    room = serializers.PrimaryKeyRelatedField(
         queryset=Room.objects.all()
     )
 
     class Meta:
         model = Payment
         fields = ['id', 'payer', 'room', 'amount', 'payment_method', 'status', 'description', 'vnp_transaction_no', 'vnp_bank_code', 'vnp_bank_tran_no', 'vnp_card_type', 'vnp_pay_date', 'vnp_response_code', 'vnp_txn_ref', 'created_date', 'updated_date']
-        read_only_fields = ['id', 'created_date', 'updated_date']
+        read_only_fields = ['id', 'payer', 'created_date', 'updated_date']
