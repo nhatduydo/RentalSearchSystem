@@ -30,10 +30,6 @@ logger = logging.getLogger(__name__)
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
-# class AdminViewSet(viewsets.ViewSet, generics.ListAPIView):
-#     queryset = Admin.objects.filter(active = True)
-#     serializer_class = serializers.AdminSerializer
-
 
 class UserViewSet(viewsets.ViewSet,
                   generics.ListAPIView,
@@ -148,7 +144,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         #  lấy tất cả các bản ghi Follow mà self.request.user (chủ nhà) là người được theo dõi
         for follow in followers:
             Notifications.objects.create(
-                receiver=follow.follower_user, # lấy người theo dõi từ mỗi bản ghi Follow
+                receiver=follow.follower_user,  # lấy người theo dõi từ mỗi bản ghi Follow
                 title="Nhà trọ mới",
                 content=f"{self.request.user.username} vừa đăng một nhà trọ mới: {motel.motel_name}",
                 notification_type=NotificationType.MOTEL_UPDATE,
@@ -1397,3 +1393,101 @@ class PaymentViewSet(viewsets.ModelViewSet):
     #         'method_stats': method_stats,
     #         'total_stats': total_stats
     #     })
+
+
+class MotelImageViewSet(viewsets.ModelViewSet):
+    queryset = MotelImage.objects.filter(active=True)
+    serializer_class = serializers.MotelImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = MotelImage.objects.filter(active=True)
+        motel_id = self.request.query_params.get('motel_id', None)
+        if motel_id is not None:
+            queryset = queryset.filter(motel_id=motel_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class RoomImageViewSet(viewsets.ModelViewSet):
+    queryset = RoomImage.objects.filter(active=True)
+    serializer_class = serializers.RoomImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = RoomImage.objects.filter(active=True)
+        room_id = self.request.query_params.get('room_id', None)
+        if room_id is not None:
+            queryset = queryset.filter(room_id=room_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class AmenityViewSet(viewsets.ModelViewSet):
+    queryset = Amenity.objects.filter(active=True)
+    serializer_class = serializers.AmenitySerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class FavoriteViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.FavoriteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Favorite.objects.none()
+        return Favorite.objects.filter(user=self.request.user, active=True)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        # Thông báo cho chủ nhà khi có người thêm vào yêu thích
+        motel = serializer.validated_data['motel']
+        Notifications.objects.create(
+            receiver=motel.user,
+            title="Nhà trọ được yêu thích",
+            content=f"{self.request.user.username} đã thêm nhà trọ {motel.motel_name} vào danh sách yêu thích",
+            notification_type=NotificationType.MOTEL_UPDATE,
+            related_object_id=motel.id
+        )
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+    @action(detail=False, methods=['get'], url_path='check/(?P<motel_id>[^/.]+)')
+    def check_favorite(self, request, motel_id=None):
+        try:
+            motel = Motel.objects.get(id=motel_id)
+            is_favorite = Favorite.objects.filter(
+                user=request.user,
+                motel=motel,
+                active=True
+            ).exists()
+            return Response({'is_favorite': is_favorite})
+        except Motel.DoesNotExist:
+            return Response(
+                {'error': 'Không tìm thấy nhà trọ'},
+                status=status.HTTP_404_NOT_FOUND
+            )

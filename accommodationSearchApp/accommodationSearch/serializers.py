@@ -324,3 +324,31 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ['id', 'payer', 'room', 'amount', 'payment_method', 'status', 'description', 'vnp_transaction_no', 'vnp_bank_code', 'vnp_bank_tran_no', 'vnp_card_type', 'vnp_pay_date', 'vnp_response_code', 'vnp_txn_ref', 'created_date', 'updated_date']
         read_only_fields = ['id', 'payer', 'created_date', 'updated_date']
+
+
+class MotelImageSerializer(ItemSerializer):
+    class Meta:
+        model = MotelImage
+        fields = ['id', 'motel', 'image_url', 'image_type', 'created_date', 'updated_date', 'active']
+
+
+class RoomImageSerializer(ItemSerializer):
+    class Meta:
+        model = RoomImage
+        fields = ['id', 'room', 'image_url', 'created_date', 'updated_date', 'active']
+
+
+class AmenitySerializer(ItemSerializer):
+    class Meta:
+        model = Amenity
+        fields = ['id', 'name', 'slug', 'created_date', 'updated_date', 'active']
+
+
+class FavoriteSerializer(ItemSerializer):
+    motel = MotelSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = Favorite
+        fields = ['id', 'user', 'motel', 'created_date', 'updated_date', 'active']
+        read_only_fields = ['user', 'created_date', 'updated_date']

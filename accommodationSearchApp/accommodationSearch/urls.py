@@ -23,6 +23,10 @@ router.register('chat-rooms', views.ChatRoomViewSet, basename='chat-room')
 router.register(r'chat-rooms/(?P<chat_room_id>\d+)/messages', views.MessageViewSet, basename='message')
 router.register('follows', views.FollowViewSet, basename='follows')
 router.register('room-tenants', views.RoomTenantViewSet, basename='room-tenant')
+router.register('motel-images', views.MotelImageViewSet, basename='motel-image')
+router.register('room-images', views.RoomImageViewSet, basename='room-image')
+router.register('amenities', views.AmenityViewSet, basename='amenity')
+router.register('favorites', views.FavoriteViewSet, basename='favorite')
 
 urlpatterns = [
     # path('', views.index, name="index")
