@@ -3,21 +3,17 @@ from datetime import datetime
 
 from accommodationSearch import paginators, serializers
 from django.conf import settings
-from django.contrib.auth import authenticate
 from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery, Sum
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, parsers, permissions, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from unidecode import unidecode
 
-from .forms import PaymentForm
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      Landlord, LikeComment, LikeMotel, Message, Motel,
                      MotelImage, MotelRating, Notifications, NotificationType,
@@ -48,23 +44,20 @@ class UserViewSet(viewsets.ViewSet,
     queryset = User.objects.filter(is_active=True)
     serializer_class = serializers.UserSerializer
     pagination_class = paginators.ItemPanigator
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.action in ['create']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
-    @transaction.atomic
+    @transaction.atomic #đảm bảo tính toàn vẹn dữ liệu
     def create(self, request, *args, **kwargs):
         try:
             user_serializer = serializers.UserSerializer(data=request.data)
             if user_serializer.is_valid():
-                if 'avatar' in request.data and isinstance(request.data['avatar'], str):
-                    user = user_serializer.save()
-                else:
-                    user = user_serializer.save()
-                user.save() 
+                user = user_serializer.save()
+                # user.save() 
 
                 profile_data = {
                         'user': user.id,
@@ -77,24 +70,22 @@ class UserViewSet(viewsets.ViewSet,
                         'citizen_id': request.data.get('citizen_id', '')
                     }
                 
-                if user.role == "LANDLORD":
-                    landlord_serializer = serializers.LandlordSerializer(data=profile_data)
-                    if landlord_serializer.is_valid():
-                        landlord_serializer.save()
-                    else:
-                        raise Exception(landlord_serializer.errors)
-                elif user.role == "TENANT":
-                    tenant_serializer = serializers.TenantSerializer(data=profile_data)
-                    if tenant_serializer.is_valid():
-                        tenant_serializer.save()
-                    else:
-                        raise Exception(tenant_serializer.errors)
+                role_serializers = {
+                    "LANDLORD": serializers.LandlordSerializer,
+                    "TENANT": serializers.TenantSerializer
+                }
+                
+                if user.role in role_serializers:
+                    profile_serializer = role_serializers[user.role](data=profile_data)
+                    profile_serializer.save()
+                else:
+                    raise Exception(f"Vai trò không hợp lệ: {user.role}")
 
-                return Response(user_serializer.data, status=201)
-            return Response(user_serializer.errors, status=400)
+                return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+            return Response(user_serializer.errors)
         except Exception as e:
             transaction.set_rollback(True)
-            return Response({'error': str(e)}, status=400)
+            return Response({'error': str(e)})
 
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
     def get_Current_user(self, request):
@@ -117,10 +108,10 @@ class UserViewSet(viewsets.ViewSet,
         confirm_password = request.data.get("confirm_password")
 
         if not request.user.check_password(old_password):
-            return Response({"error": "Mật khẩu cũ không chính xác"}, status=400)
+            return Response({"error": "Mật khẩu cũ không chính xác"})
 
         if new_password != confirm_password:
-            return Response({"error", "Mật khẩu mới không khớp"}, status=400)
+            return Response({"error", "Mật khẩu mới không khớp"})
 
         request.user.set_password(new_password)
         request.user.save()
@@ -330,7 +321,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.action == 'verify':
@@ -454,7 +445,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     serializer_class = serializers.TenantSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
+    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.action in ['update', 'partial_update']:
