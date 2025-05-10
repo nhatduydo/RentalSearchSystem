@@ -11,7 +11,8 @@ from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import (SAFE_METHODS, AllowAny,
+                                        IsAuthenticated)
 from rest_framework.response import Response
 
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
@@ -40,7 +41,6 @@ class UserViewSet(viewsets.ViewSet,
     queryset = User.objects.filter(is_active=True)
     serializer_class = serializers.UserSerializer
     pagination_class = paginators.ItemPanigator
-    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.action in ['create']:
@@ -205,34 +205,53 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     queryset = Room.objects.filter(active=True)
     serializer_class = serializers.RoomSerializer
     pagination_class = paginators.ItemPanigator
+    permission_classes = [AllowAny]
 
-    # Lấy thông tin chi tiết phòng theo ID hoặc slug
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        return [AllowAny()]
+
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             room = get_object_or_404(Room, id=pk)
         else:
             room = get_object_or_404(Room, slug=pk)
+        serializer = self.get_serializer(room)
+        return Response(serializer.data)
 
-        serializers = self.get_serializer(room)
-        return Response(serializers.data)
-
-    # Lấy danh sách phòng với các điều kiện tìm kiếm
     def get_queryset(self):
         query = self.queryset
-
-        if self.action.__eq__('list'):
-            search_query = self.request.query_params.get('q')
-            if search_query:
-                query = query.filter(room_name__icontains=search_query)
-
-            motel_id = self.request.query_params.get('motel_id')
-            if motel_id:
-                query = query.filter(motel_id=motel_id)
-
-            motel_slug = self.request.query_params.get('motel_slug')
-            if motel_slug:
-                motel = get_object_or_404(Motel, slug=motel_slug)
-                query = query.filter(motel=motel)
+        if self.action == 'list':
+            motel_identifier = self.kwargs.get('motel_identifier')
+            if motel_identifier:
+                if motel_identifier.isdigit():
+                    query = query.filter(motel_id=motel_identifier)
+                else:
+                    query = query.filter(motel__slug=motel_identifier)
+            filters = {}
+            room_name = self.request.query_params.get('room_name')
+            if room_name:
+                filters['room_name__icontains'] = room_name
+            min_price = self.request.query_params.get('min_price')
+            if min_price:
+                filters['price__gte'] = min_price
+            max_price = self.request.query_params.get('max_price')
+            if max_price:
+                filters['price__lte'] = max_price
+            min_area = self.request.query_params.get('min_area')
+            if min_area:
+                filters['area__gte'] = min_area
+            max_area = self.request.query_params.get('max_area')
+            if max_area:
+                filters['area__lte'] = max_area
+            max_people = self.request.query_params.get('max_people')
+            if max_people:
+                filters['max_people__gte'] = max_people
+            if filters:
+                query = query.filter(**filters)
         return query
 
 

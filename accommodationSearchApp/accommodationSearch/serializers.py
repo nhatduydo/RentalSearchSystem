@@ -115,9 +115,18 @@ class MotelRatingSerializer(ItemSerializer):
 
 
 class RoomSerializer(ItemSerializer):
+    amenities = serializers.PrimaryKeyRelatedField(many=True, queryset=Amenity.objects.all())
+    amenities_display = serializers.SerializerMethodField()
+
     class Meta:
         model = Room
-        fields = ['id', 'motel', 'room_name', 'description', 'area', 'price', 'max_people', 'tenants', 'amenities', 'is_verified']
+        fields = [
+            'id', 'motel', 'room_name', 'description', 'area', 'price', 'max_people',
+            'tenants', 'amenities', 'amenities_display', 'is_verified'
+        ]
+
+    def get_amenities_display(self, obj):
+        return AmenitySerializer(obj.amenities.all(), many=True).data
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -341,7 +350,7 @@ class RoomImageSerializer(ItemSerializer):
 class AmenitySerializer(ItemSerializer):
     class Meta:
         model = Amenity
-        fields = ['id', 'name', 'slug', 'created_date', 'updated_date', 'active']
+        fields = ['id', 'name']
 
 
 class FavoriteSerializer(ItemSerializer):
