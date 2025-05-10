@@ -210,6 +210,7 @@ class Motel(SlugModel):
     class Meta:
         verbose_name = "Nhà trọ"
         verbose_name_plural = "Nhà trọ"
+        ordering = ['-created_date']
 
  # 6 đã admin, đã seralizer, đã API
 
@@ -438,8 +439,8 @@ class SearchHistory(ActiveModel):
 
 class Follow(ActiveModel):
     id = models.AutoField(primary_key=True)
-    followed_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers') # Người được theo dõi
-    follower_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following') #  Người đi theo dõi
+    followed_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')  # Người được theo dõi
+    follower_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')  # Người đi theo dõi
     last_message_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
