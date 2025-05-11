@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, date
 
 from accommodationSearch import paginators, serializers
 from django.conf import settings
@@ -30,16 +30,6 @@ logger = logging.getLogger(__name__)
 
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
-
-
-class IsOwnerOrAdmin(BasePermission):
-    def has_object_permission(self, request, view, obj):
-        # Cho phép nếu là admin hoặc là chủ sở hữu (user)
-        if hasattr(obj, 'user'):
-            return request.user.is_staff or request.user == obj.user
-        if hasattr(obj, 'motel') and hasattr(obj.motel, 'user'):
-            return request.user.is_staff or request.user == obj.motel.user
-        return request.user.is_staff
 
 
 class UserViewSet(viewsets.ViewSet,
@@ -533,7 +523,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             min_age = self.request.query_params.get('min_age')
             max_age = self.request.query_params.get('max_age')
             if min_age or max_age:
-                from datetime import date
                 today = date.today()
                 if min_age:
                     max_date = today.replace(year=today.year - int(min_age))
@@ -604,7 +593,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if pk.isdigit():
                 tenant = get_object_or_404(Tenant, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
             payments = Payment.objects.filter(
@@ -621,29 +609,28 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    # Lấy danh sách bài đăng đã lưu
-    @action(detail=True, methods=['get'], url_path='saved-posts')
-    def get_saved_posts(self, request, pk=None):
-        try:
-            if pk.isdigit():
-                tenant = get_object_or_404(Tenant, user_id=pk)
-            else:
-                # Tìm theo username hoặc slug
-                tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
+    # # Lấy danh sách bài đăng đã lưu
+    # @action(detail=True, methods=['get'], url_path='saved-posts')
+    # def get_saved_posts(self, request, pk=None):
+    #     try:
+    #         if pk.isdigit():
+    #             tenant = get_object_or_404(Tenant, user_id=pk)
+    #         else:
+    #             tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
-            saved_posts = Post.objects.filter(
-                likers=tenant.user,
-                active=True
-            )
+    #         saved_posts = Post.objects.filter(
+    #             likers=tenant.user,
+    #             active=True
+    #         )
 
-            serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
-            return Response(serializer.data)
-        except Exception as e:
-            logger.error(f"Lỗi khi lưu bài viết: {str(e)}")
-            return Response(
-                {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+    #         serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
+    #         return Response(serializer.data)
+    #     except Exception as e:
+    #         logger.error(f"Lỗi khi lưu bài viết: {str(e)}")
+    #         return Response(
+    #             {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
+    #             status=status.HTTP_404_NOT_FOUND
+    #         )
 
 
 class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
@@ -690,7 +677,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         if self.action in ['create', 'like_comment', 'reply_comment']:
             return [IsAuthenticated()]
         elif self.action in ['update', 'destroy']:
-            return [IsOwnerOrReadOnly()]
+            return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
     # lấy danh sách bình luận (Comment) cho một bài viết cụ thể.
@@ -806,7 +793,7 @@ class VNPayViewSet(viewsets.ViewSet):
             data = request.data
             order_id = data.get('order_id')
             amount = data.get('amount')
-            order_desc = data.get('order_desc', 'Thanh toan don hang')
+            order_desc = data.get('order_desc', 'Thanh toan phong tro')
             order_type = data.get('order_type', 'other')
             bank_code = data.get('bank_code', '')
             language = data.get('language', 'vn')
@@ -910,9 +897,7 @@ class VNPayViewSet(viewsets.ViewSet):
 
 
 class SearchViewSet(viewsets.ViewSet):
-    # Tìm kiếm theo nhiều tiêu chí
     def list(self, request):
-        # Tìm theo từ khóa
         search_query = request.query_params.get('q')
         if search_query:
             motels = Motel.objects.filter(
@@ -922,7 +907,6 @@ class SearchViewSet(viewsets.ViewSet):
         else:
             motels = Motel.objects.all()
 
-        # Tìm theo địa điểm
         district = request.query_params.get('district')
         if district:
             motels = motels.filter(district__icontains=district)
@@ -935,7 +919,6 @@ class SearchViewSet(viewsets.ViewSet):
         if province:
             motels = motels.filter(province__icontains=province)
 
-        # Tìm theo giá phòng (từ Post)
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
         if min_price or max_price:
@@ -946,7 +929,6 @@ class SearchViewSet(viewsets.ViewSet):
                 post_query = post_query.filter(max_price__lte=max_price)
             motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
 
-        # Tìm theo số người (từ Room)
         max_people = request.query_params.get('max_people')
         if max_people:
             room_query = Room.objects.filter(
