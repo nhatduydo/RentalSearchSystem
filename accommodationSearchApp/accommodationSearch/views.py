@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, date
+from datetime import date, datetime
 
 from accommodationSearch import paginators, serializers
 from django.conf import settings
@@ -922,12 +922,23 @@ class SearchViewSet(viewsets.ViewSet):
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
         if min_price or max_price:
-            post_query = Post.objects.filter(motel=OuterRef('pk'))
+            post_query = Post.objects.filter(motel=OuterRef('pk'))  # tham chiếu đến pk của bảng Motel
+            # Tạo một subquery để lấy các Post có motel_id bằng với pk của Motel
             if min_price:
                 post_query = post_query.filter(min_price__gte=min_price)
             if max_price:
                 post_query = post_query.filter(max_price__lte=max_price)
             motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
+            # Subquery nhúng một query bên trong một query khác
+
+            # # Cách 1: Không dùng Subquery (sẽ tạo nhiều query)
+            # post_ids = Post.objects.values_list('motel_id', flat=True)  # Query 1
+            # motels = Motel.objects.filter(id__in=post_ids)  # Query 2
+
+            # # Cách 2: Dùng Subquery (chỉ 1 query)
+            # motels = Motel.objects.filter(
+            #     id__in=Subquery(Post.objects.values('motel_id'))
+            # )
 
         max_people = request.query_params.get('max_people')
         if max_people:
@@ -960,7 +971,7 @@ class SearchViewSet(viewsets.ViewSet):
             if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
                 return Response(
                     {"error": "Tọa độ không hợp lệ"},
-                    status=400
+                    status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Lấy tất cả nhà trọ có tọa độ
@@ -1034,7 +1045,6 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
-        # Xóa mềm - chỉ set active=False
         instance = self.get_object()
         instance.active = False
         instance.save()
@@ -1042,6 +1052,7 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
 
 
 class NotificationViewSet(viewsets.ViewSet):
+    queryset = Notifications.objects.filter(active=True)
     permission_classes = [IsAuthenticated]
     serializer_class = serializers.NotificationSerializer
     pagination_class = paginators.ItemPanigator
