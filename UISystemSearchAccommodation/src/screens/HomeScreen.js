@@ -1,26 +1,35 @@
-import React from 'react';
-import {
-  Dimensions,
-  Image,
-  SafeAreaView,
-  Text,
-  View,
-  Animated,
-} from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { Dimensions, Image, SafeAreaView, Text, View, Animated, ActivityIndicator, } from 'react-native';
 import { Searchbar } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Homestyles from '../styles/homeStyle';
-import dataAccommodation from '../const/dataAccommodation';
+//import dataAccommodation from '../const/dataAccommodation';
 import Card from '../components/Card';
 import { categoryTrends } from '../const/categoryTrends';
-const { width } = Dimensions.get('screen');
-const cardWidth = width / 1.8;
+import axios, { endpoints } from '../configs/Apis';
 
 const HomeScreen = ({ navigation }) => {
-  const [q, setQ] = React.useState();
-  const scrollX = React.useRef(new Animated.Value(0)).current;
-  const [activeCardIndex, setActiveCardIndex] = React.useState(0);
+  const [q, setQ] = useState();
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
   const cardWidth = Dimensions.get('window').width - 80;
+
+  const [motels, setMotels] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMotels = async () => {
+      try {
+        const res = await axios.get(endpoints.motels);
+        setMotels(res.data.results.slice(0, 5));
+      } catch (err) {
+        console.error('Lỗi lấy danh sách nhà trọ:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMotels();
+  }, []);
 
 
   return (
@@ -48,55 +57,57 @@ const HomeScreen = ({ navigation }) => {
           marginTop: 20,
         }}>
         <Text style={{ fontWeight: 'bold', color: 'grey' }}>Nhà trọ gần đây</Text>
-        <Text style={{ color: 'grey' }}>Show all</Text>
+        <Text style={{ color: 'grey' }}>Xem tất cả</Text>
       </View>
 
       <View>
-        <Animated.FlatList
-          data={dataAccommodation}
-          keyExtractor={(item, index) => index.toString()}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={cardWidth}
-          decelerationRate="fast"
-          bounces={false}
-          contentContainerStyle={{
-            paddingVertical: 30,
-            paddingLeft: 20,
-            paddingRight: cardWidth / 2 - 40,
-          }}
-          renderItem={({ item, index }) => (
-            <Card
-              data={item}
-              index={index}
-              scrollX={scrollX}
-              cardWidth={cardWidth}
-              activeCardIndex={activeCardIndex}
-              navigation={navigation}
-            />
-          )}
-          onMomentumScrollEnd={(e) => {
-            const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
-            setActiveCardIndex(index);
-          }}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-            { useNativeDriver: true }
-          )}
-        />
+        {loading ? (
+          <ActivityIndicator size="large" color="deepskyblue" style={{ marginTop: 30 }} />
+        ) : (
+          <Animated.FlatList
+            data={motels}
+            keyExtractor={(item) => item.id.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={cardWidth}
+            decelerationRate="fast"
+            bounces={false}
+            contentContainerStyle={{
+              paddingVertical: 30,
+              paddingLeft: 20,
+              paddingRight: cardWidth / 2 - 40,
+            }}
+            renderItem={({ item, index }) => (
+              <Card
+                data={item}
+                index={index}
+                scrollX={scrollX}
+                cardWidth={cardWidth}
+                activeCardIndex={activeCardIndex}
+                navigation={navigation}
+              />
+            )}
+            onMomentumScrollEnd={(e) => {
+              const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
+              setActiveCardIndex(index);
+            }}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+              { useNativeDriver: true }
+            )}
+          />
+        )}
       </View>
 
-
       <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            marginHorizontal: 20,
-            marginTop: 20,
-          }}>
-          <Text style={{ fontWeight: 'bold', color: 'grey' }}>Xu hướng tìm phòng trọ</Text>
-          <Text style={{ color: 'grey' }}>Xem tất cả</Text>
-        </View>
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginHorizontal: 20,
+        }}>
+        <Text style={{ fontWeight: 'bold', color: 'grey' }}>Xu hướng tìm phòng trọ</Text>
+        <Text style={{ color: 'grey' }}>Xem tất cả</Text>
+      </View>
 
       <View style={{ marginHorizontal: 20 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>

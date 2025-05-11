@@ -22,7 +22,7 @@ const Homestyles = StyleSheet.create({
     fontSize: 20,
   },
   header: {
-    marginTop: 20,
+    marginTop: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
@@ -63,7 +63,7 @@ const Homestyles = StyleSheet.create({
   },
   priceTag: {
     height: 60,
-    width: 80,
+    width: 100,
     backgroundColor: 'deepskyblue',
     position: 'absolute',
     zIndex: 1,

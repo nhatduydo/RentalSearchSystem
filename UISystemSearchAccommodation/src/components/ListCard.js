@@ -9,16 +9,16 @@ const ListCard = ({ room }) => {
   const navigation = useNavigation();
 
   return (
-    <TouchableOpacity onPress={() => navigation.navigate('Detail', { id: room.id })}>
+    <TouchableOpacity onPress={() => navigation.navigate('Detail', { motel: room })}>
       <View style={[styles.card, { width: cardWidth }]}>
-        <Image source={room.image} style={styles.image} />
+        <Image source={require('../assets/images/meomeo1.jpg')} style={styles.image} />
         <View style={styles.detailsContainer}>
-          <Text style={styles.detailsText}>{room.details}</Text>
+          <Text style={styles.detailsText}>{room.motel_name}</Text>
         </View>
         <View style={styles.content}>
-          <Text numberOfLines={2} style={styles.location}>{room.location}</Text>
-          <Text style={styles.price}>Giá: {room.price}</Text>
-          <Text style={styles.total}>Tổng: {room.total}</Text>
+          <Text numberOfLines={2} style={styles.location}>Địa chỉ: {room.address}</Text>
+          <Text style={styles.price}>{room.description}</Text>
+          <Text style={styles.total}>Tổng: {room.total_rooms} Phòng</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -58,11 +58,12 @@ const styles = StyleSheet.create({
   location: {
     fontSize: 12,
     marginBottom: 3,
+    color: '#007bff',
+    fontWeight: 'bold',
   },
   price: {
     fontSize: 12,
-    color: '#007bff',
-    fontWeight: 'bold',
+    fontWeight: 'semibold',
   },
   total: {
     fontSize: 12,

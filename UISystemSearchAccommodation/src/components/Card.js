@@ -22,20 +22,20 @@ const Card = ({data, index, scrollX, cardWidth, activeCardIndex, navigation}) =>
     <TouchableOpacity
       disabled={activeCardIndex !== index}
       activeOpacity={1}
-      onPress={() => navigation.navigate('DetailsScreen', data)}>
+      onPress={() => navigation.navigate('Detail', { motel: data })}>
       <Animated.View style={{...Homestyles.card, transform: [{scale}]}}>
         <Animated.View style={{...Homestyles.cardOverLay, opacity}} />
         <View style={Homestyles.priceTag}>
           <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>
-            đ{data.price}
+            Còn {data.available_rooms}P
           </Text>
         </View>
-        <Image source={data.image} style={Homestyles.cardImage} />
+        <Image source={require('../assets/images/meomeo1.jpg')} style={Homestyles.cardImage} />
         <View style={Homestyles.cardDetails}>
           <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
             <View>
-              <Text style={{fontWeight: 'bold', fontSize: 17}}>{data.name}</Text>
-              <Text style={{color: 'grey', fontSize: 12}}>{data.location}</Text>
+              <Text style={{fontWeight: 'bold', fontSize: 17}}>{data.motel_name}</Text>
+              <Text style={{color: 'grey', fontSize: 12}}>{data.address}</Text>
             </View>
             <Icon name="bookmark-border" size={26} color='deepskyblue' />
           </View>
