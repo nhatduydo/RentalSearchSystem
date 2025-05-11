@@ -226,7 +226,7 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     def get_queryset(self):
         query = self.queryset
         if self.action == 'list':
-            motel_identifier = self.kwargs.get('motel_identifier')
+            motel_identifier = self.request.query_params.get('motel_id')
             if motel_identifier:
                 if motel_identifier.isdigit():
                     query = query.filter(motel_id=motel_identifier)
@@ -1155,9 +1155,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         chat_room = serializer.save()
-        # Thêm người tạo phòng
         chat_room.participants.add(self.request.user)
-        # Thêm các participants khác từ request
         participants = self.request.data.get('participants', [])
         for participant_id in participants:
             try:
@@ -1192,17 +1190,14 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         message = self.get_object()
-        # Kiểm tra xem người dùng có phải là người gửi tin nhắn không
         if message.sender != request.user:
             raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         message = self.get_object()
-        # Kiểm tra xem người dùng có phải là người gửi tin nhắn không
         if message.sender != request.user:
             raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
-        # Xóa mềm tin nhắn
         message.active = False
         message.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1210,9 +1205,6 @@ class MessageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['put'], url_path='read')
     def read(self, request, chat_room_id=None, pk=None):
         message = self.get_object()
-        # Kiểm tra xem người dùng có trong phòng chat không
-        if request.user not in message.chat_room.participants.all():
-            raise PermissionDenied("Bạn không có quyền đánh dấu tin nhắn này là đã đọc")
         message.is_read = True
         message.save()
         return Response({'status': 'tin nhắn được đánh dấu là đã đọc'})
@@ -1244,24 +1236,31 @@ class FollowViewSet(viewsets.ViewSet):
         """
         followed_user_id = request.data.get('followed_user_id')
         if not followed_user_id:
-            return Response({"error": "Thiếu ID người dùng cần theo dõi"}, status=400)
+            return Response({"error": "Thiếu ID người dùng cần theo dõi"})
 
         try:
             followed_user = User.objects.get(id=followed_user_id)
         except User.DoesNotExist:
-            return Response({"error": "Người dùng không tồn tại"}, status=404)
+            return Response({"error": "Người dùng không tồn tại"})
 
         if followed_user == request.user:
-            return Response({"error": "Không thể theo dõi chính mình"}, status=400)
+            return Response({"error": "Không thể theo dõi chính mình"})
 
-        follow, created = Follow.objects.get_or_create(
+        # Kiểm tra xem đã follow chưa
+        follow = Follow.objects.filter(
             followed_user=followed_user,
             follower_user=request.user
-        )
+        ).first()
 
-        if not created:
+        if follow:
             follow.active = not follow.active
             follow.save()
+        else:
+            follow = Follow.objects.create(
+                followed_user=followed_user,
+                follower_user=request.user,
+                active=True
+            )
 
         serializer = self.serializer_class(follow)
         return Response(serializer.data)
@@ -1323,7 +1322,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             valid_statuses.append(status_code)
 
         if status not in valid_statuses:
-            return Response({'error': 'Trạng thái không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Trạng thái không hợp lệ'})
 
         payments = self.get_queryset().filter(status=status)
         serializer = self.get_serializer(payments, many=True)
