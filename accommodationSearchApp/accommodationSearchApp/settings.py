@@ -4,6 +4,10 @@ from pathlib import Path
 import cloudinary
 import cloudinary.uploader
 import pymysql
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration
 cloudinary.config(
@@ -45,9 +49,16 @@ INSTALLED_APPS = [
     'drf_yasg',
     'oauth2_provider',
     'corsheaders',
+    'authentication',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'alluth.socialaccount.providers.google',
     # 'accommodationSearch',
 
 ]
+
+# AUTH_USER_MODEL = 'authentication.CustomUser'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ('oauth2_provider.contrib.rest_framework.OAuth2Authentication',),
@@ -68,9 +79,38 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'accommodationSearchApp.urls'
+
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+
+    # `allauth` specific authentication methods, such as login by email
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'OAUTH_PKCE_ENABLED': True,
+    }
+}
+
+# Django allauth config
+SITE_ID = 1
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+
 
 TEMPLATES = [
     {
@@ -178,3 +218,24 @@ CORS_ALLOWED_ORIGINS = [
     "https://sandbox.vnpayment.vn",
     BASE_URL,  # Add your ngrok URL to allowed origins
 ]
+
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'nhatduy096@gmail.com'
+EMAIL_HOST_PASSWORD = 'duynhat8877941z.'  # Mật khẩu ứng dụng từ Google
+DEFAULT_FROM_EMAIL = 'nhatduy096@gmail.com'
+
+# SendGrid Email Configuration
+# SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', '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')
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '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')
+SENDER_EMAIL = 'nhatduy096@gmail.com'
+SENDER_NAME = 'System Accommodation'
+EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+SENDGRID_SANDBOX_MODE_IN_DEBUG = False  # Set to False in production
+
+# Frontend URL
+FRONTEND_URL = 'https://8ef6-14-224-156-58.ngrok-free.app/'  # Thay đổi trong production

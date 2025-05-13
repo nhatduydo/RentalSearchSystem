@@ -1,20 +1,25 @@
+import asyncio
 import logging
 from datetime import date, datetime
 
-from accommodationSearch import paginators, serializers
 from django.conf import settings
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, parsers, permissions, status, viewsets
-from rest_framework.decorators import action, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (SAFE_METHODS, AllowAny, BasePermission,
                                         IsAdminUser, IsAuthenticated)
 from rest_framework.response import Response
 
+# from accommodationSearch import paginators, serializers
+# from accommodationSearch import serializers, paginators
+from . import paginators, serializers
+from .email_service import EmailService
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      Landlord, LikeComment, LikeMotel, Message, Motel,
                      MotelImage, MotelRating, Notifications, NotificationType,
@@ -138,20 +143,96 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             return [IsAuthenticated()]
         return [AllowAny()]
 
+    @transaction.atomic
     def perform_create(self, serializer):
-        motel = serializer.save()
+        motel = serializer.save(user=self.request.user)
+        # Tạo thông báo cho người theo dõi
+        followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        print(f"Số người theo dõi: {followers.count()}")
 
-        # Thông báo cho followers khi chủ nhà tạo mới nhà trọ
-        followers = Follow.objects.filter(followed_user=self.request.user)
-        #  lấy tất cả các bản ghi Follow mà self.request.user (chủ nhà) là người được theo dõi
-        for follow in followers:
+        for follower in followers:
+            print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
+            # Tạo thông báo trong database
             Notifications.objects.create(
-                receiver=follow.follower_user,  # lấy người theo dõi từ mỗi bản ghi Follow
+                receiver=follower.follower_user,
                 title="Nhà trọ mới",
                 content=f"{self.request.user.username} vừa đăng một nhà trọ mới: {motel.motel_name}",
                 notification_type=NotificationType.MOTEL_UPDATE,
                 related_object_id=motel.id
             )
+
+            # Gửi email thông báo
+            try:
+                email_data = {
+                    'name': follower.follower_user.username,
+                    'title': motel.motel_name,
+                    'address': motel.address,
+                    'district': motel.district,
+                    'city': motel.city,
+                    'province': motel.province,
+                    'description': motel.description,
+                    'total_rooms': motel.total_rooms,
+                    'available_rooms': motel.available_rooms,
+                    'latitude': motel.latitude,
+                    'longitude': motel.longitude
+                }
+
+                # Gửi email đồng bộ sử dụng asyncio.run()
+                asyncio.run(
+                    EmailService.send_notification(
+                        to_email=follower.follower_user.email,
+                        data=email_data,
+                        notification_type='NEW_MOTEL'
+                    )
+                )
+                print(f"Đã gửi email thông báo đến: {follower.follower_user.email}")
+            except Exception as e:
+                print(f"Lỗi khi gửi email đến {follower.follower_user.email}: {str(e)}")
+
+    def perform_update(self, serializer):
+        motel = serializer.save()
+        # Notify followers about the update
+        followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        print(f"Số người theo dõi: {followers.count()}")
+
+        for follow in followers:
+            print(f"Đang gửi thông báo cập nhật cho: {follow.follower_user.email}")
+            # Create notification in database
+            Notifications.objects.create(
+                receiver=follow.follower_user,
+                title="Cập nhật nhà trọ",
+                content=f"{self.request.user.username} vừa cập nhật thông tin nhà trọ: {motel.motel_name}",
+                notification_type=NotificationType.MOTEL_UPDATE,
+                related_object_id=motel.id
+            )
+
+            # Send email notification
+            try:
+                email_data = {
+                    'name': follow.follower_user.username,
+                    'title': motel.motel_name,
+                    'address': motel.address,
+                    'district': motel.district,
+                    'city': motel.city,
+                    'province': motel.province,
+                    'description': motel.description,
+                    'total_rooms': motel.total_rooms,
+                    'available_rooms': motel.available_rooms,
+                    'latitude': motel.latitude,
+                    'longitude': motel.longitude
+                }
+
+                # Gửi email đồng bộ sử dụng asyncio.run()
+                asyncio.run(
+                    EmailService.send_notification(
+                        to_email=follow.follower_user.email,
+                        data=email_data,
+                        notification_type='MOTEL_UPDATE'
+                    )
+                )
+                print(f"Đã gửi email thông báo cập nhật đến: {follow.follower_user.email}")
+            except Exception as e:
+                print(f"Lỗi khi gửi email cập nhật đến {follow.follower_user.email}: {str(e)}")
 
     # Lấy thông tin chi tiết nhà trọ theo ID hoặc slug
     def retrieve(self, request, pk=None):
@@ -1518,3 +1599,10 @@ class FavoriteViewSet(viewsets.ModelViewSet):
                 {'error': 'Không tìm thấy nhà trọ'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+try:
+    from accommodationSearch import paginators, serializers
+    print("Import thành công!")
+except ImportError as e:
+    print(f"Lỗi import: {e}")

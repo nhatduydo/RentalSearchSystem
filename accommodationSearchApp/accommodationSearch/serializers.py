@@ -94,6 +94,7 @@ class MotelSerializer(ItemSerializer):
     class Meta:
         model = Motel
         fields = ['id', 'user', 'motel_name', 'description', 'address', 'district', 'city', 'province', 'longitude', 'latitude', 'total_rooms', 'available_rooms', 'rating_score', 'is_verified']
+        read_only_fields = ['user', 'rating_score', 'is_verified']
 
 
 class MotelRatingSerializer(ItemSerializer):
