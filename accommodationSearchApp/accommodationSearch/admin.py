@@ -13,6 +13,7 @@ from django.template.response import TemplateResponse
 from django.urls import path
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
 
 class UserForm(forms.ModelForm):
@@ -239,4 +240,6 @@ admin_site.register(SearchHistory, SearchHistoryAdmin)
 admin_site.register(Follow)
 admin_site.register(Notifications, NotificationsAdmin)
 admin_site.register(ChatRoom)
-
+# admin_site.register(SocialApp)
+# admin_site.register(SocialAccount)
+# admin_site.register(SocialToken)

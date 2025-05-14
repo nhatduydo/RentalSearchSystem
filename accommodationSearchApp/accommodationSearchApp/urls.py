@@ -1,4 +1,6 @@
 from accommodationSearch.admin import admin_site
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path, re_path
 from drf_yasg import openapi
@@ -7,18 +9,20 @@ from rest_framework import permissions
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Course API",
+        title="Accommodation Search API",
         default_version='v1',
-        description="APIs for CourseApp",
+        description="APIs for accommodationSearchApp",
         contact=openapi.Contact(email="duy.dn.it@gmail.com"),
         license=openapi.License(name="Đỗ Nhất Duy@2025"),
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
 )
+
 urlpatterns = [
     path('', include('accommodationSearch.urls')),
     path('admin/', admin_site.urls),
+    path('accounts/', include('allauth.urls')),
     re_path(r'^ckeditor/', include('ckeditor_uploader.urls')),
     re_path(r'^swagger(?P<format>\.json|\.yaml)$',
             schema_view.without_ui(cache_timeout=0),
@@ -31,5 +35,8 @@ urlpatterns = [
             name='schema-redoc'),
     path('oauth/', include('oauth2_provider.urls',
                            namespace='oauth2_provider')),
-    path('accounts/', include('allauth.urls')),
-]
+    path('oauth/', include('oauth2_provider.urls', namespace='oauth2_provider')),
+    path('dj-rest-auth/', include('dj_rest_auth.urls')),
+    path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
+    path('dj-rest-auth/social/', include('allauth.socialaccount.urls')),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

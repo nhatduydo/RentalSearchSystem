@@ -8,7 +8,9 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000']
+DJANGO_ALLOW_ASYNC_UNSAFE = True
+REST_USE_JWT = True
 # Configuration
 cloudinary.config(
     cloud_name="devtqlbho",
@@ -41,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',  # Required for allauth
     'accommodationSearch.apps.AccommodationsearchConfig',
     'ckeditor',
     'ckeditor_uploader',
@@ -49,19 +52,20 @@ INSTALLED_APPS = [
     'drf_yasg',
     'oauth2_provider',
     'corsheaders',
-    'authentication',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
-    'alluth.socialaccount.providers.google',
-    # 'accommodationSearch',
-
+    'allauth.socialaccount.providers.google',
+    'rest_framework.authtoken',
 ]
 
 # AUTH_USER_MODEL = 'authentication.CustomUser'
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': ('oauth2_provider.contrib.rest_framework.OAuth2Authentication',),
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10
 }
@@ -84,16 +88,32 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'accommodationSearchApp.urls'
 
+# Authentication backends
 AUTHENTICATION_BACKENDS = [
-    # Needed to login by username in Django admin, regardless of `allauth`
     'django.contrib.auth.backends.ModelBackend',
-
-    # `allauth` specific authentication methods, such as login by email
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
+# Site ID
+SITE_ID = 1
+
+# Allauth settings
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_UNIQUE_EMAIL = True
+
+# Social Account settings
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
+        'APP': {
+            # 'client_id': 'oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK',
+            'client_id': '284762867837-e5gja6b1cp8kdt5pnss5jj8ok87lbt2l.apps.googleusercontent.com',
+            # 'secret': 'WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6',
+            'secret': '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',
+            'key': ''
+        },
         'SCOPE': [
             'profile',
             'email',
@@ -105,11 +125,13 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-# Django allauth config
-SITE_ID = 1
-ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
+
+SOCIALACCOUNT_LOGIN_IN_GET = True
+# Login/Logout URLs
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_URL = '/accounts/logout/'
+LOGOUT_REDIRECT_URL = '/'
 
 
 TEMPLATES = [
@@ -187,7 +209,29 @@ USE_TZ = True
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MEDIA_ROOT = '%s/accommodationSearch/static/' % BASE_DIR
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'VALIDATOR_URL': None,
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

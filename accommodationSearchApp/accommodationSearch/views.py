@@ -1601,6 +1601,62 @@ class FavoriteViewSet(viewsets.ModelViewSet):
             )
 
 
+class StatisticsViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAdminUser]
+
+    @action(detail=False, methods=['get'], url_path='users')
+    def user_count(self, request):
+        """
+        Thống kê số lượng người dùng theo ngày, tháng, năm, quý.
+        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+        """
+        from_date = request.query_params.get('from')
+        to_date = request.query_params.get('to')
+        type_ = request.query_params.get('type', 'month')
+        queryset = User.objects.filter(is_active=True)
+        if from_date:
+            queryset = queryset.filter(created_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(created_date__lte=to_date)
+        if type_ == 'day':
+            data = queryset.extra({'day': "date(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
+        elif type_ == 'month':
+            data = queryset.extra({'month': "strftime('%%Y-%%m', created_date)"}).values('month').annotate(count=Count('id')).order_by('month')
+        elif type_ == 'year':
+            data = queryset.extra({'year': "strftime('%%Y', created_date)"}).values('year').annotate(count=Count('id')).order_by('year')
+        elif type_ == 'quarter':
+            data = queryset.extra({'year': "strftime('%%Y', created_date)", 'quarter': "((cast(strftime('%%m', created_date) as integer)-1)/3 + 1)"}).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
+        else:
+            return Response({'error': 'type phải là day, month, year, quarter'})
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='landlords')
+    def landlord_count(self, request):
+        """
+        Thống kê số lượng chủ trọ theo ngày, tháng, năm, quý.
+        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+        """
+        from_date = request.query_params.get('from')
+        to_date = request.query_params.get('to')
+        type_ = request.query_params.get('type', 'month')
+        queryset = Landlord.objects.all()
+        if from_date:
+            queryset = queryset.filter(created_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(created_date__lte=to_date)
+        if type_ == 'day':
+            data = queryset.extra({'day': "date(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
+        elif type_ == 'month':
+            data = queryset.extra({'month': "strftime('%%Y-%%m', created_date)"}).values('month').annotate(count=Count('id')).order_by('month')
+        elif type_ == 'year':
+            data = queryset.extra({'year': "strftime('%%Y', created_date)"}).values('year').annotate(count=Count('id')).order_by('year')
+        elif type_ == 'quarter':
+            data = queryset.extra({'year': "strftime('%%Y', created_date)", 'quarter': "((cast(strftime('%%m', created_date) as integer)-1)/3 + 1)"}).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
+        else:
+            return Response({'error': 'type phải là day, month, year, quarter'})
+        return Response(data)
+
+
 try:
     from accommodationSearch import paginators, serializers
     print("Import thành công!")
