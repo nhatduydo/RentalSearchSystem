@@ -341,11 +341,21 @@ class MotelImageSerializer(ItemSerializer):
         model = MotelImage
         fields = ['id', 'motel', 'image_url', 'image_type', 'created_date', 'updated_date', 'active']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['image_url'] = instance.image_url.url if instance.image_url else None
+        return data
+
 
 class RoomImageSerializer(ItemSerializer):
     class Meta:
         model = RoomImage
         fields = ['id', 'room', 'image_url', 'created_date', 'updated_date', 'active']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['image_url'] = instance.image_url.url if instance.image_url else None
+        return data
 
 
 class AmenitySerializer(ItemSerializer):

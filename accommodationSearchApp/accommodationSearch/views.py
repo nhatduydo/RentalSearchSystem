@@ -1507,7 +1507,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
 class MotelImageViewSet(viewsets.ModelViewSet):
     queryset = MotelImage.objects.filter(active=True)
     serializer_class = serializers.MotelImageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        return [permissions.AllowAny()]
 
     def get_queryset(self):
         queryset = MotelImage.objects.filter(active=True)
@@ -1529,6 +1533,11 @@ class RoomImageViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.RoomImageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        return [permissions.AllowAny()]
+    
     def get_queryset(self):
         queryset = RoomImage.objects.filter(active=True)
         room_id = self.request.query_params.get('room_id', None)
