@@ -5,6 +5,7 @@ from autoslug import AutoSlugField
 from ckeditor.fields import RichTextField
 from cloudinary.models import CloudinaryField
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Count
 from django.utils.text import slugify
@@ -132,6 +133,17 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+    def clean(self):
+        super().clean()
+        if self.role in ['LANDLORD', 'TENANT'] and not self.avatar:
+            raise ValidationError({
+                'avatar': 'Avatar là bắt buộc cho chủ trọ và người thuê trọ'
+            })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()  # Gọi clean() trước khi save
+        super().save(*args, **kwargs)
+
 # 2 chưa biết có phải cho qua trang admin không, quyết định không cho qua
 
 
@@ -197,12 +209,30 @@ class Motel(SlugModel):
     rating_score = models.FloatField(default=0)
     is_verified = models.BooleanField(default=False)
 
+    def clean(self):
+        if self.user.role == 'LANDLORD':
+            try:
+                landlord = Landlord.objects.get(user=self.user)
+                if not landlord.phone:
+                    raise ValidationError('Chủ trọ cần có số điện thoại')
+            except Landlord.DoesNotExist:
+                raise ValidationError('Không tìm thấy thông tin chủ trọ')
+        if not self.address:
+            raise ValidationError('Nhà trọ cần có địa chỉ')
+        if self.images.count() < 3:
+            raise ValidationError('Nhà trọ cần có ít nhất 3 hình ảnh')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def check_verification(self):
         if self.images.count() < 3:
             self.is_verified = False
         else:
             self.is_verified = True
-        self.save()
+        # Sử dụng update để tránh gọi save() và tạo vòng lặp
+        Motel.objects.filter(id=self.id).update(is_verified=self.is_verified)
 
     def __str__(self):
         return self.motel_name

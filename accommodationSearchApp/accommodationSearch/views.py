@@ -2,12 +2,14 @@ import asyncio
 import logging
 from datetime import date, datetime
 
+import pytz
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -141,6 +143,8 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             return [IsOwnerOrAdmin()]
         if self.action == 'create':
             return [IsAuthenticated()]
+        if self.action == 'verify':
+            return [IsAdminUser()]
         return [AllowAny()]
 
     @transaction.atomic
@@ -263,6 +267,63 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 related_object_id=motel.id
             )
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
+
+    @action(methods=['PATCH'], detail=True, url_path='verify')
+    def verify(self, request, pk=None):
+        try:
+            if pk.isdigit():
+                motel = get_object_or_404(Motel, id=pk)
+            else:
+                motel = get_object_or_404(Motel, slug=pk)
+
+            # Kiểm tra số lượng ảnh
+            if motel.images.count() < 3:
+                return Response({
+                    'error': 'Nhà trọ cần có ít nhất 3 hình ảnh'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Kiểm tra địa chỉ
+            if not motel.address:
+                return Response({
+                    'error': 'Nhà trọ cần có địa chỉ'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Kiểm tra số điện thoại của chủ trọ
+            try:
+                landlord = Landlord.objects.get(user=motel.user)
+                if not landlord.phone:
+                    return Response({
+                        'error': 'Chủ trọ cần có số điện thoại'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except Landlord.DoesNotExist:
+                return Response({
+                    'error': 'Không tìm thấy thông tin chủ trọ'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Xét duyệt nhà trọ
+            motel.is_verified = True
+            motel.save()
+
+            # Tạo thông báo cho chủ trọ
+            Notifications.objects.create(
+                receiver=motel.user,
+                title="Nhà trọ đã được xét duyệt",
+                content=f"Nhà trọ {motel.motel_name} của bạn đã được xét duyệt thành công",
+                notification_type=NotificationType.ACCOUNT_VERIFICATION,
+                related_object_id=motel.id
+            )
+
+            return Response({
+                'motel': self.get_serializer(motel).data,
+                'message': 'Xét duyệt nhà trọ thành công'
+            })
+
+        except Exception as e:
+            logger.error(f"Lỗi khi xét duyệt nhà trọ: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class MotelRatingViewSet(viewsets.ModelViewSet):
@@ -1537,7 +1598,7 @@ class RoomImageViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
         return [permissions.AllowAny()]
-    
+
     def get_queryset(self):
         queryset = RoomImage.objects.filter(active=True)
         room_id = self.request.query_params.get('room_id', None)
@@ -1613,31 +1674,15 @@ class FavoriteViewSet(viewsets.ModelViewSet):
 class StatisticsViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAdminUser]
 
-    @action(detail=False, methods=['get'], url_path='users')
-    def user_count(self, request):
-        """
-        Thống kê số lượng người dùng theo ngày, tháng, năm, quý.
-        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
-        """
-        from_date = request.query_params.get('from')
-        to_date = request.query_params.get('to')
-        type_ = request.query_params.get('type', 'month')
-        queryset = User.objects.filter(is_active=True)
-        if from_date:
-            queryset = queryset.filter(created_date__gte=from_date)
-        if to_date:
-            queryset = queryset.filter(created_date__lte=to_date)
-        if type_ == 'day':
-            data = queryset.extra({'day': "date(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
-        elif type_ == 'month':
-            data = queryset.extra({'month': "strftime('%%Y-%%m', created_date)"}).values('month').annotate(count=Count('id')).order_by('month')
-        elif type_ == 'year':
-            data = queryset.extra({'year': "strftime('%%Y', created_date)"}).values('year').annotate(count=Count('id')).order_by('year')
-        elif type_ == 'quarter':
-            data = queryset.extra({'year': "strftime('%%Y', created_date)", 'quarter': "((cast(strftime('%%m', created_date) as integer)-1)/3 + 1)"}).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
-        else:
-            return Response({'error': 'type phải là day, month, year, quarter'})
-        return Response(data)
+    def _parse_date(self, date_str):
+        if not date_str:
+            return None
+        try:
+            # Parse the date string and make it timezone-aware
+            naive_dt = datetime.strptime(date_str, '%Y-%m-%d')
+            return timezone.make_aware(naive_dt, timezone=pytz.UTC)
+        except ValueError:
+            return None
 
     @action(detail=False, methods=['get'], url_path='landlords')
     def landlord_count(self, request):
@@ -1645,8 +1690,8 @@ class StatisticsViewSet(viewsets.ViewSet):
         Thống kê số lượng chủ trọ theo ngày, tháng, năm, quý.
         Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
         """
-        from_date = request.query_params.get('from')
-        to_date = request.query_params.get('to')
+        from_date = self._parse_date(request.query_params.get('from'))
+        to_date = self._parse_date(request.query_params.get('to'))
         type_ = request.query_params.get('type', 'month')
         queryset = Landlord.objects.all()
         if from_date:
@@ -1654,13 +1699,45 @@ class StatisticsViewSet(viewsets.ViewSet):
         if to_date:
             queryset = queryset.filter(created_date__lte=to_date)
         if type_ == 'day':
-            data = queryset.extra({'day': "date(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
+            data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('user_id')).order_by('day')
         elif type_ == 'month':
-            data = queryset.extra({'month': "strftime('%%Y-%%m', created_date)"}).values('month').annotate(count=Count('id')).order_by('month')
+            data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('user_id')).order_by('month')
         elif type_ == 'year':
-            data = queryset.extra({'year': "strftime('%%Y', created_date)"}).values('year').annotate(count=Count('id')).order_by('year')
+            data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('user_id')).order_by('year')
         elif type_ == 'quarter':
-            data = queryset.extra({'year': "strftime('%%Y', created_date)", 'quarter': "((cast(strftime('%%m', created_date) as integer)-1)/3 + 1)"}).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
+            data = queryset.extra({
+                'year': "DATE_FORMAT(created_date, '%%Y')",
+                'quarter': "QUARTER(created_date)"
+            }).values('year', 'quarter').annotate(count=Count('user_id')).order_by('year', 'quarter')
+        else:
+            return Response({'error': 'type phải là day, month, year, quarter'})
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='users')
+    def user_count(self, request):
+        """
+        Thống kê số lượng người dùng theo ngày, tháng, năm, quý.
+        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+        """
+        from_date = self._parse_date(request.query_params.get('from'))
+        to_date = self._parse_date(request.query_params.get('to'))
+        type_ = request.query_params.get('type', 'month')
+        queryset = User.objects.filter(is_active=True)
+        if from_date:
+            queryset = queryset.filter(created_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(created_date__lte=to_date)
+        if type_ == 'day':
+            data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
+        elif type_ == 'month':
+            data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('id')).order_by('month')
+        elif type_ == 'year':
+            data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('id')).order_by('year')
+        elif type_ == 'quarter':
+            data = queryset.extra({
+                'year': "DATE_FORMAT(created_date, '%%Y')",
+                'quarter': "QUARTER(created_date)"
+            }).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
         else:
             return Response({'error': 'type phải là day, month, year, quarter'})
         return Response(data)
