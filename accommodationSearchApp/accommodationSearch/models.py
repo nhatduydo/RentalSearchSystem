@@ -124,6 +124,7 @@ class User(AbstractUser):
     avatar = CloudinaryField(null=True)
     email = models.EmailField(unique=True)
     last_login = None
+    fcm_token = models.CharField(max_length=255, null=True, blank=True)
     # date_joined = None
 
     class Meta:

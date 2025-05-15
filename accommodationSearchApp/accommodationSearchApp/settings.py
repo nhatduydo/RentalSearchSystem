@@ -57,9 +57,18 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'rest_framework.authtoken',
+    'channels',
 ]
 
-# AUTH_USER_MODEL = 'authentication.CustomUser'
+ASGI_APPLICATION = 'accommodationSearchApp.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
+AUTOSLUG_SLUGIFY_FUNCTION = 'autoslug.utils.slugify'
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -283,3 +292,6 @@ SENDGRID_SANDBOX_MODE_IN_DEBUG = False  # Set to False in production
 
 # Frontend URL
 FRONTEND_URL = 'https://8ef6-14-224-156-58.ngrok-free.app/'  # Thay đổi trong production
+
+# Autoslug settings
+AUTOSLUG_SLUGIFY_FUNCTION = 'autoslug.utils.slugify'
