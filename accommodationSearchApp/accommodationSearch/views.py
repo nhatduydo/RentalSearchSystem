@@ -1,8 +1,11 @@
 import asyncio
 import logging
-from datetime import date, datetime
+import random
+import string
+from datetime import date, datetime, timedelta
 
 import pytz
+from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
@@ -10,6 +13,7 @@ from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from oauth2_provider.models import AccessToken, Application
 from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -17,6 +21,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (SAFE_METHODS, AllowAny, BasePermission,
                                         IsAdminUser, IsAuthenticated)
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 # from accommodationSearch import paginators, serializers
 # from accommodationSearch import serializers, paginators
@@ -1741,6 +1746,60 @@ class StatisticsViewSet(viewsets.ViewSet):
         else:
             return Response({'error': 'type phải là day, month, year, quarter'})
         return Response(data)
+
+
+class GoogleAuthView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            # Lấy Google access token từ request
+            google_token = request.data.get('access_token')
+            if not google_token:
+                return Response({'error': 'Google access token is required'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            # Lấy thông tin user từ Google token
+            social_account = SocialAccount.objects.get(provider='google',
+                                                       extra_data__contains=google_token)
+            user = social_account.user
+
+            # Lấy OAuth2 application
+            application = Application.objects.get(client_id=settings.CLIENT_ID)
+
+            # Tạo OAuth2 access token
+            token = AccessToken.objects.create(
+                user=user,
+                application=application,
+                expires=timezone.now() + timedelta(days=1),
+                token=generate_token(),
+                scope='read write'
+            )
+
+            return Response({
+                'access_token': token.token,
+                'token_type': 'Bearer',
+                'expires_in': 86400,  # 1 day in seconds
+                'scope': token.scope,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role
+                }
+            })
+
+        except SocialAccount.DoesNotExist:
+            return Response({'error': 'Invalid Google token'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({'error': str(e)},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+
+def generate_token():
+    """Generate a random token"""
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=40))
 
 
 try:

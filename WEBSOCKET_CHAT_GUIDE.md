@@ -225,4 +225,4 @@ npx wscat -c wss://8183-103-199-70-79.ngrok-free.app/ws/chat/room1/
 3. Gửi tin nhắn test:
 ```json
 {"message": "Test message", "sender_id": "user1"}
-``` 
+```     

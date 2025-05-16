@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000']
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000', 'http://100.85.57.9:8000', 'https://8183-103-199-70-79.ngrok-free.app', 'https://8183-103-199-70-79.ngrok-free.app:8001']
 DJANGO_ALLOW_ASYNC_UNSAFE = True
 REST_USE_JWT = True
 # Configuration
@@ -113,14 +113,16 @@ ACCOUNT_AUTHENTICATION_METHOD = 'email'
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_UNIQUE_EMAIL = True
 
+# Google OAuth2 settings
+GOOGLE_CLIENT_ID = "284762867837-e5gja6b1cp8kdt5pnss5jj8ok87lbt2l.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+
 # Social Account settings
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            # 'client_id': 'oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK',
-            'client_id': '284762867837-e5gja6b1cp8kdt5pnss5jj8ok87lbt2l.apps.googleusercontent.com',
-            # 'secret': 'WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6',
-            'secret': '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',
+            'client_id': GOOGLE_CLIENT_ID,
+            'secret': GOOGLE_CLIENT_SECRET,
             'key': ''
         },
         'SCOPE': [
@@ -238,8 +240,13 @@ SWAGGER_SETTINGS = {
             'in': 'header'
         }
     },
-    'USE_SESSION_AUTH': False,
-    'VALIDATOR_URL': None,
+    'USE_SESSION_AUTH': True,
+    'JSON_EDITOR': True,
+    'SECURITY': [
+        {
+            'Bearer': []
+        }
+    ],
 }
 
 # Default primary key field type
@@ -256,7 +263,8 @@ CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
 
 # Base URL for the application
-BASE_URL = 'https://donhatduy.pythonanywhere.com'  # Update this when ngrok URL changes
+BASE_URL = 'https://8183-103-199-70-79.ngrok-free.app'  # URL ngrok cố định
+# BASE_URL = 'http://100.85.57.9:8000'  # URL ngrok cố định
 
 # VNPay settings
 VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website
@@ -269,7 +277,12 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://sandbox.vnpayment.vn",
-    BASE_URL,  # Add your ngrok URL to allowed origins
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://0.0.0.0:8000",
+    "http://100.85.57.9:8000",
+    "https://8183-103-199-70-79.ngrok-free.app",
+    "https://8183-103-199-70-79.ngrok-free.app:8001",  # Thêm URL ngrok mới cho WebSocket
 ]
 
 
@@ -283,8 +296,7 @@ EMAIL_HOST_PASSWORD = 'duynhat8877941z.'  # Mật khẩu ứng dụng từ Googl
 DEFAULT_FROM_EMAIL = 'nhatduy096@gmail.com'
 
 # SendGrid Email Configuration
-# SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', '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')
-SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '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')
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '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')
 SENDER_EMAIL = 'nhatduy096@gmail.com'
 SENDER_NAME = 'System Accommodation'
 EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
@@ -295,3 +307,15 @@ FRONTEND_URL = 'https://8ef6-14-224-156-58.ngrok-free.app/'  # Thay đổi trong
 
 # Autoslug settings
 AUTOSLUG_SLUGIFY_FUNCTION = 'autoslug.utils.slugify'
+
+# Cập nhật CSRF settings
+CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_HTTPONLY = False
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'http://0.0.0.0:8000',
+    'http://100.85.57.9:8000',
+    'https://8183-103-199-70-79.ngrok-free.app',
+    'https://8183-103-199-70-79.ngrok-free.app:8001',  # Thêm URL ngrok mới cho WebSocket
+]

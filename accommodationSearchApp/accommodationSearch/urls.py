@@ -30,5 +30,6 @@ router.register('amenities', views.AmenityViewSet, basename='amenity')
 router.register('favorites', views.FavoriteViewSet, basename='favorite')
 router.register('statistics', views.StatisticsViewSet, basename='statistics')
 urlpatterns = [
-    path('', include(router.urls))
+    path('', include(router.urls)),
+    path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
 ]
