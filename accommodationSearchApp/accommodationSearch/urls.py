@@ -1,4 +1,4 @@
-from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
+# from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
@@ -29,7 +29,8 @@ router.register('room-images', views.RoomImageViewSet, basename='room-image')
 router.register('amenities', views.AmenityViewSet, basename='amenity')
 router.register('favorites', views.FavoriteViewSet, basename='favorite')
 router.register('statistics', views.StatisticsViewSet, basename='statistics')
+
 urlpatterns = [
     path('', include(router.urls)),
-    path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
+    # path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
 ]

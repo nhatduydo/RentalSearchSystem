@@ -1,5 +1,6 @@
-import mysql.connector
 import json
+
+import mysql.connector
 
 # Cấu hình kết nối
 config = {
@@ -19,10 +20,31 @@ tables = [row[0] for row in cursor.fetchall()]
 database_json = {}
 
 for table in tables:
+    # Lấy thông tin về các cột và kiểu dữ liệu của chúng
+    cursor.execute(f"SHOW COLUMNS FROM {table}")
+    columns_info = cursor.fetchall()
+
+    # Lấy dữ liệu từ bảng
     cursor.execute(f"SELECT * FROM {table}")
     columns = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
-    records = [dict(zip(columns, row)) for row in rows]
+
+    # Xử lý dữ liệu và loại bỏ auto-increment
+    records = []
+    for row in rows:
+        record = {}
+        for i, col in enumerate(columns):
+            # Kiểm tra xem cột có phải là auto-increment không
+            is_auto_increment = any(col_info[0] == col and 'auto_increment' in col_info[5].lower()
+                                    for col_info in columns_info)
+
+            # Nếu là auto-increment, vẫn giữ giá trị id
+            if is_auto_increment:
+                record[col] = row[i]
+            else:
+                record[col] = row[i]
+        records.append(record)
+
     database_json[table] = records
 
 # Lưu ra file JSON, dùng default=str để chuyển đổi datetime

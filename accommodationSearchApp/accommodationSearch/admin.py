@@ -114,12 +114,6 @@ class RoomImageAdmin(admin.ModelAdmin):
         return obj.room.motel.motel_name if obj.room and obj.room.motel else 'No motel'
     motel_name.short_description = 'motel name'
 
-    # def image_preview(self, obj):
-    #     return format_html('<img src="{}" width="50" height="50" />', obj.image_url.url)
-    # image_preview.short_description = 'Preview'
-
-# 8
-
 
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['payer', 'room', 'amount', 'payment_method', 'status']

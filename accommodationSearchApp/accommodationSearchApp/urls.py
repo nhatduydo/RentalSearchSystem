@@ -33,10 +33,9 @@ urlpatterns = [
     re_path(r'^redoc/$',
             schema_view.with_ui('redoc', cache_timeout=0),
             name='schema-redoc'),
-    path('oauth/', include('oauth2_provider.urls',
-                           namespace='oauth2_provider')),
-    path('oauth/', include('oauth2_provider.urls', namespace='oauth2_provider')),
-    path('dj-rest-auth/', include('dj_rest_auth.urls')),
-    path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
-    path('dj-rest-auth/social/', include('allauth.socialaccount.urls')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    path('oauth/',  include('oauth2_provider.urls',namespace='oauth2_provider')),
+    # path('dj-rest-auth/', include('dj_rest_auth.urls')),
+    # path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
+    # path('dj-rest-auth/social/', include('allauth.socialaccount.urls')),
+    # ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]

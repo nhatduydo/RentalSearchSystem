@@ -491,7 +491,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
 
 
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.UpdateAPIView):
-    queryset = Landlord.objects.filter(active=True)
+    queryset = Landlord.objects.filter(active=True).order_by('user_id')
     serializer_class = serializers.LandlordSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [AllowAny]
@@ -1748,62 +1748,62 @@ class StatisticsViewSet(viewsets.ViewSet):
         return Response(data)
 
 
-class GoogleAuthView(APIView):
-    permission_classes = [permissions.AllowAny]
+# class GoogleAuthView(APIView):
+#     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
-        try:
-            # Lấy Google access token từ request
-            google_token = request.data.get('access_token')
-            if not google_token:
-                return Response({'error': 'Google access token is required'},
-                                status=status.HTTP_400_BAD_REQUEST)
+#     def post(self, request):
+#         try:
+#             # Lấy Google access token từ request
+#             google_token = request.data.get('access_token')
+#             if not google_token:
+#                 return Response({'error': 'Google access token is required'},
+#                                 status=status.HTTP_400_BAD_REQUEST)
 
-            # Lấy thông tin user từ Google token
-            social_account = SocialAccount.objects.get(provider='google',
-                                                       extra_data__contains=google_token)
-            user = social_account.user
+#             # Lấy thông tin user từ Google token
+#             social_account = SocialAccount.objects.get(provider='google',
+#                                                        extra_data__contains=google_token)
+#             user = social_account.user
 
-            # Lấy OAuth2 application
-            application = Application.objects.get(client_id=settings.CLIENT_ID)
+#             # Lấy OAuth2 application
+#             application = Application.objects.get(client_id=settings.CLIENT_ID)
 
-            # Tạo OAuth2 access token
-            token = AccessToken.objects.create(
-                user=user,
-                application=application,
-                expires=timezone.now() + timedelta(days=1),
-                token=generate_token(),
-                scope='read write'
-            )
+#             # Tạo OAuth2 access token
+#             token = AccessToken.objects.create(
+#                 user=user,
+#                 application=application,
+#                 expires=timezone.now() + timedelta(days=1),
+#                 token=generate_token(),
+#                 scope='read write'
+#             )
 
-            return Response({
-                'access_token': token.token,
-                'token_type': 'Bearer',
-                'expires_in': 86400,  # 1 day in seconds
-                'scope': token.scope,
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'email': user.email,
-                    'role': user.role
-                }
-            })
+#             return Response({
+#                 'access_token': token.token,
+#                 'token_type': 'Bearer',
+#                 'expires_in': 86400,  # 1 day in seconds
+#                 'scope': token.scope,
+#                 'user': {
+#                     'id': user.id,
+#                     'username': user.username,
+#                     'email': user.email,
+#                     'role': user.role
+#                 }
+#             })
 
-        except SocialAccount.DoesNotExist:
-            return Response({'error': 'Invalid Google token'},
-                            status=status.HTTP_401_UNAUTHORIZED)
-        except Exception as e:
-            return Response({'error': str(e)},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-
-def generate_token():
-    """Generate a random token"""
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=40))
+#         except SocialAccount.DoesNotExist:
+#             return Response({'error': 'Invalid Google token'},
+#                             status=status.HTTP_401_UNAUTHORIZED)
+#         except Exception as e:
+#             return Response({'error': str(e)},
+#                             status=status.HTTP_400_BAD_REQUEST)
 
 
-try:
-    from accommodationSearch import paginators, serializers
-    print("Import thành công!")
-except ImportError as e:
-    print(f"Lỗi import: {e}")
+# def generate_token():
+#     """Generate a random token"""
+#     return ''.join(random.choices(string.ascii_letters + string.digits, k=40))
+
+
+# try:
+#     from accommodationSearch import paginators, serializers
+#     print("Import thành công!")
+# except ImportError as e:
+#     print(f"Lỗi import: {e}")
