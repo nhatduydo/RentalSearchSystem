@@ -1,9 +1,10 @@
 # from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 
 from . import views
+from .consumers import ChatConsumer
 
 router = DefaultRouter()
 # router.register('admins', views.AdminViewSet, basename='admin')
@@ -33,4 +34,5 @@ router.register('statistics', views.StatisticsViewSet, basename='statistics')
 urlpatterns = [
     path('', include(router.urls)),
     # path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
+    re_path(r'ws/chat/(?P<room_id>\w+)/$', ChatConsumer.as_asgi()),
 ]

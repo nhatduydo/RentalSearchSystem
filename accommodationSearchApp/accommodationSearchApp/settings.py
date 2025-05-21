@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000', 'http://100.85.57.9:8000', 'https://8183-103-199-70-79.ngrok-free.app', 'https://8183-103-199-70-79.ngrok-free.app:8001']
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000', 'http://100.85.57.9:8000']
 DJANGO_ALLOW_ASYNC_UNSAFE = True
 REST_USE_JWT = True
 # Configuration
@@ -303,7 +303,7 @@ EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False  # Set to False in production
 
 # Frontend URL
-FRONTEND_URL = 'https://8ef6-14-224-156-58.ngrok-free.app/'  # Thay đổi trong production
+FRONTEND_URL = 'https://systemaccommodation.online' 
 
 # Autoslug settings
 AUTOSLUG_SLUGIFY_FUNCTION = 'autoslug.utils.slugify'
@@ -316,6 +316,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://0.0.0.0:8000',
     'http://100.85.57.9:8000',
-    'https://8183-103-199-70-79.ngrok-free.app',
-    'https://8183-103-199-70-79.ngrok-free.app:8001',  # Thêm URL ngrok mới cho WebSocket
+    'https://systemaccommodation.online',
+    'https://www.systemaccommodation.online',
 ]
