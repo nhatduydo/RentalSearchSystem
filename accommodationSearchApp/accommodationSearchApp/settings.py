@@ -303,7 +303,7 @@ EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False  # Set to False in production
 
 # Frontend URL
-FRONTEND_URL = 'https://systemaccommodation.online' 
+FRONTEND_URL = 'https://systemaccommodation.online'
 
 # Autoslug settings
 AUTOSLUG_SLUGIFY_FUNCTION = 'autoslug.utils.slugify'
