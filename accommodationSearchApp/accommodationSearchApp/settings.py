@@ -290,8 +290,6 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://0.0.0.0:8000",
     "http://100.85.57.9:8000",
-    "https://8183-103-199-70-79.ngrok-free.app",
-    "https://8183-103-199-70-79.ngrok-free.app:8001",  # Thêm URL ngrok mới cho WebSocket
 ]
 
 

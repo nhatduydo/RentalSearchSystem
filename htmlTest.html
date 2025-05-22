@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <title>Google Login - Lấy ID Token</title>
+
+        <!-- Google SDK -->
+        <script src="https://accounts.google.com/gsi/client" async
+            defer></script>
+
+        <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      padding: 40px;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      font-size: 14px;
+      font-family: monospace;
+      margin-top: 20px;
+    }
+  </style>
+    </head>
+    <body>
+        <h2>Đăng nhập với Google</h2>
+        <div id="g_id_signin"></div>
+
+        <h3>ID Token sau khi đăng nhập:</h3>
+        <textarea id="token-display" readonly
+            placeholder="Token sẽ hiển thị tại đây..."></textarea>
+
+        <script>
+    function handleCredentialResponse(response) {
+      const idToken = response.credential;
+      console.log("Google ID Token:", idToken);
+      document.getElementById("token-display").value = idToken;
+      alert("✅ Token đã hiển thị ở ô bên dưới!");
+    }
+
+    window.onload = function () {
+      google.accounts.id.initialize({
+        client_id: "284762867837-sv52qe2s58lc15sjjv6b8bpmoqmucbkg.apps.googleusercontent.com",
+        callback: handleCredentialResponse
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById("g_id_signin"),
+        { theme: "outline", size: "large" }
+      );
+    };
+  </script>
+    </body>
+</html>
