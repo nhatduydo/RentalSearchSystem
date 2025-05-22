@@ -117,8 +117,14 @@ ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_UNIQUE_EMAIL = True
 
 # Google OAuth2 settings
-GOOGLE_CLIENT_ID = "284762867837-e5gja6b1cp8kdt5pnss5jj8ok87lbt2l.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "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"
+
+# OLD
+# GOOGLE_CLIENT_ID = "284762867837-e5gja6b1cp8kdt5pnss5jj8ok87lbt2l.apps.googleusercontent.com"
+# GOOGLE_CLIENT_SECRET = "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"
+
+# NEW for Web client for Nhà trọ
+GOOGLE_CLIENT_ID = "284762867837-sv52qe2s58lc15sjjv6b8bpmoqmucbkg.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
 
 # Social Account settings
 SOCIALACCOUNT_PROVIDERS = {
@@ -265,10 +271,10 @@ CLIENT_SECRET = "vxFust8TqAfft0AOPzK5R9Igc2WVpysm18wKX6AWgJidk5o9Eii2cmdhEvaeglb
 CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
 
-# Base URL for the application
-BASE_URL = 'https://8183-103-199-70-79.ngrok-free.app'  # URL ngrok cố định
-# BASE_URL = 'http://100.85.57.9:8000'  # URL ngrok cố định
-
+# Base URL for local development
+BASE_URL = 'http://localhost:8000'  # Thay đổi khi chạy local
+# BASE_URL = 'https://systemaccommodation.online'  # URL production
+# BASE_URL = 'http://100.85.57.9:8000' # URL ngrok
 # VNPay settings
 VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website
 VNPAY_HASH_SECRET = 'PKRAT3EZUB2AXAW8A1V62R9FE837B0EY'  # Secret Key
