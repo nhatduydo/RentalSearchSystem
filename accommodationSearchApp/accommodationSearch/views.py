@@ -5,6 +5,7 @@ import string
 from datetime import date, datetime, timedelta
 
 import pytz
+import requests
 from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.core.mail import send_mail
@@ -1747,60 +1748,88 @@ class StatisticsViewSet(viewsets.ViewSet):
             return Response({'error': 'type phải là day, month, year, quarter'})
         return Response(data)
 
+from google.oauth2 import id_token
+from google.auth.transport import requests as grequests
 
-# class GoogleAuthView(APIView):
-#     permission_classes = [permissions.AllowAny]
+class GoogleAuthView(APIView):
+    permission_classes = [AllowAny]
 
-#     def post(self, request):
-#         try:
-#             # Lấy Google access token từ request
-#             google_token = request.data.get('access_token')
-#             if not google_token:
-#                 return Response({'error': 'Google access token is required'},
-#                                 status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        try:
+            # Lấy token ID từ request
+            token_id = request.data.get('token_id')
+            if not token_id:
+                return Response({'error': 'Token ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             # Lấy thông tin user từ Google token
-#             social_account = SocialAccount.objects.get(provider='google',
-#                                                        extra_data__contains=google_token)
-#             user = social_account.user
+            # Xác thực token với Google
+            idinfo = id_token.verify_oauth2_token(
+                token_id,
+                grequests.Request(),
+                audience=settings.GOOGLE_CLIENT_ID
+            )
 
-#             # Lấy OAuth2 application
-#             application = Application.objects.get(client_id=settings.CLIENT_ID)
+            # Lấy thông tin user từ token
+            email = idinfo.get('email')
+            if not email:
+                return Response({'error': 'Email not found in token'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             # Tạo OAuth2 access token
-#             token = AccessToken.objects.create(
-#                 user=user,
-#                 application=application,
-#                 expires=timezone.now() + timedelta(days=1),
-#                 token=generate_token(),
-#                 scope='read write'
-#             )
+            # Tìm hoặc tạo user
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email.split('@')[0],
+                    'first_name': idinfo.get('given_name', ''),
+                    'last_name': idinfo.get('family_name', ''),
+                    'is_active': True
+                }
+            )
 
-#             return Response({
-#                 'access_token': token.token,
-#                 'token_type': 'Bearer',
-#                 'expires_in': 86400,  # 1 day in seconds
-#                 'scope': token.scope,
-#                 'user': {
-#                     'id': user.id,
-#                     'username': user.username,
-#                     'email': user.email,
-#                     'role': user.role
-#                 }
-#             })
+            if created:
+                Tenant.objects.create(user=user)
 
-#         except SocialAccount.DoesNotExist:
-#             return Response({'error': 'Invalid Google token'},
-#                             status=status.HTTP_401_UNAUTHORIZED)
-#         except Exception as e:
-#             return Response({'error': str(e)},
-#                             status=status.HTTP_400_BAD_REQUEST)
+            # Tạo hoặc cập nhật social account
+            social_account, created = SocialAccount.objects.get_or_create(
+                user=user,
+                provider='google',
+                defaults={'uid': idinfo.get('sub'), 'extra_data': idinfo}
+            )
+            if not created:
+                social_account.extra_data = idinfo
+                social_account.save()
+            
+            
+            # Tạo access token
+            application = Application.objects.get(client_id=settings.CLIENT_ID)
+            access_token = AccessToken.objects.create(
+                user=user,
+                application=application,
+                token=generate_token(),
+                expires=timezone.now() + timedelta(days=1),
+                scope='read write'
+            )
+
+            return Response({
+                'access_token': access_token.token,
+                'token_type': 'Bearer',
+                'expires_in': 86400,  # 1 day in seconds
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'is_tenant': hasattr(user, 'tenant'),
+                    'is_landlord': hasattr(user, 'landlord'),
+                    'is_admin': hasattr(user, 'admin')
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Error in GoogleAuthView: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# def generate_token():
-#     """Generate a random token"""
-#     return ''.join(random.choices(string.ascii_letters + string.digits, k=40))
-
+def generate_token(length=32):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 # try:
 #     from accommodationSearch import paginators, serializers

@@ -33,6 +33,6 @@ router.register('statistics', views.StatisticsViewSet, basename='statistics')
 
 urlpatterns = [
     path('', include(router.urls)),
-    # path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
+    path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
     re_path(r'ws/chat/(?P<room_id>\w+)/$', ChatConsumer.as_asgi()),
 ]
