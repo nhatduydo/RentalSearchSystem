@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <title>Google Login - Lấy ID Token</title>
+  <head>
+    <meta charset="UTF-8">
+    <title>Google Login - Lấy ID Token</title>
 
-        <!-- Google SDK -->
-        <script src="https://accounts.google.com/gsi/client" async
-            defer></script>
+    <!-- Google SDK -->
+    <script src="https://accounts.google.com/gsi/client" async
+      defer></script>
 
-        <style>
+    <style>
     body {
       font-family: Arial, sans-serif;
       background: #f0f0f0;
@@ -25,16 +25,16 @@
       margin-top: 20px;
     }
   </style>
-    </head>
-    <body>
-        <h2>Đăng nhập với Google</h2>
-        <div id="g_id_signin"></div>
+  </head>
+  <body>
+    <h2>Đăng nhập với Google</h2>
+    <div id="g_id_signin"></div>
 
-        <h3>ID Token sau khi đăng nhập:</h3>
-        <textarea id="token-display" readonly
-            placeholder="Token sẽ hiển thị tại đây..."></textarea>
+    <h3>ID Token sau khi đăng nhập:</h3>
+    <textarea id="token-display" readonly
+      placeholder="Token sẽ hiển thị tại đây..."></textarea>
 
-        <script>
+    <script>
     function handleCredentialResponse(response) {
       const idToken = response.credential;
       console.log("Google ID Token:", idToken);
@@ -54,5 +54,5 @@
       );
     };
   </script>
-    </body>
+  </body>
 </html>
