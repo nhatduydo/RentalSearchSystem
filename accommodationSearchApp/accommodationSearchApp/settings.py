@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000', 'http://100.85.57.9:8000']
+
 DJANGO_ALLOW_ASYNC_UNSAFE = True
 REST_USE_JWT = True
 # Configuration
@@ -117,10 +117,6 @@ ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_UNIQUE_EMAIL = True
 
 # Google OAuth2 settings
-
-# OLD
-# GOOGLE_CLIENT_ID = "284762867837-e5gja6b1cp8kdt5pnss5jj8ok87lbt2l.apps.googleusercontent.com"
-# GOOGLE_CLIENT_SECRET = "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"
 
 # NEW for Web client for Nhà trọ
 GOOGLE_CLIENT_ID = "284762867837-sv52qe2s58lc15sjjv6b8bpmoqmucbkg.apps.googleusercontent.com"
@@ -272,8 +268,8 @@ CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
 
 # Base URL for local development
-BASE_URL = 'http://localhost:8000'  # Thay đổi khi chạy local
-# BASE_URL = 'https://systemaccommodation.online'  # URL production
+# BASE_URL = 'http://localhost:8000'  # Thay đổi khi chạy local
+BASE_URL = 'https://systemaccommodation.online'  # URL public
 # BASE_URL = 'http://100.85.57.9:8000' # URL ngrok
 # VNPay settings
 VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website
@@ -290,6 +286,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://0.0.0.0:8000",
     "http://100.85.57.9:8000",
+    "https://systemaccommodation.online",
 ]
 
 
