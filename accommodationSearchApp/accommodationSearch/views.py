@@ -162,10 +162,13 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         motel = serializer.save(user=self.request.user)
         # Tạo thông báo cho người theo dõi
         # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+
+        # lây danh sách người theo giỏi
         followers = self.request.user.followers.filter(active=True)
 
         print(f"Số người theo dõi: {followers.count()}")
 
+        # với mỗi người theo giỏi, fuiwr thông báo về
         for follower in followers:
             print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
             # Tạo thông báo trong database

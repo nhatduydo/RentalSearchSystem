@@ -128,7 +128,7 @@ class User(AbstractUser):
         verbose_name = "User"
         verbose_name_plural = "User"
 
-    def __str__(self):  
+    def __str__(self):
         return self.username
 
     def clean(self):
@@ -143,13 +143,11 @@ class User(AbstractUser):
         super().save(*args, **kwargs)
 
 
-
 class Admin(ActiveModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
 
     def email(self):
         return self.user.email
-
 
 
 class Landlord(InformationUserModel):
@@ -168,7 +166,6 @@ class Landlord(InformationUserModel):
         verbose_name_plural = "Chủ nhà trọ"
 
 
-
 class Tenant(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name="tenant_profile")
     rooms = models.ManyToManyField('Room', through='RoomTenant', related_name='roomer')
@@ -183,7 +180,6 @@ class Tenant(InformationUserModel):
     class Meta:
         verbose_name = "Người thuê trọ"
         verbose_name_plural = "Người thuê trọ"
-
 
 
 class Motel(SlugModel):
@@ -209,33 +205,44 @@ class Motel(SlugModel):
                 landlord = Landlord.objects.get(user=self.user)
             except Landlord.DoesNotExist:
                 raise ValidationError('Không tìm thấy thông tin chủ trọ')
-        
+
         if not landlord.phone:
             raise ValidationError('Chủ trọ cần có số điện thoại')
         if not self.address:
             raise ValidationError('Nhà trọ cần có địa chỉ')
-        if self.images.count() < 3:
-            raise ValidationError('Nhà trọ cần có ít nhất 3 hình ảnh')
+
+    def check_verification(self):
+        """Kiểm tra xem nhà trọ có đủ điều kiện để được xác minh không.
+        Trả về True nếu đủ điều kiện, False nếu không đủ điều kiện.
+        Các điều kiện bao gồm:
+        - Có ít nhất 3 hình ảnh active
+        - Có địa chỉ đầy đủ (address, district, city/province)
+        - Chủ trọ có số điện thoại
+        """
+        try:
+            # Kiểm tra số lượng hình ảnh
+            active_images_count = self.images.filter(active=True).count()
+            if active_images_count < 3:
+                raise ValidationError('Nhà trọ cần có ít nhất 3 hình ảnh để được xác minh')
+
+            # Kiểm tra địa chỉ đầy đủ
+            has_valid_address = bool(self.address and self.district and (self.city or self.province))
+            if not has_valid_address:
+                raise ValidationError('Nhà trọ cần có địa chỉ đầy đủ để được xác minh')
+
+            # Kiểm tra số điện thoại chủ trọ
+            has_valid_phone = bool(self.user.landlord_profile.phone)
+            if not has_valid_phone:
+                raise ValidationError('Chủ trọ cần có số điện thoại để được xác minh')
+
+            return True
+        except ValidationError:
+            return False
 
     def save(self, *args, **kwargs):
-        self.full_clean() # gọi hàm clean, kiểm tra trước khi save
+        self.full_clean()  # Validate basic fields
         super().save(*args, **kwargs)
 
-        
-    def check_verification(self):
-        #  kiểm tra hình ảnh
-        has_valid_images = self.images.count() >=3
-        # kiểm tra địa chỉ
-        has_valid_address = bool(self.address and self.district and (self.city or self.province))
-        
-        has_valid_phone = bool(self.user.landlord_profile.phone)
-        
-        return all([
-            has_valid_images,
-            has_valid_address,
-            has_valid_phone
-        ])
- 
     def __str__(self):
         return self.motel_name
 
@@ -293,7 +300,6 @@ class Amenity(SlugModel):
         verbose_name_plural = "Tiện nghi, tiện ích"
 
 
-
 class MotelImage(ActiveModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name="images")
@@ -306,7 +312,6 @@ class MotelImage(ActiveModel):
     class Meta:
         verbose_name = 'hình ảnh'
         verbose_name_plural = "Hình ảnh nhà trọ"
-
 
 
 class RoomImage(ActiveModel):
@@ -332,7 +337,6 @@ class RoomTenant(ActiveModel):
     is_paid = models.BooleanField(default=False)
 
 
-
 class MotelRating(ActiveModel):
     id = models.AutoField(primary_key=True)
     motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='ratings')
@@ -344,7 +348,6 @@ class MotelRating(ActiveModel):
         verbose_name = 'Đánh giá'
         verbose_name_plural = 'Đánh giá'
         unique_together = ['motel', 'user']
-
 
 
 class Favorite(ActiveModel):
@@ -359,7 +362,6 @@ class Favorite(ActiveModel):
 
     def __str__(self):
         return f"{self.user.username} favorite {self.motel.motel_name}"
-
 
 
 class Post(SlugModel):
@@ -385,7 +387,6 @@ class Post(SlugModel):
         return self.title
 
 
-
 class Comment(ActiveModel):
     id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
@@ -402,7 +403,6 @@ class Comment(ActiveModel):
     class Meta:
         verbose_name = "Bình Luận"
         verbose_name_plural = "Bình luận"
-
 
 
 class LikeComment(ActiveModel):
@@ -433,7 +433,6 @@ class LikeMotel(ActiveModel):
         return self.user.username
 
 
-
 class SearchHistory(ActiveModel):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="search_histories")
@@ -454,7 +453,6 @@ class SearchHistory(ActiveModel):
         verbose_name_plural = "Lịch sử tìm kiếm"
 
 
-
 class Follow(ActiveModel):
     id = models.AutoField(primary_key=True)
     followed_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')  # Người được theo dõi
@@ -465,7 +463,6 @@ class Follow(ActiveModel):
         unique_together = ('followed_user', 'follower_user')
         verbose_name = "Theo dõi"
         verbose_name_plural = "Theo dõi"
-
 
 
 class Notifications(ActiveModel):
@@ -483,7 +480,6 @@ class Notifications(ActiveModel):
     class Meta:
         verbose_name = "Thông báo"
         verbose_name_plural = "Thông báo"
-
 
 
 class ChatRoom(ActiveModel):
@@ -509,7 +505,6 @@ class Message(ActiveModel):
 
     def __str__(self):
         return f"Message from {self.sender.username} in {self.chat_room}"
-
 
 
 class Payment(ActiveModel):
