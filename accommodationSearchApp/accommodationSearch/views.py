@@ -114,7 +114,7 @@ class UserViewSet(viewsets.ViewSet,
             user.save()
 
             return Response(serializers.UserSerializer(user).data)
-        return Response(serializers.UserSerializer(request.user).data) # Trường hợp này không sửa gì cả, chỉ đơn giản là trả lại JSON thông tin user đang đăng nhập.
+        return Response(serializers.UserSerializer(request.user).data)  # Trường hợp này không sửa gì cả, chỉ đơn giản là trả lại JSON thông tin user đang đăng nhập.
 
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
     def change_password(self, request):
@@ -163,7 +163,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         # Tạo thông báo cho người theo dõi
         # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
         followers = self.request.user.followers.filter(active=True)
-        
+
         print(f"Số người theo dõi: {followers.count()}")
 
         for follower in followers:
@@ -283,34 +283,20 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
     @action(methods=['PATCH'], detail=True, url_path='verify')
     def verify(self, request, pk=None):
+        if request.user.role != 'ADMIN':
+            return Response({
+                'error': 'Chỉ admin mới có quyền xác minh nhà trọ'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         try:
             if pk.isdigit():
                 motel = get_object_or_404(Motel, id=pk)
             else:
                 motel = get_object_or_404(Motel, slug=pk)
 
-            # Kiểm tra số lượng ảnh
-            if motel.images.count() < 3:
+            if not motel.check_verification():
                 return Response({
-                    'error': 'Nhà trọ cần có ít nhất 3 hình ảnh'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Kiểm tra địa chỉ
-            if not motel.address:
-                return Response({
-                    'error': 'Nhà trọ cần có địa chỉ'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Kiểm tra số điện thoại của chủ trọ
-            try:
-                landlord = Landlord.objects.get(user=motel.user)
-                if not landlord.phone:
-                    return Response({
-                        'error': 'Chủ trọ cần có số điện thoại'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            except Landlord.DoesNotExist:
-                return Response({
-                    'error': 'Không tìm thấy thông tin chủ trọ'
+                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh (cần địa chỉ đầy đủ, quận/huyện và thành phố/tỉnh)'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Xét duyệt nhà trọ
@@ -683,7 +669,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                     max_date = today.replace(year=today.year - int(min_age))
                     query = query.filter(date_of_birth__lte=max_date)
                 if max_age:
-                    min_date = today.replace(year=today.year - int(max_age) - 1)
+                    min_date = today.replace(year=today.year - int(max_age) - 1)  # trừ 1 vì để tính chưa tới sinh nhật thứ 25, hay 25 tuổi mấy ngày không lấy
                     query = query.filter(date_of_birth__gt=min_date)
         return query
 

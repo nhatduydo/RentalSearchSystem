@@ -112,7 +112,6 @@ class InformationUserModel(SlugModel):
         abstract = True
 
 
-
 class User(AbstractUser):
     id = models.AutoField(primary_key=True)
     role = models.CharField(max_length=20, choices=UserRole.choices)
@@ -154,7 +153,7 @@ class Admin(ActiveModel):
 
 
 class Landlord(InformationUserModel):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name='landlord_profile')
     is_verified = models.BooleanField(default=False)
     slug_source = "full_name"
 
@@ -208,27 +207,35 @@ class Motel(SlugModel):
         if self.user.role == 'LANDLORD':
             try:
                 landlord = Landlord.objects.get(user=self.user)
-                if not landlord.phone:
-                    raise ValidationError('Chủ trọ cần có số điện thoại')
             except Landlord.DoesNotExist:
                 raise ValidationError('Không tìm thấy thông tin chủ trọ')
+        
+        if not landlord.phone:
+            raise ValidationError('Chủ trọ cần có số điện thoại')
         if not self.address:
             raise ValidationError('Nhà trọ cần có địa chỉ')
         if self.images.count() < 3:
             raise ValidationError('Nhà trọ cần có ít nhất 3 hình ảnh')
 
     def save(self, *args, **kwargs):
-        self.full_clean()
+        self.full_clean() # gọi hàm clean, kiểm tra trước khi save
         super().save(*args, **kwargs)
 
+        
     def check_verification(self):
-        if self.images.count() < 3:
-            self.is_verified = False
-        else:
-            self.is_verified = True
-        # Sử dụng update để tránh gọi save() và tạo vòng lặp
-        Motel.objects.filter(id=self.id).update(is_verified=self.is_verified)
-
+        #  kiểm tra hình ảnh
+        has_valid_images = self.images.count() >=3
+        # kiểm tra địa chỉ
+        has_valid_address = bool(self.address and self.district and (self.city or self.province))
+        
+        has_valid_phone = bool(self.user.landlord_profile.phone)
+        
+        return all([
+            has_valid_images,
+            has_valid_address,
+            has_valid_phone
+        ])
+ 
     def __str__(self):
         return self.motel_name
 
