@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta
 import pytz
 import requests
 from allauth.socialaccount.models import SocialAccount
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
@@ -14,6 +16,8 @@ from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from google.auth.transport import requests as grequests
+from google.oauth2 import id_token
 from oauth2_provider.models import AccessToken, Application
 from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -1332,7 +1336,24 @@ class MessageViewSet(viewsets.ModelViewSet):
             # Kiểm tra xem người dùng có trong phòng chat không
             if self.request.user not in chat_room.participants.all():
                 raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
-            serializer.save(sender=self.request.user, chat_room=chat_room)
+            message = serializer.save(sender=self.request.user, chat_room=chat_room)
+
+            # Broadcast tin nhắn qua WebSocket
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'chat_{chat_room_id}',
+                {
+                    'type': 'chat_message',
+                    'message': {
+                        'id': message.id,
+                        'content': message.content,
+                        'sender_id': message.sender.id,
+                        'sender_name': message.sender.username,
+                        'created_date': message.created_date.isoformat(),
+                        'is_read': message.is_read
+                    }
+                }
+            )
         except ChatRoom.DoesNotExist:
             raise NotFound("Không tìm thấy phòng chat")
 
@@ -1340,14 +1361,47 @@ class MessageViewSet(viewsets.ModelViewSet):
         message = self.get_object()
         if message.sender != request.user:
             raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+
+        # Broadcast cập nhật tin nhắn qua WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{message.chat_room.id}',
+            {
+                'type': 'message_update',
+                'message': {
+                    'id': message.id,
+                    'content': message.content,
+                    'sender_id': message.sender.id,
+                    'sender_name': message.sender.username,
+                    'created_date': message.created_date.isoformat(),
+                    'is_read': message.is_read,
+                    'action': 'update'
+                }
+            }
+        )
+        return response
 
     def destroy(self, request, *args, **kwargs):
         message = self.get_object()
         if message.sender != request.user:
             raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
+        chat_room_id = message.chat_room.id
         message.active = False
         message.save()
+
+        # Broadcast xóa tin nhắn qua WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{chat_room_id}',
+            {
+                'type': 'message_update',
+                'message': {
+                    'id': message.id,
+                    'action': 'delete'
+                }
+            }
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['put'], url_path='read')
@@ -1355,6 +1409,20 @@ class MessageViewSet(viewsets.ModelViewSet):
         message = self.get_object()
         message.is_read = True
         message.save()
+
+        # Broadcast trạng thái đã đọc qua WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{chat_room_id}',
+            {
+                'type': 'message_update',
+                'message': {
+                    'id': message.id,
+                    'is_read': True,
+                    'action': 'read'
+                }
+            }
+        )
         return Response({'status': 'tin nhắn được đánh dấu là đã đọc'})
 
 
@@ -1748,8 +1816,6 @@ class StatisticsViewSet(viewsets.ViewSet):
             return Response({'error': 'type phải là day, month, year, quarter'})
         return Response(data)
 
-from google.oauth2 import id_token
-from google.auth.transport import requests as grequests
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -1796,8 +1862,7 @@ class GoogleAuthView(APIView):
             if not created:
                 social_account.extra_data = idinfo
                 social_account.save()
-            
-            
+
             # Tạo access token
             application = Application.objects.get(client_id=settings.CLIENT_ID)
             access_token = AccessToken.objects.create(

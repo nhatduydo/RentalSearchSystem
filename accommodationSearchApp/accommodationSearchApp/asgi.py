@@ -7,8 +7,10 @@ from django.core.asgi import get_asgi_application
 # Set Django settings module before any Django imports
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'accommodationSearchApp.settings')
 
-
+# Cấu hình Django settings
 django.setup()
+
+# Import các module Django sau khi settings đã được cấu hình
 
 
 def get_websocket_urlpatterns():

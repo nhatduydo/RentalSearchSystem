@@ -2,11 +2,6 @@ from rest_framework import permissions
 from rest_framework.permissions import SAFE_METHODS
 
 
-class CommentOwner(permissions.IsAuthenticated):
-    def has_object_permission(self, request, view, obj):
-        return super().has_permission(request, view) and request.user == obj.user
-
-
 class IsOwnerOrReadOnly(permissions.IsAuthenticated):
     """
     Cho phép chỉ chủ sở hữu của đối tượng mới có thể chỉnh sửa hoặc xóa

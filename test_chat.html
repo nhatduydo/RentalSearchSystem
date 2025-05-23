@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Chat Test</title>
+        <style>
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        .message.sent {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .message.received {
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        #login-section {
+            margin-bottom: 20px;
+        }
+        #chat-section {
+            display: none;
+        }
+        #server-status {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .server-up {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .server-down {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+    </head>
+    <body>
+        <div id="server-status">Checking server status...</div>
+
+        <div id="login-section">
+            <h2>Login</h2>
+            <input type="text" id="token-input" placeholder="Enter your token"
+                style="width: 300px;">
+            <button onclick="login()">Login</button>
+            <div id="login-error" style="color: red; margin-top: 10px;"></div>
+        </div>
+
+        <div id="chat-section">
+            <h2>Chat Test</h2>
+            <div id="connection-status">Disconnected</div>
+            <div id="messages"></div>
+            <input type="text" id="message-input"
+                placeholder="Type a message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+
+        <script>
+        let chatSocket = null;
+        let currentUserId = null;
+        let authToken = null;
+        const SERVER_URL = 'http://localhost:8000';
+        const WS_URL = 'ws://localhost:8000';
+        const messagesDiv = document.getElementById('messages');
+        const statusDiv = document.getElementById('connection-status');
+        const messageInput = document.getElementById('message-input');
+        const loginSection = document.getElementById('login-section');
+        const chatSection = document.getElementById('chat-section');
+        const loginError = document.getElementById('login-error');
+        const serverStatus = document.getElementById('server-status');
+
+        // Kiểm tra server status
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${SERVER_URL}/users/`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    serverStatus.textContent = 'Server is running';
+                    serverStatus.className = 'server-up';
+                    return true;
+                } else {
+                    throw new Error('Server returned error status');
+                }
+            } catch (error) {
+                console.error('Server check failed:', error);
+                serverStatus.textContent = 'Server is not responding';
+                serverStatus.className = 'server-down';
+                return false;
+            }
+        }
+
+        // Kiểm tra server khi trang load
+        checkServerStatus();
+
+        async function login() {
+            loginError.textContent = '';
+            
+            // Kiểm tra server trước
+            const serverRunning = await checkServerStatus();
+            if (!serverRunning) {
+                loginError.textContent = 'Cannot connect to server. Please make sure the server is running.';
+                return;
+            }
+
+            authToken = document.getElementById('token-input').value.trim();
+            
+            if (!authToken) {
+                loginError.textContent = 'Please enter your token';
+                return;
+            }
+
+            try {
+                console.log('Attempting login with token:', authToken);
+                
+                const response = await fetch(`${SERVER_URL}/users/current-user/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors',
+                    credentials: 'include'
+                });
+
+                console.log('Login response status:', response.status);
+                
+                if (!response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Invalid token');
+                    } else {
+                        const text = await response.text();
+                        console.error('Server response:', text);
+                        throw new Error('Server returned invalid response format');
+                    }
+                }
+
+                const data = await response.json();
+                console.log('Login successful:', data);
+                
+                currentUserId = data.id;
+                loginSection.style.display = 'none';
+                chatSection.style.display = 'block';
+                
+                const roomId = prompt('Enter chat room ID:');
+                if (roomId) {
+                    connect(roomId);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                loginError.textContent = `Login failed: ${error.message}`;
+            }
+        }
+
+        function connect(roomId) {
+            if (chatSocket) {
+                chatSocket.close();
+            }
+
+            // Loại bỏ prefix Bearer nếu có
+            let token = authToken;
+            console.log('Original token:', token ? token.substring(0, 10) + '...' : 'null');
+            
+            if (token.startsWith('Bearer ')) {
+                token = token.substring(7);
+                console.log('Token after removing Bearer prefix:', token.substring(0, 10) + '...');
+            }
+
+            const wsUrl = `${WS_URL}/ws/chat/${roomId}/?token=${token}`;
+            console.log('Connecting to WebSocket URL:', wsUrl);
+            statusDiv.textContent = 'Connecting...';
+            statusDiv.style.color = 'orange';
+            
+            try {
+                console.log('Creating WebSocket connection...');
+                chatSocket = new WebSocket(wsUrl);
+
+                chatSocket.onopen = function(e) {
+                    console.log('WebSocket connection opened successfully');
+                    console.log('Connection details:', {
+                        url: wsUrl,
+                        protocol: chatSocket.protocol,
+                        extensions: chatSocket.extensions,
+                        readyState: chatSocket.readyState
+                    });
+                    statusDiv.textContent = 'Connected to room: ' + roomId;
+                    statusDiv.style.color = 'green';
+                };
+
+                chatSocket.onmessage = function(e) {
+                    console.log('Raw message received:', e.data);
+                    try {
+                        const data = JSON.parse(e.data);
+                        console.log('Parsed message:', data);
+                        
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = `message ${data.sender_id === currentUserId ? 'sent' : 'received'}`;
+                        
+                        if (data.action === 'delete') {
+                            messageDiv.textContent = 'Tin nhắn đã bị xóa';
+                            messageDiv.style.color = 'gray';
+                        } else {
+                            messageDiv.innerHTML = `
+                                <strong>${data.sender_name}</strong>
+                                <p>${data.content}</p>
+                                <small>${new Date(data.created_date).toLocaleString()}</small>
+                            `;
+                        }
+                        
+                        messagesDiv.appendChild(messageDiv);
+                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    } catch (error) {
+                        console.error('Error processing message:', error);
+                    }
+                };
+
+                chatSocket.onclose = function(e) {
+                    console.log('WebSocket connection closed:', {
+                        code: e.code,
+                        reason: e.reason,
+                        wasClean: e.wasClean,
+                        timestamp: new Date().toISOString()
+                    });
+                    statusDiv.textContent = `Disconnected (Code: ${e.code}, Reason: ${e.reason || 'No reason provided'})`;
+                    statusDiv.style.color = 'red';
+                    
+                    // Chỉ tự động kết nối lại nếu không phải là close code bình thường (1000)
+                    if (e.code !== 1000) {
+                        console.log('Connection was not clean, attempting to reconnect in 5 seconds...');
+                        setTimeout(() => connect(roomId), 5000);
+                    }
+                };
+
+                chatSocket.onerror = function(e) {
+                    console.error('WebSocket error occurred:', {
+                        error: e,
+                        readyState: chatSocket.readyState,
+                        timestamp: new Date().toISOString()
+                    });
+                    statusDiv.textContent = 'Connection error - Check console for details';
+                    statusDiv.style.color = 'red';
+                };
+            } catch (error) {
+                console.error('Error creating WebSocket:', error);
+                statusDiv.textContent = 'Failed to create WebSocket connection';
+                statusDiv.style.color = 'red';
+            }
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+                chatSocket.send(JSON.stringify({
+                    'message': message
+                }));
+                messageInput.value = '';
+            }
+        }
+
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+    </body>
+</html>
