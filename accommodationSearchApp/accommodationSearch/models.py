@@ -124,13 +124,12 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     last_login = None
     fcm_token = models.CharField(max_length=255, null=True, blank=True)
-    # date_joined = None
 
     class Meta:
         verbose_name = "User"
         verbose_name_plural = "User"
 
-    def __str__(self):
+    def __str__(self):  
         return self.username
 
     def clean(self):

@@ -6,7 +6,7 @@ from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
                                         RoomImage, RoomTenant, SearchHistory,
                                         Tenant, User)
 from rest_framework import serializers
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import ModelSerializer
 
 
 class ItemSerializer(ModelSerializer):
@@ -47,7 +47,7 @@ class UserSerializer(ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        if password:
+        if password:    
             instance.set_password(password)
 
         instance.save()

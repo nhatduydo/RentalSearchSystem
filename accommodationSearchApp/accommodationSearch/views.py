@@ -114,7 +114,7 @@ class UserViewSet(viewsets.ViewSet,
             user.save()
 
             return Response(serializers.UserSerializer(user).data)
-        return Response(serializers.UserSerializer(request.user).data)
+        return Response(serializers.UserSerializer(request.user).data) # Trường hợp này không sửa gì cả, chỉ đơn giản là trả lại JSON thông tin user đang đăng nhập.
 
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
     def change_password(self, request):
