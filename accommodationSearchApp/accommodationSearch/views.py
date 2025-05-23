@@ -161,7 +161,9 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     def perform_create(self, serializer):
         motel = serializer.save(user=self.request.user)
         # Tạo thông báo cho người theo dõi
-        followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        followers = self.request.user.followers.filter(active=True)
+        
         print(f"Số người theo dõi: {followers.count()}")
 
         for follower in followers:
@@ -206,7 +208,8 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     def perform_update(self, serializer):
         motel = serializer.save()
         # Notify followers about the update
-        followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        followers = self.request.user.followers.filter(active=True)
         print(f"Số người theo dõi: {followers.count()}")
 
         for follow in followers:
@@ -800,7 +803,8 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         post = serializer.save(user=self.request.user)
 
         if post.post_type == 'RENT_OUT' and post.motel:
-            followers = Follow.objects.filter(followed_user=self.request.user)
+            # followers = Follow.objects.filter(followed_user=self.request.user)
+            followers = self.request.user.followers.all()
             for follow in followers:
                 Notifications.objects.create(
                     receiver=follow.follower_user,  # Người nhận thông báo là người theo dõi
@@ -1300,10 +1304,11 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return ChatRoom.objects.none()
-        return ChatRoom.objects.filter(
-            participants=self.request.user,
-            active=True
-        ).order_by('-updated_date')
+        # return ChatRoom.objects.filter(
+        #     participants=self.request.user,
+        #     active=True
+        # ).order_by('-updated_date')
+        return self.request.user.chat_rooms.filter(active=True).order_by('-updated_date')
 
     def perform_create(self, serializer):
         chat_room = serializer.save()
@@ -1710,7 +1715,8 @@ class FavoriteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Favorite.objects.none()
-        return Favorite.objects.filter(user=self.request.user, active=True)
+        # return Favorite.objects.filter(user=self.request.user, active=True)
+        return self.request.user.favorites.filter(active=True)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -1732,11 +1738,12 @@ class FavoriteViewSet(viewsets.ModelViewSet):
     def check_favorite(self, request, motel_id=None):
         try:
             motel = Motel.objects.get(id=motel_id)
-            is_favorite = Favorite.objects.filter(
-                user=request.user,
-                motel=motel,
-                active=True
-            ).exists()
+            # is_favorite = Favorite.objects.filter(
+            #     user=request.user,
+            #     motel=motel,
+            #     active=True
+            # ).exists()
+            is_favorite = request.user.favorites.filter(motel=motel, active=True).exists()
             return Response({'is_favorite': is_favorite})
         except Motel.DoesNotExist:
             return Response(
