@@ -38,14 +38,14 @@ class PostType(models.TextChoices):
 class NotificationType(models.TextChoices):
     NEW_POST = "NEW_POST", "New Post"
     NEW_COMMENT = "NEW_COMMENT", "New Comment"
+    NEW_MOTEL = "NEW_MOTEL", "New Motel"
     COMMENT_LIKE = "COMMENT_LIKE", "Comment Like"
-    ACCOUNT_VERIFICATION = "ACCOUNT_VERIFICATION", "Account Verification"
+    VERIFICATION_SUCCESS = "VERIFICATION_SUCCESS", "Verification Success"
     MOTEL_UPDATE = "MOTEL_UPDATE", "Motel Update"
     MOTEL_LIKE = "MOTEL_LIKE", "Motel Like"
     FOLLOW = "FOLLOW", "Follow"
     PAYMENT = "PAYMENT", "Payment"
     SYSTEM = "SYSTEM", "System"
-
 
 class PaymentMethod(models.TextChoices):
     VNPAY = "VNPAY", "Vnpay"

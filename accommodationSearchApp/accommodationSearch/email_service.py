@@ -4,11 +4,12 @@ from functools import partial
 from django.conf import settings
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Content, Email, Mail
+from .models import NotificationType
 
 
 class EmailService:
     @staticmethod
-    async def send_notification(to_email, data, notification_type='NEW_MOTEL'):
+    async def send_notification(to_email, data, notification_type=NotificationType.NEW_MOTEL):
         try:
             # Khởi tạo SendGrid client với API key
             sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
@@ -39,7 +40,7 @@ class EmailService:
 
     @staticmethod
     def _get_email_content(notification_type, data):
-        if notification_type == 'NEW_MOTEL':
+        if notification_type == NotificationType.NEW_MOTEL:
             return (
                 'Thông báo nhà trọ mới',
                 f'''
@@ -57,7 +58,7 @@ class EmailService:
                 <p><strong>Vị trí:</strong> {data.get('latitude', '')}, {data.get('longitude', '')}</p>
                 '''
             )
-        elif notification_type == 'MOTEL_UPDATE':
+        elif notification_type == NotificationType.MOTEL_UPDATE:
             return (
                 'Cập nhật thông tin nhà trọ',
                 f'''

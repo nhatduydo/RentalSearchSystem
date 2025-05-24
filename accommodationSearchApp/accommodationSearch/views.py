@@ -201,7 +201,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     EmailService.send_notification(
                         to_email=follower.follower_user.email,
                         data=email_data,
-                        notification_type='NEW_MOTEL'
+                        notification_type=NotificationType.NEW_MOTEL
                     )
                 )
                 print(f"Đã gửi email thông báo đến: {follower.follower_user.email}")
@@ -248,7 +248,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     EmailService.send_notification(
                         to_email=follow.follower_user.email,
                         data=email_data,
-                        notification_type='MOTEL_UPDATE'
+                        notification_type=NotificationType.MOTEL_UPDATE
                     )
                 )
                 print(f"Đã gửi email thông báo cập nhật đến: {follow.follower_user.email}")
@@ -312,7 +312,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 receiver=motel.user,
                 title="Nhà trọ đã được xét duyệt",
                 content=f"Nhà trọ {motel.motel_name} của bạn đã được xét duyệt thành công",
-                notification_type=NotificationType.ACCOUNT_VERIFICATION,
+                notification_type=NotificationType.VERIFICATION_SUCCESS,
                 related_object_id=motel.id
             )
 
@@ -595,7 +595,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 receiver=landlord.user,
                 title="Tài khoản đã được xác thực",
                 content="Tài khoản chủ nhà của bạn đã được xác thực thành công",
-                notification_type="VERIFICATION",
+                notification_type=NotificationType.VERIFICATION_SUCCESS,
                 related_object_id=landlord.user.id
             )
 
@@ -800,7 +800,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     receiver=follow.follower_user,  # Người nhận thông báo là người theo dõi
                     title="New Post",
                     content=f"{self.request.user.username} đã đăng một bài đăng mới: {post.title}",
-                    notification_type="NEW_POST",
+                    notification_type=NotificationType.NEW_POST,
                     related_object_id=post.id
                 )
 
