@@ -168,7 +168,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
         print(f"Số người theo dõi: {followers.count()}")
 
-        # với mỗi người theo giỏi, fuiwr thông báo về
+        # với mỗi người theo giỏi, gửi thông báo về
         for follower in followers:
             print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
             # Tạo thông báo trong database
@@ -208,6 +208,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             except Exception as e:
                 print(f"Lỗi khi gửi email đến {follower.follower_user.email}: {str(e)}")
 
+    @transaction.atomic
     def perform_update(self, serializer):
         motel = serializer.save()
         # Notify followers about the update
@@ -279,7 +280,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 receiver=motel.user,
                 title="Nhà trọ được yêu thích",
                 content=f"{request.user.username} đã thích nhà trọ {motel.motel_name} của bạn",
-                notification_type=NotificationType.MOTEL_UPDATE,
+                notification_type=NotificationType.MOTEL_LIKE,
                 related_object_id=motel.id
             )
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
@@ -886,7 +887,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 receiver=comment.user,
                 title="Bình luận được yêu thích",
                 content=f"{request.user.username} đã thích bình luận của bạn",
-                notification_type=NotificationType.NEW_COMMENT,
+                notification_type=NotificationType.COMMENT_LIKE,
                 related_object_id=comment.id
             )
 
@@ -1465,11 +1466,28 @@ class FollowViewSet(viewsets.ViewSet):
         if follow:
             follow.active = not follow.active
             follow.save()
+            if follow.active:
+                # Tạo thông báo khi follow
+                Notifications.objects.create(
+                    receiver=followed_user,
+                    title="Người dùng mới theo dõi",
+                    content=f"{request.user.username} đã bắt đầu theo dõi bạn",
+                    notification_type=NotificationType.FOLLOW,
+                    related_object_id=follow.id
+                )
         else:
             follow = Follow.objects.create(
                 followed_user=followed_user,
                 follower_user=request.user,
                 active=True
+            )
+            # Tạo thông báo khi follow
+            Notifications.objects.create(
+                receiver=followed_user,
+                title="Người dùng mới theo dõi",
+                content=f"{request.user.username} đã bắt đầu theo dõi bạn",
+                notification_type=NotificationType.FOLLOW,
+                related_object_id=follow.id
             )
 
         serializer = self.serializer_class(follow)
@@ -1715,7 +1733,7 @@ class FavoriteViewSet(viewsets.ModelViewSet):
             receiver=motel.user,
             title="Nhà trọ được yêu thích",
             content=f"{self.request.user.username} đã thêm nhà trọ {motel.motel_name} vào danh sách yêu thích",
-            notification_type=NotificationType.MOTEL_UPDATE,
+            notification_type=NotificationType.MOTEL_LIKE,
             related_object_id=motel.id
         )
 
