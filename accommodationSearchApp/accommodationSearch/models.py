@@ -287,7 +287,6 @@ class Room(SlugModel):
 class Amenity(SlugModel):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
-    # slug = AutoSlugField(populate_from = 'name', unique=True, null = True)
     slug_source = "name"
 
     def __str__(self):

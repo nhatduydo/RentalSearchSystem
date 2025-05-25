@@ -781,7 +781,6 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     serializer_class = serializers.PostSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
-    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]  # Không cần thiết vì đã có mặc định
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -1704,7 +1703,7 @@ class MotelImageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = MotelImage.objects.filter(active=True)
         motel_id = self.request.query_params.get('motel_id', None)
-        if motel_id is not None:
+        if motel_id:
             queryset = queryset.filter(motel_id=motel_id)
         return queryset
 
@@ -1747,7 +1746,7 @@ class AmenityViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminUser()]
+            return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
     def perform_destroy(self, instance):
