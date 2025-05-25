@@ -37,8 +37,9 @@ from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      MotelImage, MotelRating, Notifications, NotificationType,
                      Payment, PaymentMethod, PaymentStatus, Post, PostImage,
                      Room, RoomImage, RoomTenant, RoomTenantStatus,
-                     SearchHistory, Tenant, User)
-from .permissions import IsOwnerOrAdmin, IsOwnerOrReadOnly
+                     SearchHistory, Tenant, User, UserRole)
+from .permissions import (IsAdmin, IsLandlordOfRoom, IsLandlordOrTenant,
+                          IsOwnerOrAdmin, IsOwnerOrReadOnly)
 from .utils import calculate_distance
 from .vnpay import vnpay
 
@@ -400,90 +401,107 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
 
 
 class RoomTenantViewSet(viewsets.ModelViewSet):
-    queryset = RoomTenant.objects.all()
     serializer_class = serializers.RoomTenantSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.ItemPanigator
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['accept_request', 'reject_request']:
+            return [IsLandlordOfRoom()]  # Chỉ chủ trọ mới được accept/reject
+        elif self.action == 'cancel_contract':
+            # Cho phép admin, chủ trọ hoặc người thuê cancel contract
+            if self.request.user.role == UserRole.ADMIN:
+                return [IsAdmin()]
+            return [IsLandlordOrTenant()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
-        queryset = self.queryset
-
-        if self.action == 'list':
-            tenant_id = self.request.query_params.get('tenant_id')
-            if tenant_id:
-                queryset = queryset.filter(tenant_id=tenant_id)
-
-            room_id = self.request.query_params.get('room_id')
-            if room_id:
-                queryset = queryset.filter(room_id=room_id)
-
-            status = self.request.query_params.get('status')
-            if status:
-                queryset = queryset.filter(status=status)
-
-        # tối ưu hóa truy vấn cơ sở dữ liệu khi bạn làm việc với các quan hệ ForeignKey hoặc OneToOneField.
-        return queryset.select_related('room', 'tenant')
+        user = self.request.user
+        if user.role == UserRole.ADMIN:
+            return RoomTenant.objects.all()
+        elif user.role == UserRole.LANDLORD:
+            return RoomTenant.objects.filter(room__motel__user=user)
+        elif user.role == UserRole.TENANT:
+            return RoomTenant.objects.filter(tenant__user=user)
+        return RoomTenant.objects.none()
 
     def perform_create(self, serializer):
-        room_tenant = serializer.save()
-        # Thông báo cho chủ nhà khi có yêu cầu thuê phòng mới
+        tenant = Tenant.objects.get(user=self.request.user)
+        room_tenant = serializer.save(tenant=tenant, status=RoomTenantStatus.PENDING)
         Notifications.objects.create(
             receiver=room_tenant.room.motel.user,
-            title="Yêu cầu thuê phòng mới",
-            content=f"{self.request.user.username} đã gửi yêu cầu thuê phòng {room_tenant.room.room_name}",
-            notification_type=NotificationType.MOTEL_UPDATE,
-            related_object_id=room_tenant.id
+            title="Yêu cầu thuê phòng",
+            content=f"Có yêu cầu thuê phòng mới từ {tenant.full_name}",
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
         )
 
-    @action(detail=True, methods=['put'], url_path='status')
-    def update_status(self, request, pk=None):
+    @action(detail=True, methods=['post'], url_path='accept-request')
+    def accept_request(self, request, pk=None):
         room_tenant = self.get_object()
-        new_status = request.data.get('status')
+        if room_tenant.status != RoomTenantStatus.PENDING:
+            return Response({"error": "Chỉ có thể chấp nhận yêu cầu đang ở trạng thái PENDING"},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        valid_statuses = []
-        for status_tuple in RoomTenantStatus.choices:
-            status_code = status_tuple[0]
-            valid_statuses.append(status_code)
-
-        #   [
-        #     ('PENDING', 'Chờ duyệt'),
-        #     ('APPROVED', 'Đã duyệt'),
-        #     ('REJECTED', 'Từ chối')
-        # ]
-        # Duyệt qua từng tuple trong RoomTenantStatus.choices.
-        # Lấy phần tử đầu tiên của mỗi tuple (chính là giá trị code: 'PENDING', 'APPROVED', 'REJECTED', ...)
-        # Thêm vào list valid_statuses.
-        # Kết quả    ['PENDING', 'APPROVED', 'REJECTED']
-
-        if new_status not in valid_statuses:
-            return Response(
-                {'error': 'Trạng thái không hợp lệ'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        room_tenant.status = new_status
+        room_tenant.status = RoomTenantStatus.ACTIVE
         room_tenant.save()
 
-        # Thông báo cho người thuê khi trạng thái thay đổi
         Notifications.objects.create(
             receiver=room_tenant.tenant.user,
-            title="Cập nhật trạng thái thuê phòng",
-            content=f"Trạng thái thuê phòng {room_tenant.room.room_name} đã được cập nhật thành {new_status}",
-            notification_type=NotificationType.MOTEL_UPDATE,
-            related_object_id=room_tenant.id
+            title="Yêu cầu được chấp nhận",
+            content="Yêu cầu thuê phòng của bạn đã được chấp nhận",
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
         )
+        return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
-        # Thông báo cho chủ nhà khi trạng thái thay đổi
+    @action(detail=True, methods=['post'], url_path='reject-request')
+    def reject_request(self, request, pk=None):
+        room_tenant = self.get_object()
+        if room_tenant.status != RoomTenantStatus.PENDING:
+            return Response({"error": "Chỉ có thể từ chối yêu cầu đang ở trạng thái PENDING"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        room_tenant.status = RoomTenantStatus.CANCELLED
+        room_tenant.save()
+
         Notifications.objects.create(
-            receiver=room_tenant.room.motel.user,
-            title="Cập nhật trạng thái thuê phòng",
-            content=f"Trạng thái thuê phòng {room_tenant.room.room_name} đã được cập nhật thành {new_status}",
-            notification_type=NotificationType.MOTEL_UPDATE,
-            related_object_id=room_tenant.id
+            receiver=room_tenant.tenant.user,
+            title="Yêu cầu bị từ chối",
+            content="Yêu cầu thuê phòng của bạn đã bị từ chối",
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
         )
+        return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
-        serializer = self.get_serializer(room_tenant)
-        return Response(serializer.data)
+    @action(detail=True, methods=['post'], url_path='cancel-contract')
+    def cancel_contract(self, request, pk=None):
+        room_tenant = self.get_object()
+        if room_tenant.status != RoomTenantStatus.ACTIVE:
+            return Response({"error": "Chỉ có thể hủy hợp đồng đang ở trạng thái ACTIVE"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        room_tenant.status = RoomTenantStatus.CANCELLED
+        room_tenant.save()
+
+        # Thông báo cho bên còn lại dựa vào người thực hiện
+        if request.user.role == UserRole.ADMIN:
+            receiver = room_tenant.tenant.user
+            content = "Hợp đồng của bạn đã bị hủy bởi admin"
+        elif request.user == room_tenant.tenant.user:
+            receiver = room_tenant.room.motel.user
+            content = f"Hợp đồng với {room_tenant.tenant.full_name} đã bị hủy"
+        else:  # landlord
+            receiver = room_tenant.tenant.user
+            content = "Hợp đồng của bạn đã bị hủy bởi chủ trọ"
+
+        Notifications.objects.create(
+            receiver=receiver,
+            title="Hợp đồng bị hủy",
+            content=content,
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
+        )
+        return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
 
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.UpdateAPIView):
@@ -800,7 +818,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     post=post,
                     image_url=image,
                     order=order,
-                    image_type=image_type 
+                    image_type=image_type
                 )
 
         if post.post_type == 'RENT_OUT' and post.motel:

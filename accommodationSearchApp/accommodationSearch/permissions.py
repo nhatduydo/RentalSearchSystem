@@ -25,3 +25,34 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         if hasattr(obj, 'motel') and hasattr(obj.motel, 'user'):
             return request.user == obj.motel.user
         return False
+
+
+class IsLandlordOfRoom(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Kiểm tra xem user có phải là chủ trọ của phòng này không
+        return request.user == obj.room.motel.user
+
+
+class IsLandlordOrTenant(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Kiểm tra xem user có phải là chủ trọ hoặc người thuê của hợp đồng này không
+        return request.user in [obj.room.motel.user, obj.tenant.user]
+
+    def has_permission(self, request, view):
+        # Kiểm tra thêm lý do hủy hợp đồng
+        if request.method == 'POST':
+            reason = request.data.get('reason')
+            if not reason:
+                self.message = {
+                    "error": "Vui lòng cung cấp lý do hủy hợp đồng",
+                    "ví_dụ": {
+                        "reason": "Không đóng tiền phòng đúng hạn"
+                    }
+                }
+                return False
+        return True
+
+
+class IsAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user and request.user.is_staff

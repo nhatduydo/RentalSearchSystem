@@ -4,7 +4,8 @@ from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
                                         MotelImage, MotelRating, Notifications,
                                         NotificationType, Payment, Post,
                                         PostImage, Room, RoomImage, RoomTenant,
-                                        SearchHistory, Tenant, User)
+                                        RoomTenantStatus, SearchHistory,
+                                        Tenant, User)
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
@@ -140,8 +141,10 @@ class RoomSerializer(ItemSerializer):
 class RoomTenantSerializer(ItemSerializer):
     class Meta:
         model = RoomTenant
-        fields = ['id', 'room', 'tenant', 'start_date', 'end_date', 'status', 'is_paid', 'created_date', 'updated_date']
-        read_only_fields = ['tenant', 'status', 'is_paid', 'created_date', 'updated_date']
+        fields = ['id', 'room', 'tenant', 'start_date', 'end_date', 'status',
+                  'is_paid', 'created_date', 'updated_date']
+        read_only_fields = ['tenant', 'status', 'is_paid', 'created_date',
+                            'updated_date']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -155,35 +158,10 @@ class RoomTenantSerializer(ItemSerializer):
                 raise serializers.ValidationError("Ngày bắt đầu phải trước ngày kết thúc")
         return data
 
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            raise serializers.ValidationError("Bạn cần đăng nhập để thực hiện chức năng này")
-
-        # Lấy tenant từ user hiện tại
-        try:
-            tenant = Tenant.objects.get(user=request.user)
-        except Tenant.DoesNotExist:
-            raise serializers.ValidationError("Tài khoản của bạn không phải là người thuê")
-
-        room = validated_data.get('room')
-
-        # Tự động set status là PENDING
-        validated_data['status'] = 'PENDING'
-        validated_data['tenant'] = tenant
-
-        room_tenant = RoomTenant.objects.create(**validated_data)
-
-        # Tạo thông báo cho chủ nhà
-        Notifications.objects.create(
-            receiver=room.motel.user,
-            title="Yêu cầu thuê phòng mới",
-            content=f"Có yêu cầu thuê phòng {room.room_name} từ {tenant.full_name}",
-            notification_type=NotificationType.MOTEL_UPDATE,
-            related_object_id=room_tenant.id
-        )
-
-        return room_tenant
+    def validate_status(self, value):
+        if value not in dict(RoomTenantStatus.choices):
+            raise serializers.ValidationError("Trạng thái không hợp lệ")
+        return value
 
 
 class PostImageSerializer(ItemSerializer):
