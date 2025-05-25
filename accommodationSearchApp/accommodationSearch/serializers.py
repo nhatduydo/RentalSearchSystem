@@ -2,9 +2,9 @@ from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
                                         Favorite, Follow, Landlord,
                                         LikeComment, LikeMotel, Message, Motel,
                                         MotelImage, MotelRating, Notifications,
-                                        NotificationType, Payment, Post, Room,
-                                        RoomImage, RoomTenant, SearchHistory,
-                                        Tenant, User)
+                                        NotificationType, Payment, Post,
+                                        PostImage, Room, RoomImage, RoomTenant,
+                                        SearchHistory, Tenant, User)
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
@@ -186,13 +186,27 @@ class RoomTenantSerializer(ItemSerializer):
         return room_tenant
 
 
+class PostImageSerializer(ItemSerializer):
+    class Meta:
+        model = PostImage
+        fields = ['id', 'image_url', 'image_type', 'order']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.image_url:
+            data['image_url'] = instance.image_url.url
+        return data
+
+
 class PostSerializer(ItemSerializer):
     user = UserSerializer(read_only=True)
     comments_count = serializers.SerializerMethodField()
+    images = PostImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Post
-        fields = ['id', 'user', 'post_type', 'title', 'content', 'created_date', 'min_price', 'max_price', 'comments_count']
+        fields = ['id', 'user', 'post_type', 'title', 'content', 'created_date',
+                  'min_price', 'max_price', 'comments_count', 'images']
 
     def get_comments_count(self, obj):
         return Comment.objects.filter(post=obj).count()
@@ -202,13 +216,15 @@ class PostDetailSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     comments = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
+    images = PostImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Post
         fields = [
             'id', 'user', 'post_type', 'title', 'content', 'created_date',
             'desired_address', 'min_price', 'max_price', 'radius_km',
-            'desired_latitude', 'desired_longitude', 'motel', 'comments', 'comments_count'
+            'desired_latitude', 'desired_longitude', 'motel', 'comments',
+            'comments_count', 'images'
         ]
 
     def get_comments(self, obj):
@@ -219,8 +235,24 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return Comment.objects.filter(post=obj).count()
 
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
+        request = self.context.get('request')
+        images_data = request.FILES.getlist('images')
+
+        post = super().create(validated_data)
+
+        # Lưu các hình ảnh
+        if images_data:
+            for order, image in enumerate(images_data):
+                try:
+                    PostImage.objects.create(
+                        post=post,
+                        image_url=image,
+                        order=order
+                    )
+                except Exception as e:
+                    pass  # Handle exception silently
+
+        return post
 
 
 class CommentSerializer(ItemSerializer):

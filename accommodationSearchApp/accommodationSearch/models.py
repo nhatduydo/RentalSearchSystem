@@ -47,6 +47,7 @@ class NotificationType(models.TextChoices):
     PAYMENT = "PAYMENT", "Payment"
     SYSTEM = "SYSTEM", "System"
 
+
 class PaymentMethod(models.TextChoices):
     VNPAY = "VNPAY", "Vnpay"
     STRIPE = "STRIPE", "Stripe"
@@ -215,13 +216,7 @@ class Motel(SlugModel):
             raise ValidationError('Nhà trọ cần có địa chỉ')
 
     def check_verification(self):
-        """Kiểm tra xem nhà trọ có đủ điều kiện để được xác minh không.
-        Trả về True nếu đủ điều kiện, False nếu không đủ điều kiện.
-        Các điều kiện bao gồm:
-        - Có ít nhất 3 hình ảnh active
-        - Có địa chỉ đầy đủ (address, district, city/province)
-        - Chủ trọ có số điện thoại
-        """
+
         try:
             # Kiểm tra số lượng hình ảnh
             active_images_count = self.images.filter(active=True).count()
@@ -388,6 +383,22 @@ class Post(SlugModel):
 
     def __str__(self):
         return self.title
+
+
+class PostImage(ActiveModel):
+    id = models.AutoField(primary_key=True)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="images")
+    image_url = CloudinaryField('image')
+    image_type = models.CharField(max_length=20, choices=ImageType.choices, default=ImageType.INSIDE)
+    order = models.IntegerField(default=0)  # Để sắp xếp thứ tự hiển thị ảnh
+
+    class Meta:
+        verbose_name = 'Hình ảnh bài đăng'
+        verbose_name_plural = "Hình ảnh bài đăng"
+        ordering = ['order']
+
+    def __str__(self):
+        return f"Image for {self.post.title}"
 
 
 class Comment(ActiveModel):

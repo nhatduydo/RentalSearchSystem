@@ -35,9 +35,9 @@ from .email_service import EmailService
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      Landlord, LikeComment, LikeMotel, Message, Motel,
                      MotelImage, MotelRating, Notifications, NotificationType,
-                     Payment, PaymentMethod, PaymentStatus, Post, Room,
-                     RoomImage, RoomTenant, RoomTenantStatus, SearchHistory,
-                     Tenant, User)
+                     Payment, PaymentMethod, PaymentStatus, Post, PostImage,
+                     Room, RoomImage, RoomTenant, RoomTenantStatus,
+                     SearchHistory, Tenant, User)
 from .permissions import IsOwnerOrAdmin, IsOwnerOrReadOnly
 from .utils import calculate_distance
 from .vnpay import vnpay
@@ -218,7 +218,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
         for follow in followers:
             print(f"Đang gửi thông báo cập nhật cho: {follow.follower_user.email}")
-            # Create notification in database
             Notifications.objects.create(
                 receiver=follow.follower_user,
                 title="Cập nhật nhà trọ",
@@ -227,7 +226,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 related_object_id=motel.id
             )
 
-            # Send email notification
             try:
                 email_data = {
                     'name': follow.follower_user.username,
@@ -243,7 +241,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     'longitude': motel.longitude
                 }
 
-                # Gửi email đồng bộ sử dụng asyncio.run()
+                # Gửi email bất đồng bộ sử dụng asyncio.run()
                 asyncio.run(
                     EmailService.send_notification(
                         to_email=follow.follower_user.email,
@@ -300,14 +298,13 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
             if not motel.check_verification():
                 return Response({
-                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh (cần địa chỉ đầy đủ, quận/huyện và thành phố/tỉnh)'
+                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Xét duyệt nhà trọ
             motel.is_verified = True
             motel.save()
 
-            # Tạo thông báo cho chủ trọ
             Notifications.objects.create(
                 receiver=motel.user,
                 title="Nhà trọ đã được xét duyệt",
@@ -377,6 +374,7 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     query = query.filter(motel_id=motel_identifier)
                 else:
                     query = query.filter(motel__slug=motel_identifier)
+
             filters = {}
             room_name = self.request.query_params.get('room_name')
             if room_name:
@@ -783,6 +781,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     serializer_class = serializers.PostSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    # parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]  # Không cần thiết vì đã có mặc định
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -791,6 +790,19 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
 
     def perform_create(self, serializer):
         post = serializer.save(user=self.request.user)
+
+        # Xử lý lưu hình ảnh
+        images_data = self.request.FILES.getlist('images')
+        image_type = self.request.data.get('image_type', 'INSIDE')
+
+        if images_data:
+            for order, image in enumerate(images_data):
+                PostImage.objects.create(
+                    post=post,
+                    image_url=image,
+                    order=order,
+                    image_type=image_type 
+                )
 
         if post.post_type == 'RENT_OUT' and post.motel:
             # followers = Follow.objects.filter(followed_user=self.request.user)
@@ -804,6 +816,20 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     related_object_id=post.id
                 )
 
+    def perform_update(self, serializer):
+        post = serializer.save()
+        # Xử lý cập nhật hình ảnh nếu có
+        if 'images' in self.request.FILES:
+            # Xóa các hình ảnh cũ
+            post.images.all().delete()
+            # Thêm các hình ảnh mới
+            for order, image in enumerate(self.request.FILES.getlist('images')):
+                PostImage.objects.create(
+                    post=post,
+                    image_url=image,
+                    order=order
+                )
+
     # lấy danh sách các bình luận cấp cao nhất
     @action(detail=True, methods=['get'])
     def comments(self, request, pk=None):
@@ -811,6 +837,21 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         comments = Comment.objects.filter(post=post, parent=None)
         serializer = serializers.CommentSerializer(comments, many=True)
         return Response(serializer.data)
+
+    # API endpoint để xóa một hình ảnh cụ thể
+    @action(detail=True, methods=['delete'], url_path='images/(?P<image_id>[^/.]+)')
+    def delete_image(self, request, pk=None, image_id=None):
+        try:
+            post = self.get_object()
+            image = post.images.get(id=image_id)
+            image.active = False
+            image.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except PostImage.DoesNotExist:
+            return Response(
+                {'error': 'Không tìm thấy hình ảnh'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateAPIView):
