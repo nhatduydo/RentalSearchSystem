@@ -416,12 +416,17 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        queryset = RoomTenant.objects.select_related(
+            'room__motel__user',  # Lấy thông tin user của motel
+            'tenant__user'        # Lấy thông tin user của tenant
+        )
+
         if user.role == UserRole.ADMIN:
-            return RoomTenant.objects.all()
+            return queryset
         elif user.role == UserRole.LANDLORD:
-            return RoomTenant.objects.filter(room__motel__user=user)
+            return queryset.filter(room__motel__user=user)
         elif user.role == UserRole.TENANT:
-            return RoomTenant.objects.filter(tenant__user=user)
+            return queryset.filter(tenant__user=user)
         return RoomTenant.objects.none()
 
     def perform_create(self, serializer):
