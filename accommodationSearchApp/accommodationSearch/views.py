@@ -284,6 +284,26 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             )
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
 
+    @action(methods=['POST'], detail=True, url_path='favorite')
+    def favorite_motel(self, request, pk):
+        motel = self.get_object()
+        favorite, created = Favorite.objects.get_or_create(user=request.user, motel=motel)
+        if not created:
+            favorite.active = not favorite.active
+        favorite.save()
+
+        # Thông báo cho chủ nhà khi có người thêm/xóa khỏi yêu thích
+        if favorite.active:
+            Notifications.objects.create(
+                receiver=motel.user,
+                title="Nhà trọ được yêu thích",
+                content=f"{request.user.username} đã thêm nhà trọ {motel.motel_name} vào danh sách yêu thích",
+                notification_type=NotificationType.MOTEL_LIKE,
+                related_object_id=motel.id
+            )
+
+        return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
+
     @action(methods=['PATCH'], detail=True, url_path='verify')
     def verify(self, request, pk=None):
         if request.user.role != 'ADMIN':
@@ -1777,7 +1797,7 @@ class AmenityViewSet(viewsets.ModelViewSet):
         instance.save()
 
 
-class FavoriteViewSet(viewsets.ModelViewSet):
+class FavoriteViewSet(viewsets.GenericViewSet, generics.ListAPIView):
     serializer_class = serializers.FavoriteSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
@@ -1785,41 +1805,7 @@ class FavoriteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Favorite.objects.none()
-        # return Favorite.objects.filter(user=self.request.user, active=True)
         return self.request.user.favorites.filter(active=True)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-        # Thông báo cho chủ nhà khi có người thêm vào yêu thích
-        motel = serializer.validated_data['motel']
-        Notifications.objects.create(
-            receiver=motel.user,
-            title="Nhà trọ được yêu thích",
-            content=f"{self.request.user.username} đã thêm nhà trọ {motel.motel_name} vào danh sách yêu thích",
-            notification_type=NotificationType.MOTEL_LIKE,
-            related_object_id=motel.id
-        )
-
-    def perform_destroy(self, instance):
-        instance.active = False
-        instance.save()
-
-    @action(detail=False, methods=['get'], url_path='check/(?P<motel_id>[^/.]+)')
-    def check_favorite(self, request, motel_id=None):
-        try:
-            motel = Motel.objects.get(id=motel_id)
-            # is_favorite = Favorite.objects.filter(
-            #     user=request.user,
-            #     motel=motel,
-            #     active=True
-            # ).exists()
-            is_favorite = request.user.favorites.filter(motel=motel, active=True).exists()
-            return Response({'is_favorite': is_favorite})
-        except Motel.DoesNotExist:
-            return Response(
-                {'error': 'Không tìm thấy nhà trọ'},
-                status=status.HTTP_404_NOT_FOUND
-            )
 
 
 class StatisticsViewSet(viewsets.ViewSet):

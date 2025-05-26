@@ -86,10 +86,16 @@ class MotelSerializer(ItemSerializer):
         if request and request.user.is_authenticated:
             return LikeMotel.objects.filter(motel=motel, user=request.user, active=True).exists()
 
+    def get_favorite(self, motel):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Favorite.objects.filter(motel=motel, user=request.user, active=True).exists()
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['user'] = UserSerializer(instance.user).data
         data['like'] = self.get_liked(instance)
+        data['favorite'] = self.get_favorite(instance)
         return data
 
     class Meta:
@@ -377,8 +383,28 @@ class AmenitySerializer(ItemSerializer):
 class FavoriteSerializer(ItemSerializer):
     motel = MotelSerializer(read_only=True)
     user = UserSerializer(read_only=True)
+    motel_id = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = Favorite
-        fields = ['id', 'user', 'motel', 'created_date', 'updated_date', 'active']
+        fields = ['id', 'user', 'motel', 'motel_id', 'created_date', 'updated_date', 'active']
         read_only_fields = ['user', 'created_date', 'updated_date']
+
+    def create(self, validated_data):
+        motel_id = validated_data.pop('motel_id')
+        motel = Motel.objects.get(id=motel_id)
+        user = validated_data.get('user')
+
+        # Kiểm tra xem favorite đã tồn tại chưa
+        favorite, created = Favorite.objects.get_or_create(
+            user=user,
+            motel=motel,
+            defaults={'active': True}
+        )
+
+        # Nếu favorite đã tồn tại nhưng bị inactive, active lại
+        if not created and not favorite.active:
+            favorite.active = True
+            favorite.save()
+
+        return favorite
