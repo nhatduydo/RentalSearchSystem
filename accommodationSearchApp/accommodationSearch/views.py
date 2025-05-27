@@ -36,7 +36,7 @@ from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      Landlord, LikeComment, LikeMotel, Message, Motel,
                      MotelImage, MotelRating, Notifications, NotificationType,
                      Payment, PaymentMethod, PaymentStatus, Post, PostImage,
-                     Room, RoomImage, RoomTenant, RoomTenantStatus,
+                     PostType, Room, RoomImage, RoomTenant, RoomTenantStatus,
                      SearchHistory, Tenant, User, UserRole)
 from .permissions import (IsAdmin, IsLandlordOfRoom, IsLandlordOrTenant,
                           IsOwnerOrAdmin, IsOwnerOrReadOnly)
@@ -846,8 +846,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     image_type=image_type
                 )
 
-        if post.post_type == 'RENT_OUT' and post.motel:
-            # followers = Follow.objects.filter(followed_user=self.request.user)
+        if post.post_type == PostType.RENT_OUT and post.motel:
             followers = self.request.user.followers.all()
             for follow in followers:
                 Notifications.objects.create(
@@ -892,7 +891,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         except PostImage.DoesNotExist:
             return Response(
                 {'error': 'Không tìm thấy hình ảnh'},
-                status=status.HTTP_404_NOT_FOUND
+                status=status.HTTP_204_NO_CONTENT
             )
 
 
@@ -1734,30 +1733,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
     #     })
 
 
-class MotelImageViewSet(viewsets.ModelViewSet):
-    queryset = MotelImage.objects.filter(active=True)
-    serializer_class = serializers.MotelImageSerializer
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        return [permissions.AllowAny()]
-
-    def get_queryset(self):
-        queryset = MotelImage.objects.filter(active=True)
-        motel_id = self.request.query_params.get('motel_id', None)
-        if motel_id:
-            queryset = queryset.filter(motel_id=motel_id)
-        return queryset
-
-    def perform_create(self, serializer):
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        instance.active = False
-        instance.save()
-
-
 class RoomImageViewSet(viewsets.ModelViewSet):
     queryset = RoomImage.objects.filter(active=True)
     serializer_class = serializers.RoomImageSerializer
@@ -1775,8 +1750,71 @@ class RoomImageViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(room_id=room_id)
         return queryset
 
-    def perform_create(self, serializer):
-        serializer.save()
+    def create(self, request, *args, **kwargs):
+        room_id = request.data.get('room')
+        if not room_id:
+            return Response({'error': 'Cần ID phòng'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            room = Room.objects.get(id=room_id)
+            if request.user != room.motel.user and not request.user.is_staff:
+                return Response({'error': 'Không có quyền'}, status=status.HTTP_403_FORBIDDEN)
+
+            images = request.FILES.getlist('image_url')
+            if not images:
+                return Response({'error': 'Chưa chọn ảnh'}, status=status.HTTP_400_BAD_REQUEST)
+
+            created_images = []
+            for image in images:
+                room_image = RoomImage.objects.create(
+                    room=room,
+                    image_url=image
+                )
+                created_images.append(room_image)
+
+            serializer = self.get_serializer(created_images, many=True)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Room.DoesNotExist:
+            return Response({'error': 'Không tìm thấy phòng'}, status=status.HTTP_404_NOT_FOUND)
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class MotelImageViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.MotelImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = MotelImage.objects.filter(active=True)
+
+    def create(self, request, *args, **kwargs):
+        motel_id = request.data.get('motel')
+        if not motel_id:
+            return Response({"error": "Cần ID nhà trọ"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            motel = Motel.objects.get(pk=motel_id)
+            if motel.user != request.user:
+                return Response({"error": "Không có quyền"}, status=status.HTTP_403_FORBIDDEN)
+        except Motel.DoesNotExist:
+            return Response({"error": "Không tìm thấy nhà trọ"}, status=status.HTTP_404_NOT_FOUND)
+
+        images = request.FILES.getlist('image_url')
+        if not images:
+            return Response({"error": "Chưa chọn ảnh"}, status=status.HTTP_400_BAD_REQUEST)
+
+        created_images = []
+        for image in images:
+            motel_image = MotelImage.objects.create(
+                motel=motel,
+                image_url=image,
+                image_type=request.data.get('image_type', 'INSIDE')
+            )
+            created_images.append(motel_image)
+
+        serializer = self.get_serializer(created_images, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_destroy(self, instance):
         instance.active = False
