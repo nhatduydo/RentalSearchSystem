@@ -1797,14 +1797,12 @@ class AmenityViewSet(viewsets.ModelViewSet):
         instance.save()
 
 
-class FavoriteViewSet(viewsets.GenericViewSet, generics.ListAPIView):
+class FavoriteViewSet(viewsets.ViewSet, generics.ListAPIView):
     serializer_class = serializers.FavoriteSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Favorite.objects.none()
         return self.request.user.favorites.filter(active=True)
 
 
