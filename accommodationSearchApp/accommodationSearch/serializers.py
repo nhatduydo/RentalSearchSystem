@@ -20,7 +20,7 @@ class ItemSerializer(ModelSerializer):
         return data
 
 
-class UserSerializer(ModelSerializer):
+class UserSerializer(ItemSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 'role', 'created_date', 'avatar']
@@ -196,7 +196,7 @@ class PostSerializer(ItemSerializer):
         return Comment.objects.filter(post=obj).count()
 
 
-class PostDetailSerializer(serializers.ModelSerializer):
+class PostDetailSerializer(ItemSerializer):
     user = UserSerializer(read_only=True)
     comments = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()

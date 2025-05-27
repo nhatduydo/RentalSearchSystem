@@ -1782,7 +1782,6 @@ class RoomImageViewSet(viewsets.ModelViewSet):
         instance.active = False
         instance.save()
 
-
 class MotelImageViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.MotelImageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -1994,9 +1993,3 @@ class GoogleAuthView(APIView):
 
 def generate_token(length=32):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-# try:
-#     from accommodationSearch import paginators, serializers
-#     print("Import thành công!")
-# except ImportError as e:
-#     print(f"Lỗi import: {e}")
