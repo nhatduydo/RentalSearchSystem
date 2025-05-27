@@ -389,22 +389,3 @@ class FavoriteSerializer(ItemSerializer):
         model = Favorite
         fields = ['id', 'user', 'motel', 'motel_id', 'created_date', 'updated_date', 'active']
         read_only_fields = ['user', 'created_date', 'updated_date']
-
-    def create(self, validated_data):
-        motel_id = validated_data.pop('motel_id')
-        motel = Motel.objects.get(id=motel_id)
-        user = validated_data.get('user')
-
-        # Kiểm tra xem favorite đã tồn tại chưa
-        favorite, created = Favorite.objects.get_or_create(
-            user=user,
-            motel=motel,
-            defaults={'active': True}
-        )
-
-        # Nếu favorite đã tồn tại nhưng bị inactive, active lại
-        if not created and not favorite.active:
-            favorite.active = True
-            favorite.save()
-
-        return favorite
