@@ -912,6 +912,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
     def list(self, request):
         post_id = request.GET.get('post_id')
         if post_id:
+            # Chỉ lấy các bình luận gốc (không phải replies), đang hoạt động, thuộc bài viết đó.
             comments = Comment.objects.filter(post=post_id, active=True, parent=None).select_related('user')
         else:
             comments = Comment.objects.filter(active=True, parent=None).select_related('user')
@@ -976,18 +977,19 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         return Response(serializers.CommentSerializer(comment, context={'request': request}).data)
 
     # trả lời một bình luận.
+    # Lấy danh sách các comment con (replies) của comment hiện tại (parent=comment).
     @action(methods=['POST'], detail=True, url_path='reply')
     def reply_comment(self, request, pk):
-        parent = self.get_object()
+        parent = self.get_object()  # Lấy comment cha (parent) và tạo dữ liệu comment mới là reply.
         data = {
-            'post': parent.post.id,
-            'user': request.user.id,
-            'content': request.data.get('content'),
-            'parent': parent.id
+            'post': parent.post.id, # bài viết mà comment cha thuộc về.
+            'user': request.user.id, # người đang gửi request (người trả lời).
+            'content': request.data.get('content'), # nội dung phản hồi, lấy từ request.
+            'parent': parent.id # : gán ID của comment cha để tạo quan hệ cha – con
         }
 
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
+        serializer.is_valid(raise_exception=True)  # nếu dữ liệu không hợp lệ sẽ raise lỗi 400 ngay.
         reply = serializer.save()
 
         # Thông báo cho người viết bình luận gốc khi có phản hồi

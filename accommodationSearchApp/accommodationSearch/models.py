@@ -457,6 +457,7 @@ class SearchHistory(ActiveModel):
     def __str__(self):
         return f"Search by {self.user.username} on {self.created_date}"
 
+    # Hàm kiểm tra nếu search_params là chuỗi (str) thì dùng json.loads() để chuyển chuỗi JSON thành dict.
     def get_search_params(self):
         return json.loads(self.search_params) if isinstance(self.search_params, str) else self.search_params
 
