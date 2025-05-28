@@ -1517,12 +1517,10 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
     def get_queryset(self):
         if not self.request.user.is_authenticated:
             return Follow.objects.none()
-        return Follow.objects.filter(
-            follower_user=self.request.user,
-            active=True
-        ).select_related('followed_user').order_by('-created_date')
+        return Follow.objects.filter(follower_user=self.request.user,active=True).select_related('followed_user').order_by('-created_date')
 
     def perform_create(self, serializer):
+        # Lấy ID người cần theo dõi từ request
         followed_user_id = self.request.data.get('followed_user_id')
         if not followed_user_id:
             raise ValidationError({"error": "Thiếu ID người dùng cần theo dõi"})
@@ -1536,10 +1534,9 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
             raise ValidationError({"error": "Không thể theo dõi chính mình"})
 
         # Kiểm tra xem đã follow chưa
-        follow = Follow.objects.filter(
-            followed_user=followed_user,
-            follower_user=self.request.user
-        ).first()
+        #  Lọc xem người dùng hiện tại (request.user) có đang theo dõi followed_user hay không.
+        # Sau khi lọc, .first() sẽ lấy bản ghi đầu tiên nếu có, nếu không có thì trả về None.
+        follow = Follow.objects.filter(followed_user=followed_user, follower_user=self.request.user).first()
 
         if follow:
             follow.active = not follow.active
@@ -1555,11 +1552,7 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
                 )
             serializer.instance = follow
         else:
-            follow = serializer.save(
-                followed_user=followed_user,
-                follower_user=self.request.user,
-                active=True
-            )
+            follow = serializer.save(followed_user=followed_user,follower_user=self.request.user,active=True)
             # Tạo thông báo khi follow
             Notifications.objects.create(
                 receiver=followed_user,
@@ -1582,7 +1575,7 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
             follow.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Follow.DoesNotExist:
-            return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=404)
+            return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
