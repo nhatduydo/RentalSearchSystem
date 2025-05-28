@@ -21,7 +21,8 @@ from google.oauth2 import id_token
 from oauth2_provider.models import AccessToken, Application
 from rest_framework import generics, parsers, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import (NotFound, PermissionDenied,
+                                       ValidationError)
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (SAFE_METHODS, AllowAny, BasePermission,
                                         IsAdminUser, IsAuthenticated)
@@ -435,6 +436,9 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return RoomTenant.objects.none()
+
         user = self.request.user
         queryset = RoomTenant.objects.select_related(
             'room__motel__user',  # Lấy thông tin user của motel
@@ -982,10 +986,10 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
     def reply_comment(self, request, pk):
         parent = self.get_object()  # Lấy comment cha (parent) và tạo dữ liệu comment mới là reply.
         data = {
-            'post': parent.post.id, # bài viết mà comment cha thuộc về.
-            'user': request.user.id, # người đang gửi request (người trả lời).
-            'content': request.data.get('content'), # nội dung phản hồi, lấy từ request.
-            'parent': parent.id # : gán ID của comment cha để tạo quan hệ cha – con
+            'post': parent.post.id,  # bài viết mà comment cha thuộc về.
+            'user': request.user.id,  # người đang gửi request (người trả lời).
+            'content': request.data.get('content'),  # nội dung phản hồi, lấy từ request.
+            'parent': parent.id  # : gán ID của comment cha để tạo quan hệ cha – con
         }
 
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
@@ -1505,46 +1509,36 @@ class MessageViewSet(viewsets.ModelViewSet):
         return Response({'status': 'tin nhắn được đánh dấu là đã đọc'})
 
 
-class FollowViewSet(viewsets.ViewSet):
+class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.FollowSerializer
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Follow.objects.none()
         if not self.request.user.is_authenticated:
             return Follow.objects.none()
-        return Follow.objects.filter(follower_user=self.request.user, active=True)
+        return Follow.objects.filter(
+            follower_user=self.request.user,
+            active=True
+        ).select_related('followed_user').order_by('-created_date')
 
-    def list(self, request):
-        """
-        Lấy danh sách những người mà người dùng đang theo dõi
-        """
-        follows = self.get_queryset()
-        serializer = self.serializer_class(follows, many=True)
-        return Response(serializer.data)
-
-    def create(self, request):
-        """
-        Theo dõi một người dùng
-        """
-        followed_user_id = request.data.get('followed_user_id')
+    def perform_create(self, serializer):
+        followed_user_id = self.request.data.get('followed_user_id')
         if not followed_user_id:
-            return Response({"error": "Thiếu ID người dùng cần theo dõi"})
+            raise ValidationError({"error": "Thiếu ID người dùng cần theo dõi"})
 
         try:
             followed_user = User.objects.get(id=followed_user_id)
         except User.DoesNotExist:
-            return Response({"error": "Người dùng không tồn tại"})
+            raise ValidationError({"error": "Người dùng không tồn tại"})
 
-        if followed_user == request.user:
-            return Response({"error": "Không thể theo dõi chính mình"})
+        if followed_user == self.request.user:
+            raise ValidationError({"error": "Không thể theo dõi chính mình"})
 
         # Kiểm tra xem đã follow chưa
         follow = Follow.objects.filter(
             followed_user=followed_user,
-            follower_user=request.user
+            follower_user=self.request.user
         ).first()
 
         if follow:
@@ -1555,27 +1549,25 @@ class FollowViewSet(viewsets.ViewSet):
                 Notifications.objects.create(
                     receiver=followed_user,
                     title="Người dùng mới theo dõi",
-                    content=f"{request.user.username} đã bắt đầu theo dõi bạn",
+                    content=f"{self.request.user.username} đã bắt đầu theo dõi bạn",
                     notification_type=NotificationType.FOLLOW,
                     related_object_id=follow.id
                 )
+            serializer.instance = follow
         else:
-            follow = Follow.objects.create(
+            follow = serializer.save(
                 followed_user=followed_user,
-                follower_user=request.user,
+                follower_user=self.request.user,
                 active=True
             )
             # Tạo thông báo khi follow
             Notifications.objects.create(
                 receiver=followed_user,
                 title="Người dùng mới theo dõi",
-                content=f"{request.user.username} đã bắt đầu theo dõi bạn",
+                content=f"{self.request.user.username} đã bắt đầu theo dõi bạn",
                 notification_type=NotificationType.FOLLOW,
                 related_object_id=follow.id
             )
-
-        serializer = self.serializer_class(follow)
-        return Response(serializer.data)
 
     def destroy(self, request, pk=None):
         """
@@ -1783,6 +1775,7 @@ class RoomImageViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.active = False
         instance.save()
+
 
 class MotelImageViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.MotelImageSerializer
