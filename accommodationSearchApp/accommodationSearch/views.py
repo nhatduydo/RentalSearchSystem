@@ -40,7 +40,8 @@ from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      PostType, Room, RoomImage, RoomTenant, RoomTenantStatus,
                      SearchHistory, Tenant, User, UserRole)
 from .permissions import (IsAdmin, IsLandlordOfRoom, IsLandlordOrTenant,
-                          IsOwnerOrAdmin, IsOwnerOrReadOnly)
+                          IsMotelOwner, IsOwnerOrAdmin, IsOwnerOrReadOnly,
+                          IsPaymentOwnerOrMotelOwner)
 from .utils import calculate_distance
 from .vnpay import vnpay
 
@@ -1548,11 +1549,40 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
 
+    def get_permissions(self):
+        if self.action in ['list', 'create']:
+            return [permissions.IsAuthenticated()]
+        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'update_status']:
+            return [permissions.IsAuthenticated(), IsPaymentOwnerOrMotelOwner()]
+        return [permissions.IsAuthenticated()]
+
     def get_queryset(self):
-        queryset = Payment.objects.filter(active=True)
-        if self.action == 'list':
-            queryset = queryset.filter(payer=self.request.user)
-        return queryset.select_related('payer', 'room')
+        # Kiểm tra xem có phải là swagger view không
+        if getattr(self, 'swagger_fake_view', False):
+            return Payment.objects.none()
+
+        # Kiểm tra xem user có được xác thực không
+        if not self.request.user.is_authenticated:
+            return Payment.objects.none()
+
+        queryset = Payment.objects.filter(active=True).select_related(
+            'payer',
+            'room',
+            'room__motel',
+            'room__motel__user'
+        )
+        user = self.request.user
+
+        # Admin có thể xem tất cả payment
+        if user.is_staff:
+            return queryset
+
+        # Chủ trọ có thể xem payments của các phòng trong nhà trọ của họ
+        if user.role == UserRole.LANDLORD:
+            return queryset.filter(room__motel__user=user)
+
+        # Người thuê chỉ có thể xem payments của họ
+        return queryset.filter(payer=user)
 
     def perform_create(self, serializer):
         payment = serializer.save(payer=self.request.user)
@@ -1565,7 +1595,62 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
+    def perform_update(self, serializer):
+        payment = serializer.save()
+        # Thông báo cho người thanh toán khi có cập nhật
+        Notifications.objects.create(
+            receiver=payment.payer,
+            title="Cập nhật thanh toán",
+            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được cập nhật",
+            notification_type=NotificationType.PAYMENT,
+            related_object_id=payment.id
+        )
+
+    @action(detail=True, methods=['patch'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        payment = self.get_object()
+        new_status = request.data.get('status')
+
+        valid_statuses = []
+        for choice in PaymentStatus.choices:
+            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
+            valid_statuses.append(status_code)
+        if new_status not in valid_statuses:
+            raise ValidationError({
+                "error": "Trạng thái không hợp lệ",
+                "detail": f"Trạng thái phải là một trong các giá trị: {valid_statuses}"
+            })
+
+        payment.status = new_status
+        payment.save()
+
+        # Thông báo cho người thanh toán khi trạng thái thay đổi
+        Notifications.objects.create(
+            receiver=payment.payer,
+            title="Cập nhật trạng thái thanh toán",
+            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được cập nhật trạng thái: {payment.status}",
+            notification_type=NotificationType.PAYMENT,
+            related_object_id=payment.id
+        )
+
+        # Thông báo cho chủ nhà nếu trạng thái là COMPLETED hoặc FAILED
+        if new_status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED]:
+            status_text = "thành công" if new_status == PaymentStatus.COMPLETED else "thất bại"
+            Notifications.objects.create(
+                receiver=payment.room.motel.user,
+                title=f"Thanh toán {status_text}",
+                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã {status_text}",
+                notification_type=NotificationType.PAYMENT,
+                related_object_id=payment.id
+            )
+
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data)
+
     def perform_destroy(self, instance):
+        user = self.request.user
+        if not (user.is_staff or instance.room.motel in user.motels.all()):
+            raise PermissionDenied("Chỉ admin hoặc chủ nhà mới được phép xóa thanh toán")
         instance.active = False
         instance.save()
 
@@ -1573,18 +1658,31 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     def room_payments(self, request, room_id=None):
         try:
             room = Room.objects.get(id=room_id)
+            # Kiểm tra quyền xem thanh toán của phòng
+            if not (request.user.is_staff or request.user == room.motel.user):
+                return Response(
+                    {'error': 'Không có quyền xem thanh toán của phòng này'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             payments = self.get_queryset().filter(room=room)
             serializer = self.get_serializer(payments, many=True)
             return Response(serializer.data)
         except Room.DoesNotExist:
-            return Response({'error': 'Phòng không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'Phòng không tồn tại'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
     def status_payments(self, request, status=None):
         valid_statuses = [status_code for status_code, _ in PaymentStatus.choices]
         if status not in valid_statuses:
-            return Response({'error': 'Trạng thái không hợp lệ'})
+            return Response(
+                {'error': 'Trạng thái không hợp lệ'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Sử dụng get_queryset để lấy payments theo quyền của user
         payments = self.get_queryset().filter(status=status)
         serializer = self.get_serializer(payments, many=True)
         return Response(serializer.data)
@@ -1593,59 +1691,14 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     def method_payments(self, request, method=None):
         valid_methods = [method_code for method_code, _ in PaymentMethod.choices]
         if method not in valid_methods:
-            return Response({'error': 'Phương thức thanh toán không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Phương thức thanh toán không hợp lệ'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Sử dụng get_queryset để lấy payments theo quyền của user
         payments = self.get_queryset().filter(payment_method=method)
         serializer = self.get_serializer(payments, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['patch'], url_path='update-status')
-    def update_status(self, request, pk=None):
-        payment = self.get_object()
-        new_status = request.data.get('status')
-
-        valid_statuses = [status_code for status_code, _ in PaymentStatus.choices]
-        if new_status not in valid_statuses:
-            return Response({'error': 'Trạng thái không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
-
-        payment.status = new_status
-        payment.save()
-
-        # Thông báo cho người thanh toán khi trạng thái thay đổi
-        if new_status == PaymentStatus.COMPLETED:
-            Notifications.objects.create(
-                receiver=payment.payer,
-                title="Thanh toán thành công",
-                content=f"Thanh toán cho phòng {payment.room.room_name} đã hoàn tất",
-                notification_type=NotificationType.PAYMENT,
-                related_object_id=payment.id
-            )
-            # Thông báo cho chủ nhà
-            Notifications.objects.create(
-                receiver=payment.room.motel.user,
-                title="Thanh toán thành công",
-                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã hoàn tất",
-                notification_type=NotificationType.PAYMENT,
-                related_object_id=payment.id
-            )
-        elif new_status == PaymentStatus.FAILED:
-            Notifications.objects.create(
-                receiver=payment.payer,
-                title="Thanh toán thất bại",
-                content=f"Thanh toán cho phòng {payment.room.room_name} đã thất bại",
-                notification_type=NotificationType.PAYMENT,
-                related_object_id=payment.id
-            )
-            # Thông báo cho chủ nhà
-            Notifications.objects.create(
-                receiver=payment.room.motel.user,
-                title="Thanh toán thất bại",
-                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã thất bại",
-                notification_type=NotificationType.PAYMENT,
-                related_object_id=payment.id
-            )
-
-        serializer = self.get_serializer(payment)
         return Response(serializer.data)
 
 
