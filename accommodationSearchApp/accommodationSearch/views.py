@@ -1359,10 +1359,6 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return ChatRoom.objects.none()
-        # return ChatRoom.objects.filter(
-        #     participants=self.request.user,
-        #     active=True
-        # ).order_by('-updated_date')
         return self.request.user.chat_rooms.filter(active=True).order_by('-updated_date')
 
     def perform_create(self, serializer):
@@ -1377,7 +1373,9 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 continue
 
 
-class MessageViewSet(viewsets.ModelViewSet):
+class MessageViewSet(viewsets.ViewSet,
+                     generics.ListCreateAPIView,
+                     generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
@@ -1393,7 +1391,6 @@ class MessageViewSet(viewsets.ModelViewSet):
         chat_room_id = self.kwargs.get('chat_room_id')
         try:
             chat_room = ChatRoom.objects.get(id=chat_room_id)
-            # Kiểm tra xem người dùng có trong phòng chat không
             if self.request.user not in chat_room.participants.all():
                 raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
             message = serializer.save(sender=self.request.user, chat_room=chat_room)
@@ -1417,11 +1414,11 @@ class MessageViewSet(viewsets.ModelViewSet):
         except ChatRoom.DoesNotExist:
             raise NotFound("Không tìm thấy phòng chat")
 
-    def update(self, request, *args, **kwargs):
-        message = self.get_object()
-        if message.sender != request.user:
+    def perform_update(self, serializer):
+        message = serializer.instance
+        if message.sender != self.request.user:
             raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
-        response = super().update(request, *args, **kwargs)
+        message = serializer.save()
 
         # Broadcast cập nhật tin nhắn qua WebSocket
         channel_layer = get_channel_layer()
@@ -1440,15 +1437,13 @@ class MessageViewSet(viewsets.ModelViewSet):
                 }
             }
         )
-        return response
 
-    def destroy(self, request, *args, **kwargs):
-        message = self.get_object()
-        if message.sender != request.user:
+    def perform_destroy(self, instance):
+        if instance.sender != self.request.user:
             raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
-        chat_room_id = message.chat_room.id
-        message.active = False
-        message.save()
+        chat_room_id = instance.chat_room.id
+        instance.active = False
+        instance.save()
 
         # Broadcast xóa tin nhắn qua WebSocket
         channel_layer = get_channel_layer()
@@ -1457,12 +1452,11 @@ class MessageViewSet(viewsets.ModelViewSet):
             {
                 'type': 'message_update',
                 'message': {
-                    'id': message.id,
+                    'id': instance.id,
                     'action': 'delete'
                 }
             }
         )
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['put'], url_path='read')
     def read(self, request, chat_room_id=None, pk=None):
