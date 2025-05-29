@@ -1586,6 +1586,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     def perform_create(self, serializer):
         payment = serializer.save(payer=self.request.user)
+        
         # Thông báo cho chủ nhà khi có thanh toán mới
         Notifications.objects.create(
             receiver=payment.room.motel.user,
@@ -1597,6 +1598,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     def perform_update(self, serializer):
         payment = serializer.save()
+        
         # Thông báo cho người thanh toán khi có cập nhật
         Notifications.objects.create(
             receiver=payment.payer,
@@ -1606,6 +1608,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
+    # cập nhập trạng thái thanh toán
     @action(detail=True, methods=['patch'], url_path='update-status')
     def update_status(self, request, pk=None):
         payment = self.get_object()
@@ -1675,7 +1678,10 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
     def status_payments(self, request, status=None):
-        valid_statuses = [status_code for status_code, _ in PaymentStatus.choices]
+        valid_statuses = []
+        for choice in PaymentStatus.choices:
+            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
+            valid_statuses.append(status_code)
         if status not in valid_statuses:
             return Response(
                 {'error': 'Trạng thái không hợp lệ'},
