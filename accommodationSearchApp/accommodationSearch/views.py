@@ -1285,10 +1285,7 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class NotificationViewSet(viewsets.ViewSet,
-                          generics.ListAPIView,
-                          generics.RetrieveAPIView,
-                          generics.DestroyAPIView):
+class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
     queryset = Notifications.objects.filter(active=True)
     permission_classes = [IsAuthenticated]
     serializer_class = serializers.NotificationSerializer
@@ -1373,19 +1370,14 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 continue
 
 
-class MessageViewSet(viewsets.ViewSet,
-                     generics.ListCreateAPIView,
-                     generics.RetrieveUpdateDestroyAPIView):
+class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
         chat_room_id = self.kwargs.get('chat_room_id')
-        return Message.objects.filter(
-            chat_room_id=chat_room_id,
-            active=True
-        ).order_by('created_date')
+        return Message.objects.filter(chat_room_id=chat_room_id, active=True).order_by('created_date')
 
     def perform_create(self, serializer):
         chat_room_id = self.kwargs.get('chat_room_id')
@@ -1393,9 +1385,11 @@ class MessageViewSet(viewsets.ViewSet,
             chat_room = ChatRoom.objects.get(id=chat_room_id)
             if self.request.user not in chat_room.participants.all():
                 raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
+            # Lưu tin nhắn mới với người gửi là user hiện tại, gán vào phòng chat đó.
             message = serializer.save(sender=self.request.user, chat_room=chat_room)
 
             # Broadcast tin nhắn qua WebSocket
+            # Gửi bản tin mới đến các user đang kết nối vào nhóm chat_<ID phòng> trên WebSocket, Sử dụng Django Channels.
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'chat_{chat_room_id}',
@@ -1549,14 +1543,13 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
             return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.filter(active=True)
+class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
-        queryset = self.queryset
+        queryset = Payment.objects.filter(active=True)
         if self.action == 'list':
             queryset = queryset.filter(payer=self.request.user)
         return queryset.select_related('payer', 'room')
@@ -1572,6 +1565,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
             related_object_id=payment.id
         )
 
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
     @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
     def room_payments(self, request, room_id=None):
         try:
@@ -1584,11 +1581,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
     def status_payments(self, request, status=None):
-        valid_statuses = []
-        for status_tuple in PaymentStatus.choices:
-            status_code = status_tuple[0]
-            valid_statuses.append(status_code)
-
+        valid_statuses = [status_code for status_code, _ in PaymentStatus.choices]
         if status not in valid_statuses:
             return Response({'error': 'Trạng thái không hợp lệ'})
 
@@ -1598,11 +1591,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='method/(?P<method>[^/.]+)')
     def method_payments(self, request, method=None):
-        valid_methods = []
-        for method_tuple in PaymentMethod.choices:
-            method_code = method_tuple[0]
-            valid_methods.append(method_code)
-
+        valid_methods = [method_code for method_code, _ in PaymentMethod.choices]
         if method not in valid_methods:
             return Response({'error': 'Phương thức thanh toán không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1615,11 +1604,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment = self.get_object()
         new_status = request.data.get('status')
 
-        valid_statuses = []
-        for status_tuple in PaymentStatus.choices:
-            status_code = status_tuple[0]
-            valid_statuses.append(status_code)
-
+        valid_statuses = [status_code for status_code, _ in PaymentStatus.choices]
         if new_status not in valid_statuses:
             return Response({'error': 'Trạng thái không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1662,33 +1647,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(payment)
         return Response(serializer.data)
-
-    # # Thống kê thanh toán
-    # @action(detail=False, methods=['get'], url_path='statistics')
-    # def payment_statistics(self, request):
-    #     # Thống kê theo trạng thái
-    #     status_stats = self.get_queryset().values('status').annotate(
-    #         count=models.Count('id'),
-    #         total_amount=models.Sum('amount')
-    #     )
-
-    #     # Thống kê theo phương thức thanh toán
-    #     method_stats = self.get_queryset().values('payment_method').annotate(
-    #         count=models.Count('id'),
-    #         total_amount=models.Sum('amount')
-    #     )
-
-    #     # Tổng số thanh toán và tổng tiền
-    #     total_stats = self.get_queryset().aggregate(
-    #         total_count=models.Count('id'),
-    #         total_amount=models.Sum('amount')
-    #     )
-
-    #     return Response({
-    #         'status_stats': status_stats,
-    #         'method_stats': method_stats,
-    #         'total_stats': total_stats
-    #     })
 
 
 class RoomImageViewSet(viewsets.ModelViewSet):
