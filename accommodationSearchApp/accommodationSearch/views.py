@@ -1285,7 +1285,10 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class NotificationViewSet(viewsets.ViewSet):
+class NotificationViewSet(viewsets.ViewSet,
+                          generics.ListAPIView,
+                          generics.RetrieveAPIView,
+                          generics.DestroyAPIView):
     queryset = Notifications.objects.filter(active=True)
     permission_classes = [IsAuthenticated]
     serializer_class = serializers.NotificationSerializer
@@ -1294,42 +1297,16 @@ class NotificationViewSet(viewsets.ViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Notifications.objects.none()
-        return Notifications.objects.filter(receiver=self.request.user, active=True)
+        return Notifications.objects.filter(receiver=self.request.user, active=True).order_by('-created_date')
 
-    # Lấy danh sách tất cả thông báo
-    def list(self, request):
-        notifications = self.get_queryset().order_by('-created_date')
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(notifications, request)
-        if page is not None:
-            serializer = self.serializer_class(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
-        serializer = self.serializer_class(notifications, many=True)
-        return Response(serializer.data)
-
-    # Lấy chi tiết một thông báo
-    def retrieve(self, request, pk=None):
-        try:
-            notification = self.get_queryset().get(pk=pk)
-            serializer = self.serializer_class(notification)
-            return Response(serializer.data)
-        except Notifications.DoesNotExist:
-            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_404_NOT_FOUND)
-
-    # Xóa một thông báo
-    def destroy(self, request, pk=None):
-        try:
-            notification = self.get_queryset().get(pk=pk)
-            notification.active = False
-            notification.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Notifications.DoesNotExist:
-            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_404_NOT_FOUND)
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
 
     # lấy danh sách thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread')
     def unread(self, request):
-        notifications = self.get_queryset().filter(is_read=False).order_by('-created_date')
+        notifications = self.get_queryset().filter(is_read=False)
         serializer = self.serializer_class(notifications, many=True)
         return Response(serializer.data)
 
@@ -1337,7 +1314,7 @@ class NotificationViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['put'], url_path='read')
     def read(self, request, pk=None):
         try:
-            notification = self.get_queryset().get(pk=pk)
+            notification = self.get_object()
             notification.is_read = True
             notification.save()
             return Response({'message': 'Thông báo được đánh dấu là đã đọc'})
@@ -1369,7 +1346,7 @@ class NotificationViewSet(viewsets.ViewSet):
         if not notification_type:
             return Response({'error': 'Notification type là bắt buộc'}, status=status.HTTP_400_BAD_REQUEST)
 
-        notifications = self.get_queryset().filter(notification_type=notification_type).order_by('-created_date')
+        notifications = self.get_queryset().filter(notification_type=notification_type)
         serializer = self.serializer_class(notifications, many=True)
         return Response(serializer.data)
 
@@ -1517,7 +1494,7 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
     def get_queryset(self):
         if not self.request.user.is_authenticated:
             return Follow.objects.none()
-        return Follow.objects.filter(follower_user=self.request.user,active=True).select_related('followed_user').order_by('-created_date')
+        return Follow.objects.filter(follower_user=self.request.user, active=True).select_related('followed_user').order_by('-created_date')
 
     def perform_create(self, serializer):
         # Lấy ID người cần theo dõi từ request
@@ -1552,7 +1529,7 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
                 )
             serializer.instance = follow
         else:
-            follow = serializer.save(followed_user=followed_user,follower_user=self.request.user,active=True)
+            follow = serializer.save(followed_user=followed_user, follower_user=self.request.user, active=True)
             # Tạo thông báo khi follow
             Notifications.objects.create(
                 receiver=followed_user,
