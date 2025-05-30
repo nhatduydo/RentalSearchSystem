@@ -1,71 +1,97 @@
 import React, { useEffect, useState } from 'react';
-import {
-  SafeAreaView,
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
-  ActivityIndicator,
-} from 'react-native';
+import { SafeAreaView, View, Text, TextInput, FlatList, StyleSheet, TouchableOpacity, Platform, StatusBar, ActivityIndicator, } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ListCard from '../components/ListCard';
 import { useNavigation } from '@react-navigation/native';
-import axios, { endpoints } from '../configs/Apis'; // Đảm bảo có export endpoints.motels
+import axios, { endpoints } from '../configs/Apis';
 
 const RoomListScreen = () => {
   const navigation = useNavigation();
   const [motels, setMotels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    const fetchMotels = async () => {
+  const loadMotels = async () => {
+    if (page > 0) {
       try {
-        const res = await axios.get(endpoints.motels);
-        setMotels(res.data.results); // Tùy theo API bạn có thể sửa lại .data
+        setLoading(true);
+        let url = `${endpoints.motels}?page=${page}`;
+        if (searchText) url += `&q=${searchText}`;
+
+        let res = await axios.get(url);
+        setMotels(prev => [...prev, ...res.data.results]);
+
+        if (!res.data.next) setPage(0);
       } catch (error) {
-        console.error('Lỗi khi tải danh sách nhà trọ:', error);
+        console.error("Lỗi khi tải danh sách trọ:", error);
       } finally {
         setLoading(false);
       }
-    };
-    fetchMotels();
-  }, []);
+    }
+  };
+
+  useEffect(() => {
+    setMotels([]);
+    setPage(1);
+  }, [searchText]);
+
+  useEffect(() => {
+    let timer = setTimeout(() => {
+      loadMotels();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [page, searchText]);
+
+  const loadMore = () => {
+    if (!loading && page > 0) setPage(prev => prev + 1);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.searchWrapper}>
           <Icon name="search" size={20} color="gray" />
-          <TextInput style={styles.searchInput} placeholder="Nhập nội dung tìm kiếm" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Nhập nội dung tìm kiếm"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
         </View>
 
         <View style={styles.locationWrapper}>
           <Text style={styles.locationText}>Khu vực: Thành phố Hồ Chí Minh</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Filter')}>
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate('Filter', {
+                allMotels: motels,
+                selectedFilters: {},
+                onApplyFilter: () => { },
+              })
+            }
+          >
             <Icon name="filter-list" size={22} color="blue" />
           </TouchableOpacity>
         </View>
-
-        {loading ? (
-          <ActivityIndicator size="large" color="deepskyblue" style={{ marginTop: 20 }} />
-        ) : (
-          <FlatList
-            data={motels}
-            numColumns={2}
-            keyExtractor={item => item.id.toString()}
-            columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 10 }}
-            contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 100, marginTop: 10 }}
-            renderItem={({ item }) => <ListCard room={item} />}
-          />
-        )}
+        <FlatList
+          data={motels}
+          numColumns={2}
+          keyExtractor={(item) => item.id.toString()}
+          columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 10 }}
+          contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 100, marginTop: 10 }}
+          renderItem={({ item }) => <ListCard room={item} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loading && <ActivityIndicator />}
+        />
       </View>
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 10 },

@@ -1,17 +1,42 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import axios, { endpoints } from '../configs/Apis';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const screenWidth = Dimensions.get('window').width;
 const cardWidth = (screenWidth - 30) / 2;
 
 const ListCard = ({ room }) => {
   const navigation = useNavigation();
+  const [imageUrl, setImageUrl] = useState(null);
+
+  const fetchImage = async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token)
+        return;
+      const res = await axios.get(`${endpoints['motel-images']}${room.id}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.data && res.data.image_url) {
+        setImageUrl(res.data.image_url);
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchImage();
+  }, [room.id])
 
   return (
     <TouchableOpacity onPress={() => navigation.navigate('Detail', { motel: room })}>
       <View style={[styles.card, { width: cardWidth }]}>
-        <Image source={require('../assets/images/meomeo1.jpg')} style={styles.image} />
+        <Image source={{ uri: imageUrl }} style={styles.image} />
         <View style={styles.detailsContainer}>
           <Text style={styles.detailsText}>{room.motel_name}</Text>
         </View>

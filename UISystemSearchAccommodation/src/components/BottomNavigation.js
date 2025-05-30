@@ -2,10 +2,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/HomeScreen';
-import ChatScreen from '../screens/ChatScreen';
 import RoomListScreen from '../screens/RoomListScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import PostScreen from '../screens/PostScreen';
 import { AntDesign, Entypo, Ionicons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -28,16 +28,16 @@ const BottomNavigation = () => {
         }}
       />
       <Tab.Screen
-        name="Chat"
-        component={ChatScreen}
+        name="Post"
+        component={PostScreen}
         options={{
-          tabBarLabel: "Chat",
+          tabBarLabel: "Bài đăng",
           headerShown: false,
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <Ionicons name="chatbox" size={24} color="#003580" />
+              <Ionicons name="add-circle-outline" size={24} color="#003580" />
             ) : (
-              <Ionicons name="chatbox-outline" size={24} color="black" />
+              <Ionicons name="add-circle-outline" size={24} color="black" />
             ),
         }}
       />

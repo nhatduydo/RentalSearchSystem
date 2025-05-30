@@ -1,12 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TextInput, Image, SafeAreaView, ActivityIndicator } from 'react-native';
-import { dataNotification } from '../const/dataNorification';
 import { NotificationStyles } from '../styles/notificationStyle';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { endpoints } from '../configs/Apis';
 
 const NotificationScreen = () => {
   const [query, setQuery] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredData = dataNotification.filter(item =>
+  useEffect(() => {
+    const loadNotifications = async () => {
+      try {
+        const token = await AsyncStorage.getItem('access_token');
+        if (!token) return;
+
+        const res = await axios.get(endpoints.notifications, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+
+        //setNotifications(res.data); 
+        setNotifications(res.data.results);
+        console.log('Notifications from API:', res.data);
+        console.log('Set notifications:', res.data.results);
+        console.log('Notifications state:', notifications);
+
+      } catch (err) {
+        console.error('Error loading notifications:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNotifications();
+  }, []);
+
+  const filteredData = notifications.filter(item =>
     item.title.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -14,28 +46,46 @@ const NotificationScreen = () => {
     <SafeAreaView style={NotificationStyles.container}>
       <View style={NotificationStyles.header}>
         <Text style={NotificationStyles.headerText}>THÔNG BÁO</Text>
-        <TextInput style={NotificationStyles.searchBar} placeholder="Tìm kiếm" value={query} onChangeText={setQuery}/>
+        <TextInput
+          style={NotificationStyles.searchBar}
+          placeholder="Tìm kiếm"
+          value={query}
+          onChangeText={setQuery}
+        />
       </View>
 
-      <FlatList
-        ListFooterComponent= {<ActivityIndicator />}
-        data={filteredData}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={NotificationStyles.itemContainer}>
-            <Image
-              source={require('../assets/images/meomeo1.jpg')}
-              style={NotificationStyles.logo}
-            />
-            <View style={NotificationStyles.textWrapper}>
-              <Text style={NotificationStyles.title}>{item.title}</Text>
-              <Text style={NotificationStyles.description}>{item.description}</Text>
+      {loading ? (
+        <ActivityIndicator size="large" />
+      ) : (
+        <FlatList
+          data={filteredData}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View style={NotificationStyles.itemContainer}>
+              <Image
+                source={require('../assets/images/meomeo1.jpg')}
+                style={NotificationStyles.logo}
+              />
+              <View style={NotificationStyles.textWrapper}>
+                <Text style={NotificationStyles.description}>
+                  {item.content}
+                </Text>
+
+                <Text style={NotificationStyles.meta}>
+                  Loại: {item.notification_type}
+                </Text>
+
+                <Text style={NotificationStyles.meta}>
+                  Ngày tạo: {new Date(item.created_date).toLocaleString()}
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
-      />
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 };
 
 export default NotificationScreen;
+

@@ -1,15 +1,30 @@
 import React from 'react';
 import { FlatList, Image, SafeAreaView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { chatStyles } from '../styles/chatStyles';
-import { dataChats } from '../const/dataChats';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { chatStyles } from '../styles/chatStyles';
+import useWebSocket from '../configs/useWebSocket';
 
-const ChatScreen = () => {
+const ChatScreen = ({ navigation, route }) => {
   const [message, setMessage] = React.useState('');
+  const { roomId, userId } = route.params;
+  const { messages, sendMessage, isConnected } = useWebSocket(roomId, userId);
 
   const handleSend = () => {
-    alert("hehe");
-  }
+    if (message.trim()) {
+      sendMessage(message);
+      setMessage('');
+    }
+  };
+
+  const renderItem = ({ item }) => (
+    <View
+      style={[
+        chatStyles.messageContainer,
+        item.sender_id === userId ? chatStyles.myMessage : chatStyles.otherMessage,
+      ]}>
+      <Text style={chatStyles.messageText}>{item.message}</Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={chatStyles.container}>
@@ -23,17 +38,9 @@ const ChatScreen = () => {
       </View>
 
       <FlatList
-        data={dataChats}
-        renderItem={({ item }) => (
-          <View
-            style={[
-              chatStyles.messageContainer,
-              item.sender === 'me' ? chatStyles.myMessage : chatStyles.otherMessage,
-            ]}>
-            <Text style={chatStyles.messageText}>{item.text}</Text>
-          </View>
-        )}
-        keyExtractor={(item, index) => index.toString()}
+        data={messages}
+        renderItem={renderItem}
+        keyExtractor={(_, index) => index.toString()}
         contentContainerStyle={{ padding: 10 }}
         inverted
       />
@@ -50,7 +57,6 @@ const ChatScreen = () => {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
-
   );
 };
 

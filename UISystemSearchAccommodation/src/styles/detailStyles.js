@@ -3,69 +3,68 @@ import { StyleSheet, Dimensions } from 'react-native';
 const { width } = Dimensions.get('window');
 
 const detailStyles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    image: { width: width, height: 200 },
-    info: { padding: 16 },
-    title: { fontSize: 18, fontWeight: 'bold' },
-    price: { fontSize: 16, color: 'red', marginVertical: 5 },
-    location: { fontSize: 14, marginBottom: 4 },
-    details: { fontSize: 14, marginBottom: 4 },
-    total: { fontSize: 14, color: 'gray' },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginTop: 16,
-        marginBottom: 8,
-    },
-    expenseText: {
-        fontSize: 14,
-        marginBottom: 4,
-    },
-    scrollView: {
+    container: {
+        padding: 16,
         backgroundColor: '#fff',
-        width: width,
     },
-    carouselImage: {
-        width: width,
-        height: 300,
-    },
+    price: { fontSize: 20, color: 'red', marginVertical: 5, fontWeight: 'bold' },
     button: {
-        flex: 1,
         backgroundColor: '#007AFF',
         padding: 12,
         borderRadius: 8,
         alignItems: 'center',
-    },
-    buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-    costGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginTop: 8,
-    },
-
-    costCell: {
-        width: '33.33%',
-        borderWidth: 1,
-        borderColor: '#ccc',
-        padding: 8,
-        alignItems: 'center',
         justifyContent: 'center',
     },
 
-    costLabel: {
-        fontSize: 14,
+    buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    title: {
+        fontSize: 22,
         fontWeight: 'bold',
+        marginBottom: 4,
     },
-
-    costValue: {
+    description: {
+        fontSize: 16,
+        marginBottom: 12,
+    },
+    infoBlock1: {
+        marginBottom: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    section: {
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginBottom: 8,
+    },
+    amenitiesContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    amenityItem: {
+        marginRight: 12,
+        marginBottom: 6,
+    },
+    amenityText: {
         fontSize: 14,
-        color: 'blue',
-        marginVertical: 2,
+        color: '#444',
     },
-
-    costUnit: {
-        fontSize: 12,
-        color: '#555',
+    scrollView: {
+        height: 200,
+    },
+    carouselImage: {
+        width: Dimensions.get('window').width,
+        height: 200,
+        resizeMode: 'cover',
+        margin: 0,
+        padding: 0,
     },
 
 });

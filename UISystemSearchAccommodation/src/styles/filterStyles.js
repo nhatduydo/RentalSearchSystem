@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 const filterStyles = StyleSheet.create({
-    container: { padding: 16, backgroundColor: '#fff' },
+    container: { padding: 16, backgroundColor: '#fff', paddingBottom: 40,},
     header: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
     pickerWrapper: { marginBottom: 16 },
     label: { marginBottom: 6, fontSize: 14 },
@@ -22,7 +22,7 @@ const filterStyles = StyleSheet.create({
       paddingVertical: 14,
       borderRadius: 24,
       alignItems: 'center',
-      marginTop: 30,
+      marginTop: 20,
     },
     applyButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
   });

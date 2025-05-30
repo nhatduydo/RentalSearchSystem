@@ -1,21 +1,40 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Dimensions, Image, SafeAreaView, Text, View, Animated, ActivityIndicator, } from 'react-native';
+import { Dimensions, Image, SafeAreaView, Text, View, Animated, ActivityIndicator, TouchableOpacity, } from 'react-native';
 import { Searchbar } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+// import Icon from 'react-native-vector-icons/MaterialIcons';
 import Homestyles from '../styles/homeStyle';
 //import dataAccommodation from '../const/dataAccommodation';
+import { Ionicons } from '@expo/vector-icons';
 import Card from '../components/Card';
-import { categoryTrends } from '../const/categoryTrends';
+import { utilities } from '../const/utilities';
 import axios, { endpoints } from '../configs/Apis';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const HomeScreen = ({ navigation }) => {
-  const [q, setQ] = useState();
+  const [avatarUri, setAvatarUri] = useState(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const cardWidth = Dimensions.get('window').width - 80;
 
   const [motels, setMotels] = useState([]);
   const [loading, setLoading] = useState(true);
+  const getAvatarUser = async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      const username = await AsyncStorage.getItem("username");
+      if (!token || !username) return;
+
+      const res = await axios.get(`/users/${username}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setAvatarUri(res.data.avatar);
+    } catch (error) {
+      console.error("Lỗi khi lấy avatar user:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchMotels = async () => {
@@ -29,6 +48,7 @@ const HomeScreen = ({ navigation }) => {
       }
     };
     fetchMotels();
+    getAvatarUser();
   }, []);
 
 
@@ -45,9 +65,33 @@ const HomeScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-        <Icon name="person-outline" size={36} color='deepskyblue'></Icon>
+        {avatarUri ? (
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={{ marginLeft: 8, marginTop: 8 }}>
+            <Image
+              source={{ uri: avatarUri }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: '#ccc',
+              }}
+            />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => navigation.navigate('SignIn')} style={{ marginLeft: 8 }}>
+            <Ionicons name="person-outline" size={36} color="deepskyblue" />
+          </TouchableOpacity>
+        )}
       </View>
-      <Searchbar placeholder="Tìm phòng giá tốt tại đây" value={q} onChangeText={setQ} style={Homestyles.searchBar} />
+      <TouchableOpacity onPress={() => navigation.navigate('Search')} activeOpacity={1}>
+        <Searchbar
+          placeholder="Tìm phòng giá tốt tại đây"
+          style={Homestyles.searchBar}
+          editable={false}
+          pointerEvents="none"
+        />
+      </TouchableOpacity>
 
       <View
         style={{
@@ -56,8 +100,11 @@ const HomeScreen = ({ navigation }) => {
           marginHorizontal: 20,
           marginTop: 20,
         }}>
-        <Text style={{ fontWeight: 'bold', color: 'grey' }}>Nhà trọ gần đây</Text>
-        <Text style={{ color: 'grey' }}>Xem tất cả</Text>
+        <Text style={{ fontWeight: 'bold', color: 'grey' }}>Nhà trọ phổ biến</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Search')}>
+          <Text style={{ color: 'grey' }}>Xem tất cả</Text>
+        </TouchableOpacity>
+
       </View>
 
       <View>
@@ -104,20 +151,30 @@ const HomeScreen = ({ navigation }) => {
           flexDirection: 'row',
           justifyContent: 'space-between',
           marginHorizontal: 20,
+          marginTop: 10,
         }}>
-        <Text style={{ fontWeight: 'bold', color: 'grey' }}>Xu hướng tìm phòng trọ</Text>
-        <Text style={{ color: 'grey' }}>Xem tất cả</Text>
+        <Text style={{ fontWeight: 'bold', color: 'grey' }}>Tiện Ích</Text>
       </View>
 
-      <View style={{ marginHorizontal: 20 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
-          {categoryTrends.map((item, index) => (
-            <View key={index} style={{ alignItems: 'center', width: 70 }}>
-              <Image source={item.image} style={{ width: 60, height: 60, borderRadius: 15 }} />
-              <Text style={{ fontSize: 12, textAlign: 'center', marginTop: 5 }}>{item.name}</Text>
-            </View>
-          ))}
-        </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: 20 }}>
+        {utilities.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            style={{
+              width: 80,
+              height: 80,
+              backgroundColor: '#f0f0f0',
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 15,
+            }}
+            onPress={() => navigation.navigate(item.screen)}
+          >
+            {item.icon}
+            <Text style={{ fontSize: 12, marginTop: 5, textAlign: 'center' }}>{item.name}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
     </SafeAreaView>
   );

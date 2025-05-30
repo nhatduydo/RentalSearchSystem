@@ -1,72 +1,206 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { endpoints } from '../configs/Apis';
+import Icon from 'react-native-vector-icons/AntDesign';
+import { Menu, Provider } from 'react-native-paper';
+import profileStyle from '../styles/profileStyle';
+import landlordProfileStyle from '../styles/landlordProfileStyle';
 
-const ProfileScreen = ({ route }) => {
+import ListCard from '../components/ListCard';
+import PostCard from '../components/PostCard';
+
+const ProfileScreen = () => {
   const [user, setUser] = useState(null);
+  const [hostels, setHostels] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+
   const navigation = useNavigation();
   const isFocused = useIsFocused();
 
+  const openMenu = () => setMenuVisible(true);
+  const closeMenu = () => setMenuVisible(false);
+
   useEffect(() => {
-    if (isFocused && route.params?.user) {
-      setUser(route.params.user);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const token = await AsyncStorage.getItem('access_token');
+        const username = await AsyncStorage.getItem('username');
+        if (!token || !username) return;
+
+        let allUsers = [];
+        let url = endpoints.users;
+        while (url) {
+          const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+          allUsers = [...allUsers, ...res.data.results];
+          url = res.data.next;
+        }
+
+        const findUser = allUsers.find(u => u.username === username);
+        if (!findUser) return;
+
+        const userId = findUser.id;
+        // console.log(userId)
+
+        let landlords = [];
+        let landlordUrl = endpoints.landlords;
+        while (landlordUrl) {
+          const res = await axios.get(landlordUrl, { headers: { Authorization: `Bearer ${token}` } });
+          landlords = [...landlords, ...res.data.results];
+          landlordUrl = res.data.next;
+        }
+        const matchedLandlord = landlords.find(l => l.user === userId);
+        setUser({ ...findUser, landlordInfo: matchedLandlord });
+
+        let allHostels = [];
+        let motelUrl = `${endpoints.motels}?user=${userId}`;
+        while (motelUrl) {
+          const res = await axios.get(motelUrl, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          allHostels = [...allHostels, ...res.data.results];
+          motelUrl = res.data.next;
+        }
+        const myHostels = allHostels.filter(m => Number(m.user.id) === Number(userId));
+        setHostels(myHostels);
+
+        let allPosts = [];
+        let postUrl = `${endpoints.posts}?user=${userId}`;
+        while (postUrl) {
+          const res = await axios.get(postUrl, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          allPosts = [...allPosts, ...res.data.results];
+          postUrl = res.data.next;
+        }
+        const myPosts = allPosts.filter(p => Number(p.user.id) === Number(userId));
+        setPosts(myPosts);
+
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isFocused) {
+      loadData();
     }
-  }, [route.params, isFocused]);
+  }, [isFocused]);
 
-  return (
-    <View style={styles.container}>
-      {!user ? (
-        <>
-          <Text style={styles.title}>
-            Vui lòng <Text style={{ color: 'blue' }}>Đăng Nhập</Text> hoặc <Text style={{ color: 'green' }}>Đăng Ký</Text> để tiếp tục sử dụng
-          </Text>
-          <View style={styles.button}>
-            <Button title="Đăng Nhập" onPress={() => navigation.navigate('SignIn')} />
-          </View>
-          <View style={styles.button}>
-            <Button title="Đăng Ký" onPress={() => navigation.navigate('SignUp')} />
-          </View>
-        </>
-      ) : (
-        <>
-          {user.avatar?.uri && (
-            <Image source={{ uri: user.avatar.uri }} style={styles.avatar} />
-          )}
-          <Text style={styles.name}>Xin chào, {user.fullName}!</Text>
-          <Text style={styles.info}>Tên đăng nhập: {user.username}</Text>
-          <Text style={styles.info}>Email: {user.email}</Text>
-          <Text style={styles.info}>Số điện thoại: {user.phone || 'Chưa cập nhật'}</Text>
+  const handleLogout = async () => {
+    Alert.alert('Xác nhận', 'Bạn có chắc chắn muốn đăng xuất?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Đăng xuất',
+        style: 'destructive',
+        onPress: async () => {
+          await AsyncStorage.multiRemove(['access_token', 'refresh_token', 'username']);
+          setUser(null);
+        }
+      }
+    ]);
+  };
 
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => navigation.navigate('EditProfile', { user })}
-          >
-            <Text style={styles.editButtonText}>Chỉnh sửa thông tin</Text>
-          </TouchableOpacity>
-        </>
-      )}
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Đang tải dữ liệu...</Text>
+      </View>
+    );
+  }
+
+  return loading ? (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ textAlign: 'center' }}>Đang tải thông tin...</Text>
     </View>
+  ) : (<Provider>
+    <ScrollView>
+      {!user ? (
+        <View style={profileStyle.container}>
+          <Image
+            source={require('../assets/images/room.jpg')}
+            style={profileStyle.image}
+            resizeMode="contain"
+          />
+          <Text style={profileStyle.title}>Chào mừng đến với</Text>
+          <Text style={profileStyle.subtitle}>Tìm Kiếm Nhà Trọ</Text>
+          <Text style={profileStyle.description}>
+            Hệ thống tìm kiếm nhà trọ tốt nhất!
+          </Text>
+          <TouchableOpacity style={profileStyle.loginButton} onPress={() => navigation.navigate('SignIn')}>
+            <Text style={profileStyle.loginText}>Đăng nhập</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={profileStyle.registerButton} onPress={() => navigation.navigate('SignUp')}>
+            <Text style={profileStyle.registerText}>Đăng ký</Text>
+          </TouchableOpacity>
+        </View>
+      ) : user.landlordInfo ? (
+        <ScrollView contentContainerStyle={{ alignItems: 'center', justifyContent: 'center' }}>
+          <View style={landlordProfileStyle.landlordProfileHeader}>
+            <View style={landlordProfileStyle.landlordProfileTopBar}>
+              <View />
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                <Menu
+                  visible={menuVisible}
+                  onDismiss={closeMenu}
+                  anchor={
+                    <TouchableOpacity onPress={openMenu}>
+                      <Icon name="setting" size={24} color="#000" />
+                    </TouchableOpacity>
+                  }
+                >
+                  <Menu.Item
+                    onPress={() => {
+                      navigation.navigate('EditProfile', { user });
+                      closeMenu();
+                    }}
+                    title="Thông tin cá nhân"
+                  />
+
+                  <Menu.Item
+                    onPress={handleLogout}
+                    title="Đăng xuất"
+                  />
+                </Menu>
+              </View>
+            </View>
+
+            <View style={landlordProfileStyle.landlordProfileInfo}>
+              {user?.avatar && (
+                <Image source={{ uri: user.avatar }} style={landlordProfileStyle.landlordAvatar} />
+              )}
+              <Text style={landlordProfileStyle.landlordName}>{user.landlordInfo.full_name}</Text>
+              <Text style={landlordProfileStyle.landlordEmail}>{user.email}</Text>
+            </View>
+          </View>
+
+          <View style={landlordProfileStyle.landlordInfoBox}>
+            <Text style={landlordProfileStyle.landlordSectionTitle}>Danh sách nhà trọ</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={landlordProfileStyle.horizontalScrollContainer}>
+              {hostels.map(motel => (
+                <ListCard key={motel.id} room={motel} />
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={landlordProfileStyle.landlordInfoBox}>
+            <Text style={landlordProfileStyle.landlordSectionTitle}>Bài đăng của bạn</Text>
+            <ScrollView contentContainerStyle={landlordProfileStyle.horizontalScrollContainer}>
+              {posts.map(post => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </ScrollView>
+          </View>
+
+        </ScrollView>) : null}
+    </ScrollView>
+  </Provider>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  button: { marginVertical: 10, width: '60%' },
-  avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 15 },
-  name: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  info: { fontSize: 16, marginVertical: 2 },
-  editButton: {
-    marginTop: 20,
-    backgroundColor: '#1e90ff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  editButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-});
 
 export default ProfileScreen;

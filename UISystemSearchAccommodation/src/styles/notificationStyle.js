@@ -50,4 +50,10 @@ export const NotificationStyles = StyleSheet.create({
     color: '#555',
     fontSize: 14,
   },
+  meta: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+
 });
