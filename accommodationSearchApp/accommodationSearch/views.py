@@ -1945,6 +1945,7 @@ class GoogleAuthView(APIView):
         """
         return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
+    # Hàm xử lý POST request để đăng nhập/đăng ký user bằng token Google gửi lên.
     def post(self, request):
         try:
             token_id = request.data.get('token_id')
@@ -1963,7 +1964,7 @@ class GoogleAuthView(APIView):
                 idinfo = id_token.verify_oauth2_token(
                     token_id,
                     grequests.Request(),
-                    audience=settings.GOOGLE_CLIENT_ID,
+                    audience=settings.GOOGLE_CLIENT_ID, # là client ID của app, đảm bảo token đúng ứng dụng.
                     clock_skew_in_seconds=10  # Cho phép chênh lệch 10 giây
                 )
             except ValueError as e:
@@ -2000,11 +2001,14 @@ class GoogleAuthView(APIView):
                         'error': f'Tài khoản của bạn đã được đăng ký với vai trò {user.role}. Vui lòng đăng nhập với vai trò tương ứng.'
                     }, status=status.HTTP_400_BAD_REQUEST)
 
+                # Lấy hoặc tạo bản ghi SocialAccount liên kết user với Google
                 social_account, _ = SocialAccount.objects.get_or_create(
                     user=user,
                     provider='google',
                     defaults={'uid': idinfo.get('sub'), 'extra_data': idinfo}
                 )
+                # Nếu dữ liệu extra_data trên SocialAccount khác với token Google mới nhận
+                # Nếu khác (ví dụ thông tin cập nhật như avatar, tên...), thì cập nhật lại để giữ dữ liệu mới nhất.
                 if not social_account.extra_data == idinfo:
                     social_account.extra_data = idinfo
                     social_account.save()
@@ -2027,10 +2031,11 @@ class GoogleAuthView(APIView):
                     elif role == UserRole.LANDLORD:
                         Landlord.objects.create(user=user)
 
+                    # Tạo bản ghi SocialAccount liên kết user với Google
                     SocialAccount.objects.create(
                         user=user,
                         provider='google',
-                        uid=idinfo.get('sub'),
+                        uid=idinfo.get('sub'),    # ID định danh Google user
                         extra_data=idinfo
                     )
                 except Exception as e:
@@ -2058,9 +2063,6 @@ class GoogleAuthView(APIView):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'role': user.role,
-                    'is_tenant': hasattr(user, 'tenant'),
-                    'is_landlord': hasattr(user, 'landlord'),
-                    'is_admin': hasattr(user, 'admin')
                 }
             })
 
