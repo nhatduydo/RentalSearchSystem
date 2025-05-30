@@ -10,27 +10,24 @@ from allauth.socialaccount.models import SocialAccount
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
-from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import Count, OuterRef, Q, Subquery, Sum
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from google.auth.transport import requests as grequests
 from google.oauth2 import id_token
 from oauth2_provider.models import AccessToken, Application
-from rest_framework import generics, parsers, permissions, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import (NotFound, PermissionDenied,
                                        ValidationError)
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import (SAFE_METHODS, AllowAny, BasePermission,
-                                        IsAdminUser, IsAuthenticated)
+from rest_framework.permissions import (SAFE_METHODS, AllowAny, IsAdminUser,
+                                        IsAuthenticated)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-# from accommodationSearch import paginators, serializers
-# from accommodationSearch import serializers, paginators
 from . import paginators, serializers
 from .email_service import EmailService
 from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
@@ -1011,20 +1008,46 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
 
 class VNPayViewSet(viewsets.ViewSet):
-    # Lấy địa chỉ IP của client gửi request
+    """
+    ViewSet xử lý các giao dịch thanh toán qua cổng thanh toán VNPay
+    Bao gồm 2 chức năng chính:
+    1. Tạo URL thanh toán VNPay
+    2. Xử lý kết quả trả về từ VNPay sau khi thanh toán
+    """
+
     def get_client_ip(self, request):
+        """
+        Lấy địa chỉ IP của client gửi request
+        - Kiểm tra header X-Forwarded-For trước (thường được set bởi proxy/load balancer)
+        - Nếu không có thì lấy từ REMOTE_ADDR
+        """
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
+            ip = x_forwarded_for.split(',')[0]  # Lấy IP đầu tiên trong danh sách
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
 
-    # Tạo URL thanh toán VNPay và trả về cho client
     @action(detail=False, methods=['post'], url_path='create')
     def create_payment(self, request):
+        """
+        Tạo URL thanh toán VNPay và trả về cho client
+        Quy trình:
+        1. Nhận thông tin thanh toán từ client (order_id, amount, etc.)
+        2. Khởi tạo đối tượng VNPay và set các thông tin cần thiết
+        3. Tạo URL thanh toán với chữ ký bảo mật
+        4. Trả về URL cho client để chuyển hướng đến trang thanh toán VNPay
+
+        Request data cần có:
+        - order_id: Mã đơn hàng
+        - amount: Số tiền thanh toán
+        - order_desc: Mô tả đơn hàng (optional)
+        - order_type: Loại đơn hàng (optional)
+        - bank_code: Mã ngân hàng (optional)
+        - language: Ngôn ngữ (optional, mặc định 'vn')
+        """
         try:
-            # Get data from request
+            # Lấy dữ liệu từ request
             data = request.data
             order_id = data.get('order_id')
             amount = data.get('amount')
@@ -1033,29 +1056,31 @@ class VNPayViewSet(viewsets.ViewSet):
             bank_code = data.get('bank_code', '')
             language = data.get('language', 'vn')
 
-            # Get client IP
+            # Lấy IP của client
             ipaddr = self.get_client_ip(request)
 
-            # Initialize VNPay
+            # Khởi tạo đối tượng VNPay và set các thông tin cần thiết
             vnp = vnpay()
-            vnp.requestData['vnp_Version'] = '2.1.0'
-            vnp.requestData['vnp_Command'] = 'pay'
-            vnp.requestData['vnp_TmnCode'] = settings.VNPAY_TMN_CODE
-            vnp.requestData['vnp_Amount'] = amount * 100
-            vnp.requestData['vnp_CurrCode'] = 'VND'
-            vnp.requestData['vnp_TxnRef'] = order_id
-            vnp.requestData['vnp_OrderInfo'] = order_desc
-            vnp.requestData['vnp_OrderType'] = order_type
-            vnp.requestData['vnp_Locale'] = language
+            vnp.requestData['vnp_Version'] = '2.1.0'  # Phiên bản API
+            vnp.requestData['vnp_Command'] = 'pay'    # Lệnh thanh toán
+            vnp.requestData['vnp_TmnCode'] = settings.VNPAY_TMN_CODE  # Mã website tại VNPAY
+            vnp.requestData['vnp_Amount'] = amount * 100  # Số tiền * 100 (VNPay yêu cầu)
+            vnp.requestData['vnp_CurrCode'] = 'VND'   # Đơn vị tiền tệ
+            vnp.requestData['vnp_TxnRef'] = order_id  # Mã đơn hàng
+            vnp.requestData['vnp_OrderInfo'] = order_desc  # Mô tả đơn hàng
+            vnp.requestData['vnp_OrderType'] = order_type  # Loại đơn hàng
+            vnp.requestData['vnp_Locale'] = language  # Ngôn ngữ
 
+            # Thêm mã ngân hàng nếu có
             if bank_code:
                 vnp.requestData['vnp_BankCode'] = bank_code
 
+            # Thêm thời gian tạo và IP
             vnp.requestData['vnp_CreateDate'] = datetime.now().strftime('%Y%m%d%H%M%S')
             vnp.requestData['vnp_IpAddr'] = ipaddr
-            vnp.requestData['vnp_ReturnUrl'] = settings.VNPAY_RETURN_URL
+            vnp.requestData['vnp_ReturnUrl'] = settings.VNPAY_RETURN_URL  # URL callback sau khi thanh toán
 
-            # Get payment URL
+            # Tạo URL thanh toán với chữ ký bảo mật
             vnpay_payment_url = vnp.get_payment_url(settings.VNPAY_PAYMENT_URL, settings.VNPAY_HASH_SECRET)
 
             return Response({
@@ -1067,15 +1092,30 @@ class VNPayViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Xử lý kết quả thanh toán từ VNPay và trả về trạng thái giao dịch
     @action(detail=False, methods=['get'], url_path='return')
     def payment_return(self, request):
+        """
+        Xử lý kết quả trả về từ VNPay sau khi thanh toán
+        Quy trình:
+        1. Nhận các tham số trả về từ VNPay (vnp_TxnRef, vnp_ResponseCode, etc.)
+        2. Kiểm tra tính hợp lệ của dữ liệu bằng cách verify chữ ký
+        3. Kiểm tra mã phản hồi (vnp_ResponseCode)
+        4. Trả về kết quả thanh toán cho client
+
+        Các tham số quan trọng từ VNPay:
+        - vnp_TxnRef: Mã đơn hàng
+        - vnp_Amount: Số tiền
+        - vnp_ResponseCode: Mã phản hồi (00: thành công, khác 00: thất bại)
+        - vnp_TransactionNo: Mã giao dịch tại VNPay
+        - vnp_BankCode: Mã ngân hàng thanh toán
+        - vnp_PayDate: Thời gian thanh toán
+        """
         inputData = request.GET
         if inputData:
             vnp = vnpay()
             vnp.responseData = inputData.dict()
             order_id = inputData['vnp_TxnRef']
-            amount = int(inputData['vnp_Amount']) / 100
+            amount = int(inputData['vnp_Amount']) / 100  # Chia 100 để lấy số tiền thực
             order_desc = inputData['vnp_OrderInfo']
             vnp_TransactionNo = inputData['vnp_TransactionNo']
             vnp_ResponseCode = inputData['vnp_ResponseCode']
@@ -1084,8 +1124,9 @@ class VNPayViewSet(viewsets.ViewSet):
             vnp_BankCode = inputData['vnp_BankCode']
             vnp_CardType = inputData['vnp_CardType']
 
+            # Verify chữ ký để đảm bảo dữ liệu không bị giả mạo
             if vnp.validate_response(settings.VNPAY_HASH_SECRET):
-                if vnp_ResponseCode == "00":
+                if vnp_ResponseCode == "00":  # Thanh toán thành công
                     return Response({
                         "status": "success",
                         "message": "Thanh toán thành công",
@@ -1100,7 +1141,7 @@ class VNPayViewSet(viewsets.ViewSet):
                             "vnp_PayDate": vnp_PayDate
                         }
                     }, status=status.HTTP_200_OK)
-                else:
+                else:  # Thanh toán thất bại
                     return Response({
                         "status": "error",
                         "message": "Thanh toán thất bại",
@@ -1112,7 +1153,7 @@ class VNPayViewSet(viewsets.ViewSet):
                             "vnp_ResponseCode": vnp_ResponseCode
                         }
                     }, status=status.HTTP_400_BAD_REQUEST)
-            else:
+            else:  # Chữ ký không hợp lệ
                 return Response({
                     "status": "error",
                     "message": "Sai checksum",
@@ -1124,7 +1165,7 @@ class VNPayViewSet(viewsets.ViewSet):
                         "vnp_ResponseCode": vnp_ResponseCode
                     }
                 }, status=status.HTTP_400_BAD_REQUEST)
-        else:
+        else:  # Không có dữ liệu trả về
             return Response({
                 "status": "error",
                 "message": "Không có dữ liệu"
@@ -1142,50 +1183,47 @@ class SearchViewSet(viewsets.ViewSet):
         else:
             motels = Motel.objects.all()
 
-        district = request.query_params.get('district')
-        if district:
-            motels = motels.filter(district__icontains=district)
+            district = request.query_params.get('district')
+            if district:
+                motels = motels.filter(district__icontains=district)
 
-        city = request.query_params.get('city')
-        if city:
-            motels = motels.filter(city__icontains=city)
+            city = request.query_params.get('city')
+            if city:
+                motels = motels.filter(city__icontains=city)
 
-        province = request.query_params.get('province')
-        if province:
-            motels = motels.filter(province__icontains=province)
+            province = request.query_params.get('province')
+            if province:
+                motels = motels.filter(province__icontains=province)
 
-        min_price = request.query_params.get('min_price')
-        max_price = request.query_params.get('max_price')
-        if min_price or max_price:
-            post_query = Post.objects.filter(motel=OuterRef('pk'))  # tham chiếu đến pk của bảng Motel
-            # Tạo một subquery để lấy các Post có motel_id bằng với pk của Motel
-            if min_price:
-                post_query = post_query.filter(min_price__gte=min_price)
-            if max_price:
-                post_query = post_query.filter(max_price__lte=max_price)
-            motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
-            # Subquery nhúng một query bên trong một query khác
+            min_price = request.query_params.get('min_price')
+            max_price = request.query_params.get('max_price')
+            if min_price or max_price:
+                post_query = Post.objects.filter(motel=OuterRef('pk'))  # tham chiếu đến pk của bảng Motel
+                # Tạo một subquery để lấy các Post có motel_id bằng với pk của Motel
+                if min_price:
+                    post_query = post_query.filter(min_price__gte=min_price)
+                if max_price:
+                    post_query = post_query.filter(max_price__lte=max_price)
+                motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
+                # Subquery nhúng một query bên trong một query khác
 
-            # # Cách 1: Không dùng Subquery (sẽ tạo nhiều query)
-            # post_ids = Post.objects.values_list('motel_id', flat=True)  # Query 1
-            # motels = Motel.objects.filter(id__in=post_ids)  # Query 2
+                # # Cách 1: Không dùng Subquery (sẽ tạo nhiều query)
+                # post_ids = Post.objects.values_list('motel_id', flat=True)  # Query 1
+                # motels = Motel.objects.filter(id__in=post_ids)  # Query 2
 
-            # # Cách 2: Dùng Subquery (chỉ 1 query)
-            # motels = Motel.objects.filter(
-            #     id__in=Subquery(Post.objects.values('motel_id'))
-            # )
+                # # Cách 2: Dùng Subquery (chỉ 1 query)
+                # motels = Motel.objects.filter(
+                #     id__in=Subquery(Post.objects.values('motel_id'))
+                # )
 
-        max_people = request.query_params.get('max_people')
-        if max_people:
-            room_query = Room.objects.filter(
-                motel=OuterRef('pk'),
-                max_people__lte=max_people
-            )
-            motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
+            max_people = request.query_params.get('max_people')
+            if max_people:
+                room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
+                motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
 
-        # Serialize và trả về kết quả
-        serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
-        return Response(serializer.data)
+            # Serialize và trả về kết quả
+            serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
+            return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='nearby')
     def nearby(self, request):
@@ -1232,11 +1270,8 @@ class SearchViewSet(viewsets.ViewSet):
             # Sắp xếp theo khoảng cách
             nearby_motels.sort(key=lambda x: x.distance)
 
-            # Phân trang
-            paginator = PageNumberPagination()
-            paginator.page_size = 10
-            paginator.page_size_query_param = 'page_size'
-            paginator.max_page_size = 100
+            # Phân trang sử dụng ItemPanigator
+            paginator = paginators.ItemPanigator()
             result_page = paginator.paginate_queryset(nearby_motels, request)
 
             # Serialize kết quả
@@ -1586,7 +1621,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     def perform_create(self, serializer):
         payment = serializer.save(payer=self.request.user)
-        
+
         # Thông báo cho chủ nhà khi có thanh toán mới
         Notifications.objects.create(
             receiver=payment.room.motel.user,
@@ -1598,7 +1633,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     def perform_update(self, serializer):
         payment = serializer.save()
-        
+
         # Thông báo cho người thanh toán khi có cập nhật
         Notifications.objects.create(
             receiver=payment.payer,
@@ -1657,6 +1692,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         instance.active = False
         instance.save()
 
+    #  lấy danh sách các thanh toán của một phòng (room) cụ thể.
     @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
     def room_payments(self, request, room_id=None):
         try:
@@ -1685,7 +1721,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         if status not in valid_statuses:
             return Response(
                 {'error': 'Trạng thái không hợp lệ'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_404_NOT_FOUND
             )
 
         # Sử dụng get_queryset để lấy payments theo quyền của user
@@ -1695,7 +1731,10 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     @action(detail=False, methods=['get'], url_path='method/(?P<method>[^/.]+)')
     def method_payments(self, request, method=None):
-        valid_methods = [method_code for method_code, _ in PaymentMethod.choices]
+        valid_methods = []
+        for choice in PaymentMethod.choices:
+            method_code = choice[0]
+            valid_methods.append(method_code)
         if method not in valid_methods:
             return Response(
                 {'error': 'Phương thức thanh toán không hợp lệ'},
@@ -1826,7 +1865,7 @@ class StatisticsViewSet(viewsets.ViewSet):
         if not date_str:
             return None
         try:
-            # Parse the date string and make it timezone-aware
+            # Phân tích chuỗi ngày và làm cho nó nhận biết múi giờ
             naive_dt = datetime.strptime(date_str, '%Y-%m-%d')
             return timezone.make_aware(naive_dt, timezone=pytz.UTC)
         except ValueError:
