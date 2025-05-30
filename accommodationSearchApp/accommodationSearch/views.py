@@ -2018,7 +2018,7 @@ class GoogleAuthView(APIView):
                         last_name=idinfo.get('family_name', ''),
                         is_active=True,
                         role=role,
-                        password=make_password(1),
+                        password=make_password(None),
                         avatar=idinfo.get('picture', 'https://lh3.googleusercontent.com/a/default-user')
                     )
 
