@@ -10,6 +10,7 @@ from allauth.socialaccount.models import SocialAccount
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import HttpResponse
@@ -1933,68 +1934,130 @@ class StatisticsViewSet(viewsets.ViewSet):
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
 
+    @staticmethod
+    def generate_token(length=32):
+        """
+        Tạo token ngẫu nhiên với độ dài cho trước
+        Args:
+            length: Độ dài của token (mặc định 32 ký tự)
+        Returns:
+            Chuỗi token ngẫu nhiên gồm chữ cái và số
+        """
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
     def post(self, request):
         try:
-            # Lấy token ID từ request
             token_id = request.data.get('token_id')
+
             if not token_id:
                 return Response({'error': 'Token ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Xác thực token với Google
-            idinfo = id_token.verify_oauth2_token(
-                token_id,
-                grequests.Request(),
-                audience=settings.GOOGLE_CLIENT_ID
-            )
+            role = request.data.get('role')
 
-            # Lấy thông tin user từ token
+            if not role or role not in [UserRole.TENANT, UserRole.LANDLORD]:
+                return Response({
+                    'error': 'Vai trò không hợp lệ. Vui lòng chọn TENANT hoặc LANDLORD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                idinfo = id_token.verify_oauth2_token(
+                    token_id,
+                    grequests.Request(),
+                    audience=settings.GOOGLE_CLIENT_ID,
+                    clock_skew_in_seconds=10  # Cho phép chênh lệch 10 giây
+                )
+            except ValueError as e:
+                error_msg = str(e)
+                if "Token used too early" in error_msg:
+                    return Response({
+                        'error': 'Lỗi đồng bộ thời gian. Vui lòng thử lại sau.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                elif "Token expired" in error_msg:
+                    return Response({
+                        'error': 'Token đã hết hạn. Vui lòng đăng nhập lại.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    return Response({
+                        'error': f'Lỗi xác thực với Google: {error_msg}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({
+                    'error': 'Lỗi xác thực không xác định. Vui lòng thử lại sau.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             email = idinfo.get('email')
+
             if not email:
+                print("Error: No email in token")
                 return Response({'error': 'Email not found in token'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Tìm hoặc tạo user
-            user, created = User.objects.get_or_create(
-                email=email,
-                defaults={
-                    'username': email.split('@')[0],
-                    'first_name': idinfo.get('given_name', ''),
-                    'last_name': idinfo.get('family_name', ''),
-                    'is_active': True
-                }
-            )
+            try:
+                user = User.objects.get(email=email)
 
-            if created:
-                Tenant.objects.create(user=user)
+                if user.role != role:
+                    print(f"Error: Role mismatch. User role: {user.role}, Requested role: {role}")
+                    return Response({
+                        'error': f'Tài khoản của bạn đã được đăng ký với vai trò {user.role}. Vui lòng đăng nhập với vai trò tương ứng.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Tạo hoặc cập nhật social account
-            social_account, created = SocialAccount.objects.get_or_create(
-                user=user,
-                provider='google',
-                defaults={'uid': idinfo.get('sub'), 'extra_data': idinfo}
-            )
-            if not created:
-                social_account.extra_data = idinfo
-                social_account.save()
+                social_account, _ = SocialAccount.objects.get_or_create(
+                    user=user,
+                    provider='google',
+                    defaults={'uid': idinfo.get('sub'), 'extra_data': idinfo}
+                )
+                if not social_account.extra_data == idinfo:
+                    social_account.extra_data = idinfo
+                    social_account.save()
 
-            # Tạo access token
-            application = Application.objects.get(client_id=settings.CLIENT_ID)
-            access_token = AccessToken.objects.create(
-                user=user,
-                application=application,
-                token=generate_token(),
-                expires=timezone.now() + timedelta(days=1),
-                scope='read write'
-            )
+            except User.DoesNotExist:
+                try:
+                    user = User.objects.create(
+                        email=email,
+                        username=email.split('@')[0],
+                        first_name=idinfo.get('given_name', ''),
+                        last_name=idinfo.get('family_name', ''),
+                        is_active=True,
+                        role=role,
+                        password=make_password(1),
+                        avatar=idinfo.get('picture', 'https://lh3.googleusercontent.com/a/default-user')
+                    )
+
+                    if role == UserRole.TENANT:
+                        Tenant.objects.create(user=user)
+                    elif role == UserRole.LANDLORD:
+                        Landlord.objects.create(user=user)
+
+                    SocialAccount.objects.create(
+                        user=user,
+                        provider='google',
+                        uid=idinfo.get('sub'),
+                        extra_data=idinfo
+                    )
+                except Exception as e:
+                    raise
+
+            try:
+                application = Application.objects.get(client_id=settings.CLIENT_ID)
+                access_token = AccessToken.objects.create(
+                    user=user,
+                    application=application,
+                    token=self.generate_token(),
+                    expires=timezone.now() + timedelta(days=1),
+                    scope='read write'
+                )
+            except Exception as e:
+                raise
 
             return Response({
                 'access_token': access_token.token,
                 'token_type': 'Bearer',
-                'expires_in': 86400,  # 1 day in seconds
+                'expires_in': 86400,
                 'user': {
                     'id': user.id,
                     'email': user.email,
                     'first_name': user.first_name,
                     'last_name': user.last_name,
+                    'role': user.role,
                     'is_tenant': hasattr(user, 'tenant'),
                     'is_landlord': hasattr(user, 'landlord'),
                     'is_admin': hasattr(user, 'admin')
@@ -2002,9 +2065,6 @@ class GoogleAuthView(APIView):
             })
 
         except Exception as e:
-            logger.error(f"Error in GoogleAuthView: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-def generate_token(length=32):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+            return Response({
+                'error': f'Lỗi server: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
