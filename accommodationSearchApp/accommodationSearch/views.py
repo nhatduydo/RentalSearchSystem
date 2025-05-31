@@ -12,7 +12,7 @@ from channels.layers import get_channel_layer
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Avg, Count, OuterRef, Q, Subquery
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -349,7 +349,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
 class MotelRatingViewSet(viewsets.ModelViewSet):
     queryset = MotelRating.objects.filter(active=True)
-    serializer_class = serializers.MotelRatingSerializer
+    serializer_class = serializers.MotelRatingSerializer    
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -361,9 +361,70 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(motel_id=motel_id)
         return queryset.select_related('user', 'motel')
 
+    def _update_motel_rating(self, motel):
+        """Helper method to update motel's rating_score"""
+        # Lấy tất cả đánh giá active của motel
+        ratings = MotelRating.objects.filter(motel=motel, active=True)
+        if ratings.exists():
+            # Tính trung bình rating
+            avg_rating = ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
+            motel.rating_score = round(avg_rating, 1)  # Làm tròn đến 1 chữ số thập phân
+        else:
+            motel.rating_score = 0
+        motel.save()
+
     # Tạo đánh giá mới và gán người dùng hiện tại
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+    def create(self, request, *args, **kwargs):
+        try:
+            # Kiểm tra xem người dùng đã đánh giá nhà trọ này chưa
+            existing_rating = MotelRating.objects.filter(
+                motel_id=request.data.get('motel'),
+                user=request.user
+            ).first()
+
+            if existing_rating:
+                # Nếu đã có đánh giá, cập nhật đánh giá cũ
+                serializer = self.get_serializer(existing_rating, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                rating = serializer.save()
+                action = "cập nhật"
+            else:
+                # Nếu chưa có đánh giá, tạo mới
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                rating = serializer.save(user=request.user)
+                action = "đánh giá"
+
+            # Cập nhật rating_score của motel
+            self._update_motel_rating(rating.motel)
+
+            # Thông báo cho chủ nhà khi có đánh giá mới hoặc cập nhật
+            if rating.motel.user != request.user:
+                Notifications.objects.create(
+                    receiver=rating.motel.user,
+                    title="Đánh giá mới",
+                    content=f"{request.user.username} đã {action} nhà trọ {rating.motel.motel_name} của bạn",
+                    notification_type=NotificationType.SYSTEM,
+                    related_object_id=rating.id
+                )
+
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+        except Exception as e:
+            raise ValidationError(f"Lỗi khi tạo/cập nhật đánh giá: {str(e)}")
+
+    def perform_update(self, serializer):
+        rating = serializer.save()
+        # Cập nhật rating_score của motel
+        self._update_motel_rating(rating.motel)
+
+    def perform_destroy(self, instance):
+        motel = instance.motel
+        instance.active = False
+        instance.save() 
+        # Cập nhật rating_score của motel sau khi xóa đánh giá
+        self._update_motel_rating(motel)
 
 
 class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
