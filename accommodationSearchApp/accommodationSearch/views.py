@@ -1128,6 +1128,35 @@ class VNPayViewSet(viewsets.ViewSet):
             # Verify chữ ký để đảm bảo dữ liệu không bị giả mạo
             if vnp.validate_response(settings.VNPAY_HASH_SECRET):
                 if vnp_ResponseCode == "00":  # Thanh toán thành công
+                    try:
+                        # Tìm payment tương ứng với order_id
+                        payment = Payment.objects.get(id=order_id)
+
+                        # Cập nhật trạng thái thanh toán thành COMPLETED
+                        payment.status = PaymentStatus.COMPLETED
+                        payment.save()
+
+                        # Tạo thông báo cho người thanh toán
+                        notification = Notifications.objects.create(
+                            receiver=payment.payer,
+                            title="Thanh toán thành công",
+                            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được xác nhận thành công",
+                            notification_type=NotificationType.PAYMENT,
+                            related_object_id=payment.id
+                        )
+
+                        # Tạo thông báo cho chủ nhà
+                        notification = Notifications.objects.create(
+                            receiver=payment.room.motel.user,
+                            title="Thanh toán thành công",
+                            content=f"Đã nhận thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username}",
+                            notification_type=NotificationType.PAYMENT,
+                            related_object_id=payment.id
+                        )
+
+                    except Payment.DoesNotExist:
+                        logger.error(f"Không tìm thấy payment với order_id: {order_id}")
+
                     return Response({
                         "status": "success",
                         "message": "Thanh toán thành công",
@@ -1142,7 +1171,28 @@ class VNPayViewSet(viewsets.ViewSet):
                             "vnp_PayDate": vnp_PayDate
                         }
                     }, status=status.HTTP_200_OK)
+
                 else:  # Thanh toán thất bại
+                    try:
+                        # Tìm payment tương ứng với order_id
+                        payment = Payment.objects.get(id=order_id)
+
+                        # Cập nhật trạng thái thanh toán thành FAILED
+                        payment.status = PaymentStatus.FAILED
+                        payment.save()
+
+                        # Tạo thông báo cho người thanh toán
+                        notification = Notifications.objects.create(
+                            receiver=payment.payer,
+                            title="Thanh toán thất bại",
+                            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã thất bại",
+                            notification_type=NotificationType.PAYMENT,
+                            related_object_id=payment.id
+                        )
+
+                    except Payment.DoesNotExist:
+                        logger.error(f"Không tìm thấy payment với order_id: {order_id}")
+
                     return Response({
                         "status": "error",
                         "message": "Thanh toán thất bại",
@@ -1964,7 +2014,7 @@ class GoogleAuthView(APIView):
                 idinfo = id_token.verify_oauth2_token(
                     token_id,
                     grequests.Request(),
-                    audience=settings.GOOGLE_CLIENT_ID, # là client ID của app, đảm bảo token đúng ứng dụng.
+                    audience=settings.GOOGLE_CLIENT_ID,  # là client ID của app, đảm bảo token đúng ứng dụng.
                     clock_skew_in_seconds=10  # Cho phép chênh lệch 10 giây
                 )
             except ValueError as e:
