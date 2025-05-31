@@ -215,7 +215,6 @@ class Motel(SlugModel):
             raise ValidationError('Nhà trọ cần có địa chỉ')
 
     def check_verification(self):
-
         try:
             # Kiểm tra số lượng hình ảnh
             active_images_count = self.images.filter(active=True).count()

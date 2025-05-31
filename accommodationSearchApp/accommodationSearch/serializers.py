@@ -81,6 +81,10 @@ class TenantSerializer(ItemSerializer):
 
 
 class MotelSerializer(ItemSerializer):
+    # Kiểm tra người dùng đã like nhà trọ chưa
+    # Nếu bạn đã từng like nhà trọ này → trả về True.
+    # Nếu chưa → trả về False.
+
     def get_liked(self, motel):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
@@ -94,8 +98,8 @@ class MotelSerializer(ItemSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['user'] = UserSerializer(instance.user).data
-        data['like'] = self.get_liked(instance)
-        data['favorite'] = self.get_favorite(instance)
+        data['like'] = self.get_liked(instance) # Thêm trường like vào output.
+        data['favorite'] = self.get_favorite(instance) # Thêm trường favorite vào output.
         return data
 
     class Meta:

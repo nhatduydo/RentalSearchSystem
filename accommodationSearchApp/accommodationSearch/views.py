@@ -746,8 +746,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
-        if self.action == 'create':
-            return [IsAuthenticated()]
         return [AllowAny()]
 
     # Lấy thông tin chi tiết người thuê theo ID, username hoặc slug
@@ -811,6 +809,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             else:
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
+            # Nếu người đang gửi yêu cầu không phải là chủ tài khoản và cũng không phải là admin không được phép cập nhật.
             if request.user != tenant.user and not request.user.is_staff:
                 return Response(
                     {'error': 'Bạn không có quyền cập nhật thông tin này'},
@@ -818,7 +817,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 )
 
             serializer = self.get_serializer(tenant, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
+            serializer.is_valid(raise_exception=True)  # Giúp kiểm tra dữ liệu đầu vào và dừng lại ngay nếu có lỗi, không cần viết thêm code xử lý lỗi thủ công.
             serializer.save()
 
             return Response({
@@ -846,7 +845,9 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 tenant=tenant,
                 active=True
             ).select_related('room', 'room__motel')
-
+            # 'room': lấy luôn thông tin của phòng (Room) gắn với RoomTenant.
+            # 'room__motel': lấy luôn thông tin nhà trọ (Motel) chứa phòng đó.
+            # bạn tối ưu hóa hiệu năng bằng cách dùng JOIN trong SQL để lấy dữ liệu liên kết trong 1 truy vấn duy nhất.
             serializer = serializers.RoomTenantSerializer(room_tenants, many=True)
             return Response(serializer.data)
         except Exception as e:
@@ -865,7 +866,9 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             else:
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
-            payments = Payment.objects.filter(
+                # lọc các thanh toán do người dùng đó thực hiện.
+                #  JOIN luôn bảng Room để tối ưu truy vấn
+                payments = Payment.objects.filter(
                 payer=tenant.user,
                 active=True
             ).select_related('room')
@@ -878,30 +881,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
                 status=status.HTTP_404_NOT_FOUND
             )
-
-    # # Lấy danh sách bài đăng đã lưu
-    # @action(detail=True, methods=['get'], url_path='saved-posts')
-    # def get_saved_posts(self, request, pk=None):
-    #     try:
-    #         if pk.isdigit():
-    #             tenant = get_object_or_404(Tenant, user_id=pk)
-    #         else:
-    #             tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
-
-    #         saved_posts = Post.objects.filter(
-    #             likers=tenant.user,
-    #             active=True
-    #         )
-
-    #         serializer = serializers.PostSerializer(saved_posts, many=True, context={'request': request})
-    #         return Response(serializer.data)
-    #     except Exception as e:
-    #         logger.error(f"Lỗi khi lưu bài viết: {str(e)}")
-    #         return Response(
-    #             {"error": f"Không tìm thấy người thuê với thông tin: {pk}"},
-    #             status=status.HTTP_404_NOT_FOUND
-    #         )
-
 
 class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.filter(active=True)
