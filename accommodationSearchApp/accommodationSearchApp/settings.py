@@ -324,3 +324,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://systemaccommodation.online',
     'https://www.systemaccommodation.online',
 ]
+
+# Maximum upload file size (10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
