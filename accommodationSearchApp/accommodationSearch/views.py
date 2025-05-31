@@ -602,8 +602,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
-        if self.action == 'create':
-            return [IsAuthenticated()]
         return [AllowAny()]
 
     # Lấy thông tin chi tiết chủ nhà theo ID, username hoặc slug

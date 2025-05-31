@@ -126,7 +126,6 @@ class User(AbstractUser):
     avatar = CloudinaryField(null=True)
     email = models.EmailField(unique=True)
     last_login = None
-    fcm_token = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = "User"
@@ -159,11 +158,11 @@ class Landlord(InformationUserModel):
     is_verified = models.BooleanField(default=False)
     slug_source = "full_name"
 
-    def __str__(self): # hiển thị tên đại diện của đối tượng khi in ra hoặc hiển thị trong admin.
+    def __str__(self):  # hiển thị tên đại diện của đối tượng khi in ra hoặc hiển thị trong admin.
         return self.full_name
 
     def email(self):
-        return self.user.email # Trả về địa chỉ email từ đối tượng user liên kết
+        return self.user.email  # Trả về địa chỉ email từ đối tượng user liên kết
 
     class Meta:
         verbose_name = "Chủ nhà trọ"
