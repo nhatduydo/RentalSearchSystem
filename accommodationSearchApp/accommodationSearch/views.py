@@ -63,8 +63,6 @@ class UserViewSet(viewsets.ViewSet,
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
-        if self.action == 'create':
-            return [AllowAny()]
         return [AllowAny()]
 
     @transaction.atomic  # đảm bảo tính toàn vẹn dữ liệu
@@ -73,7 +71,6 @@ class UserViewSet(viewsets.ViewSet,
             user_serializer = serializers.UserSerializer(data=request.data)
             if user_serializer.is_valid():
                 user = user_serializer.save()
-                # user.save()
 
                 profile_data = {
                     'user': user.id,
@@ -93,15 +90,26 @@ class UserViewSet(viewsets.ViewSet,
 
                 if user.role in role_serializers:
                     profile_serializer = role_serializers[user.role](data=profile_data)
+                    if not profile_serializer.is_valid():
+                        return Response({
+                            'error': 'Dữ liệu hồ sơ không hợp lệ',
+                            'details': profile_serializer.errors
+                        }, status=status.HTTP_400_BAD_REQUEST)
                     profile_serializer.save()
                 else:
-                    raise Exception(f"Vai trò không hợp lệ: {user.role}")
+                    raise ValidationError(f"Vai trò không hợp lệ: {user.role}")
 
                 return Response(user_serializer.data, status=status.HTTP_201_CREATED)
-            return Response(user_serializer.errors)
+            return Response({
+                'error': 'Dữ liệu người dùng không hợp lệ',
+                'details': user_serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             transaction.set_rollback(True)
-            return Response({'error': str(e)})
+            return Response({
+                'error': 'Lỗi khi tạo người dùng',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=['GET', 'PATCH'], url_path='current-user', detail=False, permission_classes=[permissions.IsAuthenticated])
     def get_Current_user(self, request):
@@ -123,11 +131,25 @@ class UserViewSet(viewsets.ViewSet,
         new_password = request.data.get("new_password")
         confirm_password = request.data.get("confirm_password")
 
+        if not old_password or not new_password or not confirm_password:
+            return Response({
+                "error": "Vui lòng điền đầy đủ thông tin mật khẩu cũ và mới"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         if not request.user.check_password(old_password):
-            return Response({"error": "Mật khẩu cũ không chính xác"})
+            return Response({
+                "error": "Mật khẩu cũ không chính xác"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         if new_password != confirm_password:
-            return Response({"error", "Mật khẩu mới không khớp"})
+            return Response({
+                "error": "Mật khẩu mới không khớp"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # if len(new_password) < 8:
+        #     return Response({
+        #         "error": "Mật khẩu mới phải có ít nhất 8 ký tự"
+        #     }, status=status.HTTP_400_BAD_REQUEST)
 
         request.user.set_password(new_password)
         request.user.save()
@@ -319,7 +341,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
             if not motel.check_verification():
                 return Response({
-                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh'
+                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh. Cần có ít nhất 3 hình ảnh và địa chỉ đầy đủ'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Xét duyệt nhà trọ
@@ -342,14 +364,14 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         except Exception as e:
             logger.error(f"Lỗi khi xét duyệt nhà trọ: {str(e)}")
             return Response(
-                {'error': str(e)},
+                {'error': 'Có lỗi xảy ra khi xét duyệt nhà trọ'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
 
 class MotelRatingViewSet(viewsets.ModelViewSet):
     queryset = MotelRating.objects.filter(active=True)
-    serializer_class = serializers.MotelRatingSerializer    
+    serializer_class = serializers.MotelRatingSerializer
     pagination_class = paginators.ItemPanigator
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -422,7 +444,7 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         motel = instance.motel
         instance.active = False
-        instance.save() 
+        instance.save()
         # Cập nhật rating_score của motel sau khi xóa đánh giá
         self._update_motel_rating(motel)
 
@@ -658,7 +680,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
 
             # Cập nhật thông tin
             serializer = self.get_serializer(landlord, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
+            serializer.is_valid(raise_exception=True)  # Kiểm tra dữ liệu có hợp lệ không.
             serializer.save()
 
             return Response({
@@ -987,8 +1009,19 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
             'user': request.user.id,
             'content': request.data.get('content')
         }
+
+        if not data['content']:
+            return Response({
+                'error': 'Nội dung bình luận không được để trống'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response({
+                'error': 'Dữ liệu bình luận không hợp lệ',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         comment = serializer.save()
 
         # Thông báo cho chủ bài viết khi có bình luận mới
@@ -1116,7 +1149,16 @@ class VNPayViewSet(viewsets.ViewSet):
             bank_code = data.get('bank_code', '')
             language = data.get('language', 'vn')
 
-            # Lấy IP của client
+            if not order_id or not amount:
+                return Response({
+                    'error': 'Thiếu thông tin đơn hàng hoặc số tiền'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if amount <= 0:
+                return Response({
+                    'error': 'Số tiền thanh toán phải lớn hơn 0'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             ipaddr = self.get_client_ip(request)
 
             # Khởi tạo đối tượng VNPay và set các thông tin cần thiết
@@ -1150,7 +1192,10 @@ class VNPayViewSet(viewsets.ViewSet):
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                'error': 'Lỗi khi tạo thanh toán',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'], url_path='return')
     def payment_return(self, request):
@@ -1911,6 +1956,13 @@ class MotelImageViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.MotelImageSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = MotelImage.objects.filter(active=True)
+
+    def get_queryset(self):
+        queryset = MotelImage.objects.filter(active=True)
+        motel_id = self.request.query_params.get('motel_id', None)
+        if motel_id is not None:
+            queryset = queryset.filter(motel_id=motel_id)
+        return queryset
 
     def create(self, request, *args, **kwargs):
         motel_id = request.data.get('motel')
