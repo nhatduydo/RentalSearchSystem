@@ -1461,7 +1461,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
-        if self.action in ['list', 'create']:
+        if self.action in ['list', 'create', 'update_status']:
             return [permissions.IsAuthenticated()]
         elif self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), IsPaymentOwnerOrMotelOwner()]
