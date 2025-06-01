@@ -449,8 +449,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     @transaction.atomic
     def perform_create(self, serializer):
         motel = serializer.save(user=self.request.user)
-        # Tạo thông báo cho người theo dõi
-        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
 
         # lây danh sách người theo giỏi
         followers = self.request.user.followers.filter(active=True)
@@ -914,7 +912,7 @@ class MotelRatingViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        return MotelRating.objects.filter(active=True, motel_id=self.request.query_params.get('motel_id') ).select_related('user', 'motel')
+        return MotelRating.objects.filter(active=True, motel_id=self.request.query_params.get('motel_id')).select_related('user', 'motel')
 
     def update_motel_rating(self, motel):
         average_result = motel.motel_ratings.filter(active=True).aggregate(avg=Avg('rating'))
@@ -1465,7 +1463,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     def get_permissions(self):
         if self.action in ['list', 'create']:
             return [permissions.IsAuthenticated()]
-        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'update_status']:
+        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), IsPaymentOwnerOrMotelOwner()]
         return [permissions.IsAuthenticated()]
 
