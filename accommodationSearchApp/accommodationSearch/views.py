@@ -188,7 +188,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
         # lây danh sách người theo giỏi
         followers = self.request.user.followers.filter(active=True)
-
         print(f"Số người theo dõi: {followers.count()}")
 
         # với mỗi người theo giỏi, gửi thông báo về
@@ -219,7 +218,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     'longitude': motel.longitude
                 }
 
-                # Gửi email đồng bộ sử dụng asyncio.run()
+                # Gửi email bất đồng bộ sử dụng asyncio.run()
                 asyncio.run(
                     EmailService.send_notification(
                         to_email=follower.follower_user.email,
@@ -314,7 +313,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             favorite.active = not favorite.active
         favorite.save()
 
-        # Thông báo cho chủ nhà khi có người thêm/xóa khỏi yêu thích
+        # Thông báo cho chủ nhà khi có người thêm yêu thích
         if favorite.active:
             Notifications.objects.create(
                 receiver=motel.user,
@@ -328,7 +327,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
     @action(methods=['PATCH'], detail=True, url_path='verify')
     def verify(self, request, pk=None):
-        if request.user.role != 'ADMIN':
+        if request.user.role != UserRole.ADMIN:
             return Response({
                 'error': 'Chỉ admin mới có quyền xác minh nhà trọ'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -455,10 +454,8 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
-        if self.action in ['update', 'partial_update', 'destroy']:
+        if self.action in ['create','update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
-        if self.action == 'create':
-            return [IsAuthenticated()]
         return [AllowAny()]
 
     def retrieve(self, request, pk=None):

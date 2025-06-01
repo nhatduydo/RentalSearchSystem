@@ -57,3 +57,4 @@ htmlcov/
 /.history
 accommodationSearchApp/accommodationSearchApp/settingForPythonAnyWhere.py
 accommodationSearchApp/accommodationSearchApp/wsgiForPythonanywhere.py
+test_socket_native.js
