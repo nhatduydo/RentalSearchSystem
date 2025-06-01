@@ -1265,6 +1265,15 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
         except Follow.DoesNotExist:
             return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=False, methods=['get'], url_path='followers')
+    def followers(self, request):
+        """
+        Lấy danh sách những người đang follow bạn
+        """
+        followers = request.user.followers.filter(active=True).select_related('follower_user').order_by('-created_date')
+        serializer = self.get_serializer(followers, many=True)
+        return Response(serializer.data)
+
 
 class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
     queryset = Notifications.objects.filter(active=True)
