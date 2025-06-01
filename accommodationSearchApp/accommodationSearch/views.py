@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
 
-
 class UserViewSet(viewsets.ViewSet,
                   generics.ListAPIView,
                   generics.RetrieveAPIView,
@@ -164,452 +163,6 @@ class UserViewSet(viewsets.ViewSet,
 
         serializers = self.get_serializer(username)
         return Response(serializers.data)
-
-
-class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Motel.objects.filter(active=True)
-    serializer_class = serializers.MotelSerializer
-    pagination_class = paginators.ItemPanigator
-
-    def get_permissions(self):
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        if self.action == 'create':
-            return [IsAuthenticated()]
-        if self.action == 'verify':
-            return [IsAdminUser()]
-        return [AllowAny()]
-
-    @transaction.atomic
-    def perform_create(self, serializer):
-        motel = serializer.save(user=self.request.user)
-        # Tạo thông báo cho người theo dõi
-        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
-
-        # lây danh sách người theo giỏi
-        followers = self.request.user.followers.filter(active=True)
-        print(f"Số người theo dõi: {followers.count()}")
-
-        # với mỗi người theo giỏi, gửi thông báo về
-        for follower in followers:
-            print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
-            # Tạo thông báo trong database
-            Notifications.objects.create(
-                receiver=follower.follower_user,
-                title="Nhà trọ mới",
-                content=f"{self.request.user.username} vừa đăng một nhà trọ mới: {motel.motel_name}",
-                notification_type=NotificationType.MOTEL_UPDATE,
-                related_object_id=motel.id
-            )
-
-            # Gửi email thông báo
-            try:
-                email_data = {
-                    'name': follower.follower_user.username,
-                    'title': motel.motel_name,
-                    'address': motel.address,
-                    'district': motel.district,
-                    'city': motel.city,
-                    'province': motel.province,
-                    'description': motel.description,
-                    'total_rooms': motel.total_rooms,
-                    'available_rooms': motel.available_rooms,
-                    'latitude': motel.latitude,
-                    'longitude': motel.longitude
-                }
-
-                # Gửi email bất đồng bộ sử dụng asyncio.run()
-                asyncio.run(
-                    EmailService.send_notification(
-                        to_email=follower.follower_user.email,
-                        data=email_data,
-                        notification_type=NotificationType.NEW_MOTEL
-                    )
-                )
-                print(f"Đã gửi email thông báo đến: {follower.follower_user.email}")
-            except Exception as e:
-                print(f"Lỗi khi gửi email đến {follower.follower_user.email}: {str(e)}")
-
-    @transaction.atomic
-    def perform_update(self, serializer):
-        motel = serializer.save()
-        # Notify followers about the update
-        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
-        followers = self.request.user.followers.filter(active=True)
-        print(f"Số người theo dõi: {followers.count()}")
-
-        for follow in followers:
-            print(f"Đang gửi thông báo cập nhật cho: {follow.follower_user.email}")
-            Notifications.objects.create(
-                receiver=follow.follower_user,
-                title="Cập nhật nhà trọ",
-                content=f"{self.request.user.username} vừa cập nhật thông tin nhà trọ: {motel.motel_name}",
-                notification_type=NotificationType.MOTEL_UPDATE,
-                related_object_id=motel.id
-            )
-
-            try:
-                email_data = {
-                    'name': follow.follower_user.username,
-                    'title': motel.motel_name,
-                    'address': motel.address,
-                    'district': motel.district,
-                    'city': motel.city,
-                    'province': motel.province,
-                    'description': motel.description,
-                    'total_rooms': motel.total_rooms,
-                    'available_rooms': motel.available_rooms,
-                    'latitude': motel.latitude,
-                    'longitude': motel.longitude
-                }
-
-                # Gửi email bất đồng bộ sử dụng asyncio.run()
-                asyncio.run(
-                    EmailService.send_notification(
-                        to_email=follow.follower_user.email,
-                        data=email_data,
-                        notification_type=NotificationType.MOTEL_UPDATE
-                    )
-                )
-                print(f"Đã gửi email thông báo cập nhật đến: {follow.follower_user.email}")
-            except Exception as e:
-                print(f"Lỗi khi gửi email cập nhật đến {follow.follower_user.email}: {str(e)}")
-
-    # Lấy thông tin chi tiết nhà trọ theo ID hoặc slug
-    def retrieve(self, request, pk=None):
-        if pk.isdigit():
-            motel = get_object_or_404(Motel, id=pk)
-        else:
-            motel = get_object_or_404(Motel, slug=pk)
-
-        serializers = self.get_serializer(motel)
-        return Response(serializers.data)
-
-    # like (thích) một phòng trọ
-    @action(methods=['POST'], detail=True, url_path='like')
-    def like_motel(self, request, pk):
-        motel = self.get_object()
-        like, created = LikeMotel.objects.get_or_create(user=request.user, motel=motel)
-        if not created:
-            like.active = not like.active
-        like.save()
-
-        # Thông báo cho chủ nhà khi có người like nhà trọ
-        if like.active:
-            Notifications.objects.create(
-                receiver=motel.user,
-                title="Nhà trọ được yêu thích",
-                content=f"{request.user.username} đã thích nhà trọ {motel.motel_name} của bạn",
-                notification_type=NotificationType.MOTEL_LIKE,
-                related_object_id=motel.id
-            )
-        return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
-
-    @action(methods=['POST'], detail=True, url_path='favorite')
-    def favorite_motel(self, request, pk):
-        motel = self.get_object()
-        favorite, created = Favorite.objects.get_or_create(user=request.user, motel=motel)
-        if not created:
-            favorite.active = not favorite.active
-        favorite.save()
-
-        # Thông báo cho chủ nhà khi có người thêm yêu thích
-        if favorite.active:
-            Notifications.objects.create(
-                receiver=motel.user,
-                title="Nhà trọ được yêu thích",
-                content=f"{request.user.username} đã thêm nhà trọ {motel.motel_name} vào danh sách yêu thích",
-                notification_type=NotificationType.MOTEL_LIKE,
-                related_object_id=motel.id
-            )
-
-        return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
-
-    @action(methods=['PATCH'], detail=True, url_path='verify')
-    def verify(self, request, pk=None):
-        if request.user.role != UserRole.ADMIN:
-            return Response({
-                'error': 'Chỉ admin mới có quyền xác minh nhà trọ'
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        try:
-            if pk.isdigit():
-                motel = get_object_or_404(Motel, id=pk)
-            else:
-                motel = get_object_or_404(Motel, slug=pk)
-
-            if not motel.check_verification():
-                return Response({
-                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh. Cần có ít nhất 3 hình ảnh và địa chỉ đầy đủ'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Xét duyệt nhà trọ
-            motel.is_verified = True
-            motel.save()
-
-            Notifications.objects.create(
-                receiver=motel.user,
-                title="Nhà trọ đã được xét duyệt",
-                content=f"Nhà trọ {motel.motel_name} của bạn đã được xét duyệt thành công",
-                notification_type=NotificationType.VERIFICATION_SUCCESS,
-                related_object_id=motel.id
-            )
-
-            return Response({
-                'motel': self.get_serializer(motel).data,
-                'message': 'Xét duyệt nhà trọ thành công'
-            })
-
-        except Exception as e:
-            logger.error(f"Lỗi khi xét duyệt nhà trọ: {str(e)}")
-            return Response(
-                {'error': 'Có lỗi xảy ra khi xét duyệt nhà trọ'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-
-class MotelRatingViewSet(viewsets.ModelViewSet):
-    queryset = MotelRating.objects.filter(active=True)
-    serializer_class = serializers.MotelRatingSerializer
-    pagination_class = paginators.ItemPanigator
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
-    # Lấy danh sách đánh giá theo ID nhà trọ
-    def get_queryset(self):
-        queryset = self.queryset
-        motel_id = self.request.query_params.get('motel_id')
-        if motel_id:
-            queryset = queryset.filter(motel_id=motel_id)
-        return queryset.select_related('user', 'motel')
-
-    def _update_motel_rating(self, motel):
-        """Helper method to update motel's rating_score"""
-        # Lấy tất cả đánh giá active của motel
-        ratings = MotelRating.objects.filter(motel=motel, active=True)
-        if ratings.exists():
-            # Tính trung bình rating
-            avg_rating = ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
-            motel.rating_score = round(avg_rating, 1)  # Làm tròn đến 1 chữ số thập phân
-        else:
-            motel.rating_score = 0
-        motel.save()
-
-    # Tạo đánh giá mới và gán người dùng hiện tại
-    def create(self, request, *args, **kwargs):
-        try:
-            # Kiểm tra xem người dùng đã đánh giá nhà trọ này chưa
-            existing_rating = MotelRating.objects.filter(
-                motel_id=request.data.get('motel'),
-                user=request.user
-            ).first()
-
-            if existing_rating:
-                # Nếu đã có đánh giá, cập nhật đánh giá cũ
-                serializer = self.get_serializer(existing_rating, data=request.data, partial=True)
-                serializer.is_valid(raise_exception=True)
-                rating = serializer.save()
-                action = "cập nhật"
-            else:
-                # Nếu chưa có đánh giá, tạo mới
-                serializer = self.get_serializer(data=request.data)
-                serializer.is_valid(raise_exception=True)
-                rating = serializer.save(user=request.user)
-                action = "đánh giá"
-
-            # Cập nhật rating_score của motel
-            self._update_motel_rating(rating.motel)
-
-            # Thông báo cho chủ nhà khi có đánh giá mới hoặc cập nhật
-            if rating.motel.user != request.user:
-                Notifications.objects.create(
-                    receiver=rating.motel.user,
-                    title="Đánh giá mới",
-                    content=f"{request.user.username} đã {action} nhà trọ {rating.motel.motel_name} của bạn",
-                    notification_type=NotificationType.SYSTEM,
-                    related_object_id=rating.id
-                )
-
-            headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-        except Exception as e:
-            raise ValidationError(f"Lỗi khi tạo/cập nhật đánh giá: {str(e)}")
-
-    def perform_update(self, serializer):
-        rating = serializer.save()
-        # Cập nhật rating_score của motel
-        self._update_motel_rating(rating.motel)
-
-    def perform_destroy(self, instance):
-        motel = instance.motel
-        instance.active = False
-        instance.save()
-        # Cập nhật rating_score của motel sau khi xóa đánh giá
-        self._update_motel_rating(motel)
-
-
-class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Room.objects.filter(active=True)
-    serializer_class = serializers.RoomSerializer
-    pagination_class = paginators.ItemPanigator
-
-    def get_permissions(self):
-        if self.action in ['create','update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        return [AllowAny()]
-
-    def retrieve(self, request, pk=None):
-        if pk.isdigit():
-            room = get_object_or_404(Room, id=pk)
-        else:
-            room = get_object_or_404(Room, slug=pk)
-        serializer = self.get_serializer(room)
-        return Response(serializer.data)
-
-    def get_queryset(self):
-        query = self.queryset
-        if self.action == 'list':
-            motel_identifier = self.request.query_params.get('motel_id')
-            if motel_identifier:
-                if motel_identifier.isdigit():
-                    query = query.filter(motel_id=motel_identifier)
-                else:
-                    query = query.filter(motel__slug=motel_identifier)
-
-            filters = {}
-            room_name = self.request.query_params.get('room_name')
-            if room_name:
-                filters['room_name__icontains'] = room_name
-            min_price = self.request.query_params.get('min_price')
-            if min_price:
-                filters['price__gte'] = min_price
-            max_price = self.request.query_params.get('max_price')
-            if max_price:
-                filters['price__lte'] = max_price
-            min_area = self.request.query_params.get('min_area')
-            if min_area:
-                filters['area__gte'] = min_area
-            max_area = self.request.query_params.get('max_area')
-            if max_area:
-                filters['area__lte'] = max_area
-            max_people = self.request.query_params.get('max_people')
-            if max_people:
-                filters['max_people__gte'] = max_people
-            if filters:
-                query = query.filter(**filters)
-        return query
-
-
-class RoomTenantViewSet(viewsets.ModelViewSet):
-    serializer_class = serializers.RoomTenantSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_permissions(self):
-        if self.action in ['accept_request', 'reject_request']:
-            return [IsLandlordOfRoom()]  # Chỉ chủ trọ mới được accept/reject
-        elif self.action == 'cancel_contract':
-            # Cho phép admin, chủ trọ hoặc người thuê cancel contract
-            if self.request.user.role == UserRole.ADMIN:
-                return [IsAdmin()]
-            return [IsLandlordOrTenant()]
-        return [IsAuthenticated()]
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return RoomTenant.objects.none()
-
-        user = self.request.user
-        queryset = RoomTenant.objects.select_related(
-            'room__motel__user',  # Lấy thông tin user của motel
-            'tenant__user'        # Lấy thông tin user của tenant
-        )
-
-        if user.role == UserRole.ADMIN:
-            return queryset
-        elif user.role == UserRole.LANDLORD:
-            return queryset.filter(room__motel__user=user)
-        elif user.role == UserRole.TENANT:
-            return queryset.filter(tenant__user=user)
-        return RoomTenant.objects.none()
-
-    def perform_create(self, serializer):
-        tenant = Tenant.objects.get(user=self.request.user)
-        room_tenant = serializer.save(tenant=tenant, status=RoomTenantStatus.PENDING)
-        Notifications.objects.create(
-            receiver=room_tenant.room.motel.user,
-            title="Yêu cầu thuê phòng",
-            content=f"Có yêu cầu thuê phòng mới từ {tenant.full_name}",
-            notification_type=NotificationType.SYSTEM,
-            related_object_id=str(room_tenant.id)
-        )
-
-    @action(detail=True, methods=['post'], url_path='accept-request')
-    def accept_request(self, request, pk=None):
-        room_tenant = self.get_object()
-        if room_tenant.status != RoomTenantStatus.PENDING:
-            return Response({"error": "Chỉ có thể chấp nhận yêu cầu đang ở trạng thái PENDING"},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        room_tenant.status = RoomTenantStatus.ACTIVE
-        room_tenant.save()
-
-        Notifications.objects.create(
-            receiver=room_tenant.tenant.user,
-            title="Yêu cầu được chấp nhận",
-            content="Yêu cầu thuê phòng của bạn đã được chấp nhận",
-            notification_type=NotificationType.SYSTEM,
-            related_object_id=str(room_tenant.id)
-        )
-        return Response(serializers.RoomTenantSerializer(room_tenant).data)
-
-    @action(detail=True, methods=['post'], url_path='reject-request')
-    def reject_request(self, request, pk=None):
-        room_tenant = self.get_object()
-        if room_tenant.status != RoomTenantStatus.PENDING:
-            return Response({"error": "Chỉ có thể từ chối yêu cầu đang ở trạng thái PENDING"},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        room_tenant.status = RoomTenantStatus.CANCELLED
-        room_tenant.save()
-
-        Notifications.objects.create(
-            receiver=room_tenant.tenant.user,
-            title="Yêu cầu bị từ chối",
-            content="Yêu cầu thuê phòng của bạn đã bị từ chối",
-            notification_type=NotificationType.SYSTEM,
-            related_object_id=str(room_tenant.id)
-        )
-        return Response(serializers.RoomTenantSerializer(room_tenant).data)
-
-    @action(detail=True, methods=['post'], url_path='cancel-contract')
-    def cancel_contract(self, request, pk=None):
-        room_tenant = self.get_object()
-        if room_tenant.status != RoomTenantStatus.ACTIVE:
-            return Response({"error": "Chỉ có thể hủy hợp đồng đang ở trạng thái ACTIVE"},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        room_tenant.status = RoomTenantStatus.CANCELLED
-        room_tenant.save()
-
-        # Thông báo cho bên còn lại dựa vào người thực hiện
-        if request.user.role == UserRole.ADMIN:
-            receiver = room_tenant.tenant.user
-            content = "Hợp đồng của bạn đã bị hủy bởi admin"
-        elif request.user == room_tenant.tenant.user:
-            receiver = room_tenant.room.motel.user
-            content = f"Hợp đồng với {room_tenant.tenant.full_name} đã bị hủy"
-        else:  # landlord
-            receiver = room_tenant.tenant.user
-            content = "Hợp đồng của bạn đã bị hủy bởi chủ trọ"
-
-        Notifications.objects.create(
-            receiver=receiver,
-            title="Hợp đồng bị hủy",
-            content=content,
-            notification_type=NotificationType.SYSTEM,
-            related_object_id=str(room_tenant.id)
-        )
-        return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
 
 class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.UpdateAPIView):
@@ -879,6 +432,571 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 status=status.HTTP_404_NOT_FOUND
             )
 
+
+class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    queryset = Motel.objects.filter(active=True)
+    serializer_class = serializers.MotelSerializer
+    pagination_class = paginators.ItemPanigator
+
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        if self.action == 'create':
+            return [IsAuthenticated()]
+        if self.action == 'verify':
+            return [IsAdminUser()]
+        return [AllowAny()]
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        motel = serializer.save(user=self.request.user)
+        # Tạo thông báo cho người theo dõi
+        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+
+        # lây danh sách người theo giỏi
+        followers = self.request.user.followers.filter(active=True)
+        print(f"Số người theo dõi: {followers.count()}")
+
+        # với mỗi người theo giỏi, gửi thông báo về
+        for follower in followers:
+            print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
+            # Tạo thông báo trong database
+            Notifications.objects.create(
+                receiver=follower.follower_user,
+                title="Nhà trọ mới",
+                content=f"{self.request.user.username} vừa đăng một nhà trọ mới: {motel.motel_name}",
+                notification_type=NotificationType.MOTEL_UPDATE,
+                related_object_id=motel.id
+            )
+
+            # Gửi email thông báo
+            try:
+                email_data = {
+                    'name': follower.follower_user.username,
+                    'title': motel.motel_name,
+                    'address': motel.address,
+                    'district': motel.district,
+                    'city': motel.city,
+                    'province': motel.province,
+                    'description': motel.description,
+                    'total_rooms': motel.total_rooms,
+                    'available_rooms': motel.available_rooms,
+                    'latitude': motel.latitude,
+                    'longitude': motel.longitude
+                }
+
+                # Gửi email bất đồng bộ sử dụng asyncio.run()
+                asyncio.run(
+                    EmailService.send_notification(
+                        to_email=follower.follower_user.email,
+                        data=email_data,
+                        notification_type=NotificationType.NEW_MOTEL
+                    )
+                )
+                print(f"Đã gửi email thông báo đến: {follower.follower_user.email}")
+            except Exception as e:
+                print(f"Lỗi khi gửi email đến {follower.follower_user.email}: {str(e)}")
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        motel = serializer.save()
+        # Notify followers about the update
+        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
+        followers = self.request.user.followers.filter(active=True)
+        print(f"Số người theo dõi: {followers.count()}")
+
+        for follow in followers:
+            print(f"Đang gửi thông báo cập nhật cho: {follow.follower_user.email}")
+            Notifications.objects.create(
+                receiver=follow.follower_user,
+                title="Cập nhật nhà trọ",
+                content=f"{self.request.user.username} vừa cập nhật thông tin nhà trọ: {motel.motel_name}",
+                notification_type=NotificationType.MOTEL_UPDATE,
+                related_object_id=motel.id
+            )
+
+            try:
+                email_data = {
+                    'name': follow.follower_user.username,
+                    'title': motel.motel_name,
+                    'address': motel.address,
+                    'district': motel.district,
+                    'city': motel.city,
+                    'province': motel.province,
+                    'description': motel.description,
+                    'total_rooms': motel.total_rooms,
+                    'available_rooms': motel.available_rooms,
+                    'latitude': motel.latitude,
+                    'longitude': motel.longitude
+                }
+
+                # Gửi email bất đồng bộ sử dụng asyncio.run()
+                asyncio.run(
+                    EmailService.send_notification(
+                        to_email=follow.follower_user.email,
+                        data=email_data,
+                        notification_type=NotificationType.MOTEL_UPDATE
+                    )
+                )
+                print(f"Đã gửi email thông báo cập nhật đến: {follow.follower_user.email}")
+            except Exception as e:
+                print(f"Lỗi khi gửi email cập nhật đến {follow.follower_user.email}: {str(e)}")
+
+    # Lấy thông tin chi tiết nhà trọ theo ID hoặc slug
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            motel = get_object_or_404(Motel, id=pk)
+        else:
+            motel = get_object_or_404(Motel, slug=pk)
+
+        serializers = self.get_serializer(motel)
+        return Response(serializers.data)
+
+    # like (thích) một phòng trọ
+    @action(methods=['POST'], detail=True, url_path='like')
+    def like_motel(self, request, pk):
+        motel = self.get_object()
+        like, created = LikeMotel.objects.get_or_create(user=request.user, motel=motel)
+        if not created:
+            like.active = not like.active
+        like.save()
+
+        # Thông báo cho chủ nhà khi có người like nhà trọ
+        if like.active:
+            Notifications.objects.create(
+                receiver=motel.user,
+                title="Nhà trọ được yêu thích",
+                content=f"{request.user.username} đã thích nhà trọ {motel.motel_name} của bạn",
+                notification_type=NotificationType.MOTEL_LIKE,
+                related_object_id=motel.id
+            )
+        return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
+
+    @action(methods=['POST'], detail=True, url_path='favorite')
+    def favorite_motel(self, request, pk):
+        motel = self.get_object()
+        favorite, created = Favorite.objects.get_or_create(user=request.user, motel=motel)
+        if not created:
+            favorite.active = not favorite.active
+        favorite.save()
+
+        # Thông báo cho chủ nhà khi có người thêm yêu thích
+        if favorite.active:
+            Notifications.objects.create(
+                receiver=motel.user,
+                title="Nhà trọ được yêu thích",
+                content=f"{request.user.username} đã thêm nhà trọ {motel.motel_name} vào danh sách yêu thích",
+                notification_type=NotificationType.MOTEL_LIKE,
+                related_object_id=motel.id
+            )
+
+        return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
+
+    @action(methods=['PATCH'], detail=True, url_path='verify')
+    def verify(self, request, pk=None):
+        if request.user.role != UserRole.ADMIN:
+            return Response({
+                'error': 'Chỉ admin mới có quyền xác minh nhà trọ'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            if pk.isdigit():
+                motel = get_object_or_404(Motel, id=pk)
+            else:
+                motel = get_object_or_404(Motel, slug=pk)
+
+            if not motel.check_verification():
+                return Response({
+                    'error': 'Nhà trọ chưa đủ điều kiện để xác minh. Cần có ít nhất 3 hình ảnh và địa chỉ đầy đủ'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Xét duyệt nhà trọ
+            motel.is_verified = True
+            motel.save()
+
+            Notifications.objects.create(
+                receiver=motel.user,
+                title="Nhà trọ đã được xét duyệt",
+                content=f"Nhà trọ {motel.motel_name} của bạn đã được xét duyệt thành công",
+                notification_type=NotificationType.VERIFICATION_SUCCESS,
+                related_object_id=motel.id
+            )
+
+            return Response({
+                'motel': self.get_serializer(motel).data,
+                'message': 'Xét duyệt nhà trọ thành công'
+            })
+
+        except Exception as e:
+            logger.error(f"Lỗi khi xét duyệt nhà trọ: {str(e)}")
+            return Response(
+                {'error': 'Có lỗi xảy ra khi xét duyệt nhà trọ'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    queryset = Room.objects.filter(active=True)
+    serializer_class = serializers.RoomSerializer
+    pagination_class = paginators.ItemPanigator
+
+    def get_permissions(self):
+        if self.action in ['create','update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        return [AllowAny()]
+
+    def retrieve(self, request, pk=None):
+        if pk.isdigit():
+            room = get_object_or_404(Room, id=pk)
+        else:
+            room = get_object_or_404(Room, slug=pk)
+        serializer = self.get_serializer(room)
+        return Response(serializer.data)
+
+    def get_queryset(self):
+        query = self.queryset
+        if self.action == 'list':
+            motel_identifier = self.request.query_params.get('motel_id')
+            if motel_identifier:
+                if motel_identifier.isdigit():
+                    query = query.filter(motel_id=motel_identifier)
+                else:
+                    query = query.filter(motel__slug=motel_identifier)
+
+            filters = {}
+            room_name = self.request.query_params.get('room_name')
+            if room_name:
+                filters['room_name__icontains'] = room_name
+            min_price = self.request.query_params.get('min_price')
+            if min_price:
+                filters['price__gte'] = min_price
+            max_price = self.request.query_params.get('max_price')
+            if max_price:
+                filters['price__lte'] = max_price
+            min_area = self.request.query_params.get('min_area')
+            if min_area:
+                filters['area__gte'] = min_area
+            max_area = self.request.query_params.get('max_area')
+            if max_area:
+                filters['area__lte'] = max_area
+            max_people = self.request.query_params.get('max_people')
+            if max_people:
+                filters['max_people__gte'] = max_people
+            if filters:
+                query = query.filter(**filters)
+        return query
+
+
+class AmenityViewSet(viewsets.ModelViewSet):
+    queryset = Amenity.objects.filter(active=True)
+    serializer_class = serializers.AmenitySerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        return [AllowAny()]
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class MotelImageViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.MotelImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = MotelImage.objects.filter(active=True)
+
+    def get_queryset(self):
+        queryset = MotelImage.objects.filter(active=True)
+        motel_id = self.request.query_params.get('motel_id', None)
+        if motel_id is not None:
+            queryset = queryset.filter(motel_id=motel_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        motel_id = request.data.get('motel')
+        if not motel_id:
+            return Response({"error": "Cần ID nhà trọ"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            motel = Motel.objects.get(pk=motel_id)
+            if motel.user != request.user:
+                return Response({"error": "Không có quyền"}, status=status.HTTP_403_FORBIDDEN)
+        except Motel.DoesNotExist:
+            return Response({"error": "Không tìm thấy nhà trọ"}, status=status.HTTP_404_NOT_FOUND)
+
+        images = request.FILES.getlist('image_url')
+        if not images:
+            return Response({"error": "Chưa chọn ảnh"}, status=status.HTTP_400_BAD_REQUEST)
+
+        created_images = []
+        for image in images:
+            motel_image = MotelImage.objects.create(
+                motel=motel,
+                image_url=image,
+                image_type=request.data.get('image_type', 'INSIDE')
+            )
+            created_images.append(motel_image)
+
+        serializer = self.get_serializer(created_images, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class RoomImageViewSet(viewsets.ModelViewSet):
+    queryset = RoomImage.objects.filter(active=True)
+    serializer_class = serializers.RoomImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        return [permissions.AllowAny()]
+
+    def get_queryset(self):
+        queryset = RoomImage.objects.filter(active=True)
+        room_id = self.request.query_params.get('room_id', None)
+        if room_id is not None:
+            queryset = queryset.filter(room_id=room_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        room_id = request.data.get('room')
+        if not room_id:
+            return Response({'error': 'Cần ID phòng'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            room = Room.objects.get(id=room_id)
+            if request.user != room.motel.user and not request.user.is_staff:
+                return Response({'error': 'Không có quyền'}, status=status.HTTP_403_FORBIDDEN)
+
+            images = request.FILES.getlist('image_url')
+            if not images:
+                return Response({'error': 'Chưa chọn ảnh'}, status=status.HTTP_400_BAD_REQUEST)
+
+            created_images = []
+            for image in images:
+                room_image = RoomImage.objects.create(
+                    room=room,
+                    image_url=image
+                )
+                created_images.append(room_image)
+
+            serializer = self.get_serializer(created_images, many=True)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Room.DoesNotExist:
+            return Response({'error': 'Không tìm thấy phòng'}, status=status.HTTP_404_NOT_FOUND)
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+
+class RoomTenantViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.RoomTenantSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['accept_request', 'reject_request']:
+            return [IsLandlordOfRoom()]  # Chỉ chủ trọ mới được accept/reject
+        elif self.action == 'cancel_contract':
+            # Cho phép admin, chủ trọ hoặc người thuê cancel contract
+            if self.request.user.role == UserRole.ADMIN:
+                return [IsAdmin()]
+            return [IsLandlordOrTenant()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return RoomTenant.objects.none()
+
+        user = self.request.user
+        queryset = RoomTenant.objects.select_related(
+            'room__motel__user',  # Lấy thông tin user của motel
+            'tenant__user'        # Lấy thông tin user của tenant
+        )
+
+        if user.role == UserRole.ADMIN:
+            return queryset
+        elif user.role == UserRole.LANDLORD:
+            return queryset.filter(room__motel__user=user)
+        elif user.role == UserRole.TENANT:
+            return queryset.filter(tenant__user=user)
+        return RoomTenant.objects.none()
+
+    def perform_create(self, serializer):
+        tenant = Tenant.objects.get(user=self.request.user)
+        room_tenant = serializer.save(tenant=tenant, status=RoomTenantStatus.PENDING)
+        Notifications.objects.create(
+            receiver=room_tenant.room.motel.user,
+            title="Yêu cầu thuê phòng",
+            content=f"Có yêu cầu thuê phòng mới từ {tenant.full_name}",
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
+        )
+
+    @action(detail=True, methods=['post'], url_path='accept-request')
+    def accept_request(self, request, pk=None):
+        room_tenant = self.get_object()
+        if room_tenant.status != RoomTenantStatus.PENDING:
+            return Response({"error": "Chỉ có thể chấp nhận yêu cầu đang ở trạng thái PENDING"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        room_tenant.status = RoomTenantStatus.ACTIVE
+        room_tenant.save()
+
+        Notifications.objects.create(
+            receiver=room_tenant.tenant.user,
+            title="Yêu cầu được chấp nhận",
+            content="Yêu cầu thuê phòng của bạn đã được chấp nhận",
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
+        )
+        return Response(serializers.RoomTenantSerializer(room_tenant).data)
+
+    @action(detail=True, methods=['post'], url_path='reject-request')
+    def reject_request(self, request, pk=None):
+        room_tenant = self.get_object()
+        if room_tenant.status != RoomTenantStatus.PENDING:
+            return Response({"error": "Chỉ có thể từ chối yêu cầu đang ở trạng thái PENDING"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        room_tenant.status = RoomTenantStatus.CANCELLED
+        room_tenant.save()
+
+        Notifications.objects.create(
+            receiver=room_tenant.tenant.user,
+            title="Yêu cầu bị từ chối",
+            content="Yêu cầu thuê phòng của bạn đã bị từ chối",
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
+        )
+        return Response(serializers.RoomTenantSerializer(room_tenant).data)
+
+    @action(detail=True, methods=['post'], url_path='cancel-contract')
+    def cancel_contract(self, request, pk=None):
+        room_tenant = self.get_object()
+        if room_tenant.status != RoomTenantStatus.ACTIVE:
+            return Response({"error": "Chỉ có thể hủy hợp đồng đang ở trạng thái ACTIVE"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        room_tenant.status = RoomTenantStatus.CANCELLED
+        room_tenant.save()
+
+        # Thông báo cho bên còn lại dựa vào người thực hiện
+        if request.user.role == UserRole.ADMIN:
+            receiver = room_tenant.tenant.user
+            content = "Hợp đồng của bạn đã bị hủy bởi admin"
+        elif request.user == room_tenant.tenant.user:
+            receiver = room_tenant.room.motel.user
+            content = f"Hợp đồng với {room_tenant.tenant.full_name} đã bị hủy"
+        else:  # landlord
+            receiver = room_tenant.tenant.user
+            content = "Hợp đồng của bạn đã bị hủy bởi chủ trọ"
+
+        Notifications.objects.create(
+            receiver=receiver,
+            title="Hợp đồng bị hủy",
+            content=content,
+            notification_type=NotificationType.SYSTEM,
+            related_object_id=str(room_tenant.id)
+        )
+        return Response(serializers.RoomTenantSerializer(room_tenant).data)
+
+
+class MotelRatingViewSet(viewsets.ModelViewSet):
+    queryset = MotelRating.objects.filter(active=True)
+    serializer_class = serializers.MotelRatingSerializer
+    pagination_class = paginators.ItemPanigator
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    # Lấy danh sách đánh giá theo ID nhà trọ
+    def get_queryset(self):
+        queryset = self.queryset
+        motel_id = self.request.query_params.get('motel_id')
+        if motel_id:
+            queryset = queryset.filter(motel_id=motel_id)
+        return queryset.select_related('user', 'motel')
+
+    def _update_motel_rating(self, motel):
+        """Helper method to update motel's rating_score"""
+        # Lấy tất cả đánh giá active của motel
+        ratings = MotelRating.objects.filter(motel=motel, active=True)
+        if ratings.exists():
+            # Tính trung bình rating
+            avg_rating = ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
+            motel.rating_score = round(avg_rating, 1)  # Làm tròn đến 1 chữ số thập phân
+        else:
+            motel.rating_score = 0
+        motel.save()
+
+    # Tạo đánh giá mới và gán người dùng hiện tại
+    def create(self, request, *args, **kwargs):
+        try:
+            # Kiểm tra xem người dùng đã đánh giá nhà trọ này chưa
+            existing_rating = MotelRating.objects.filter(
+                motel_id=request.data.get('motel'),
+                user=request.user
+            ).first()
+
+            if existing_rating:
+                # Nếu đã có đánh giá, cập nhật đánh giá cũ
+                serializer = self.get_serializer(existing_rating, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                rating = serializer.save()
+                action = "cập nhật"
+            else:
+                # Nếu chưa có đánh giá, tạo mới
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                rating = serializer.save(user=request.user)
+                action = "đánh giá"
+
+            # Cập nhật rating_score của motel
+            self._update_motel_rating(rating.motel)
+
+            # Thông báo cho chủ nhà khi có đánh giá mới hoặc cập nhật
+            if rating.motel.user != request.user:
+                Notifications.objects.create(
+                    receiver=rating.motel.user,
+                    title="Đánh giá mới",
+                    content=f"{request.user.username} đã {action} nhà trọ {rating.motel.motel_name} của bạn",
+                    notification_type=NotificationType.SYSTEM,
+                    related_object_id=rating.id
+                )
+
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+        except Exception as e:
+            raise ValidationError(f"Lỗi khi tạo/cập nhật đánh giá: {str(e)}")
+
+    def perform_update(self, serializer):
+        rating = serializer.save()
+        # Cập nhật rating_score của motel
+        self._update_motel_rating(rating.motel)
+
+    def perform_destroy(self, instance):
+        motel = instance.motel
+        instance.active = False
+        instance.save()
+        # Cập nhật rating_score của motel sau khi xóa đánh giá
+        self._update_motel_rating(motel)
+
+
+class FavoriteViewSet(viewsets.ViewSet, generics.ListAPIView):
+    serializer_class = serializers.FavoriteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        return self.request.user.favorites.filter(active=True)
+
+
 class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.filter(active=True)
     serializer_class = serializers.PostSerializer
@@ -1074,6 +1192,653 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
             )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class SearchHistoryViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.SearchHistorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return SearchHistory.objects.none()
+        return SearchHistory.objects.filter(
+            user=self.request.user,
+            active=True
+        ).order_by('-created_date')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.active = False
+        instance.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.FollowSerializer
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return Follow.objects.none()
+        return Follow.objects.filter(follower_user=self.request.user, active=True).select_related('followed_user').order_by('-created_date')
+
+    def perform_create(self, serializer):
+        # Lấy ID người cần theo dõi từ request
+        followed_user_id = self.request.data.get('followed_user_id')
+        if not followed_user_id:
+            raise ValidationError({"error": "Thiếu ID người dùng cần theo dõi"})
+
+        try:
+            followed_user = User.objects.get(id=followed_user_id)
+        except User.DoesNotExist:
+            raise ValidationError({"error": "Người dùng không tồn tại"})
+
+        if followed_user == self.request.user:
+            raise ValidationError({"error": "Không thể theo dõi chính mình"})
+
+        # Kiểm tra xem đã follow chưa
+        #  Lọc xem người dùng hiện tại (request.user) có đang theo dõi followed_user hay không.
+        # Sau khi lọc, .first() sẽ lấy bản ghi đầu tiên nếu có, nếu không có thì trả về None.
+        follow = Follow.objects.filter(followed_user=followed_user, follower_user=self.request.user).first()
+
+        if follow:
+            follow.active = not follow.active
+            follow.save()
+            if follow.active:
+                # Tạo thông báo khi follow
+                Notifications.objects.create(
+                    receiver=followed_user,
+                    title="Người dùng mới theo dõi",
+                    content=f"{self.request.user.username} đã bắt đầu theo dõi bạn",
+                    notification_type=NotificationType.FOLLOW,
+                    related_object_id=follow.id
+                )
+            serializer.instance = follow
+        else:
+            follow = serializer.save(followed_user=followed_user, follower_user=self.request.user, active=True)
+            # Tạo thông báo khi follow
+            Notifications.objects.create(
+                receiver=followed_user,
+                title="Người dùng mới theo dõi",
+                content=f"{self.request.user.username} đã bắt đầu theo dõi bạn",
+                notification_type=NotificationType.FOLLOW,
+                related_object_id=follow.id
+            )
+
+    def destroy(self, request, pk=None):
+        """
+        Hủy theo dõi một người dùng
+        """
+        try:
+            follow = Follow.objects.get(
+                followed_user_id=pk,
+                follower_user=request.user
+            )
+            follow.active = False
+            follow.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Follow.DoesNotExist:
+            return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
+    queryset = Notifications.objects.filter(active=True)
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.NotificationSerializer
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Notifications.objects.none()
+        return Notifications.objects.filter(receiver=self.request.user, active=True).order_by('-created_date')
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.save()
+
+    # lấy danh sách thông báo chưa đọc
+    @action(detail=False, methods=['get'], url_path='unread')
+    def unread(self, request):
+        notifications = self.get_queryset().filter(is_read=False)
+        serializer = self.serializer_class(notifications, many=True)
+        return Response(serializer.data)
+
+    # Đánh dấu một thông báo là đã đọc
+    @action(detail=True, methods=['put'], url_path='read')
+    def read(self, request, pk=None):
+        try:
+            notification = self.get_object()
+            notification.is_read = True
+            notification.save()
+            return Response({'message': 'Thông báo được đánh dấu là đã đọc'})
+        except Notifications.DoesNotExist:
+            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_200_OK)
+
+    # Đánh dấu tất cả thông báo là đã đọc
+    @action(detail=False, methods=['put'], url_path='read_all')
+    def read_all(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'message': 'Tất cả thông báo được đánh dấu là đã đọc'})
+
+    # Xóa tất cả thông báo
+    @action(detail=False, methods=['delete'], url_path='delete_all')
+    def delete_all(self, request):
+        self.get_queryset().update(active=False)
+        return Response({'message': 'Tất cả thông báo đã bị xóa'})
+
+    # Đếm số thông báo chưa đọc
+    @action(detail=False, methods=['get'], url_path='unread_count')
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread_count': count})
+
+    # Lọc thông báo theo loại
+    @action(detail=False, methods=['get'], url_path='by_type')
+    def by_type(self, request):
+        notification_type = request.query_params.get('type')
+        if not notification_type:
+            return Response({'error': 'Notification type là bắt buộc'}, status=status.HTTP_400_BAD_REQUEST)
+
+        notifications = self.get_queryset().filter(notification_type=notification_type)
+        serializer = self.serializer_class(notifications, many=True)
+        return Response(serializer.data)
+
+
+class ChatRoomViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.ChatRoomSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return ChatRoom.objects.none()
+        return self.request.user.chat_rooms.filter(active=True).order_by('-updated_date')
+
+    def perform_create(self, serializer):
+        chat_room = serializer.save()
+        chat_room.participants.add(self.request.user)
+        participants = self.request.data.get('participants', [])
+        for participant_id in participants:
+            try:
+                user = User.objects.get(id=participant_id)
+                chat_room.participants.add(user)
+            except User.DoesNotExist:
+                continue
+
+
+class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = serializers.MessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_queryset(self):
+        chat_room_id = self.kwargs.get('chat_room_id')
+        return Message.objects.filter(chat_room_id=chat_room_id, active=True).order_by('created_date')
+
+    def perform_create(self, serializer):
+        chat_room_id = self.kwargs.get('chat_room_id')
+        try:
+            chat_room = ChatRoom.objects.get(id=chat_room_id)
+            if self.request.user not in chat_room.participants.all():
+                raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
+            # Lưu tin nhắn mới với người gửi là user hiện tại, gán vào phòng chat đó.
+            message = serializer.save(sender=self.request.user, chat_room=chat_room)
+
+            # Broadcast tin nhắn qua WebSocket
+            # Gửi bản tin mới đến các user đang kết nối vào nhóm chat_<ID phòng> trên WebSocket, Sử dụng Django Channels.
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'chat_{chat_room_id}',
+                {
+                    'type': 'chat_message',
+                    'message': {
+                        'id': message.id,
+                        'content': message.content,
+                        'sender_id': message.sender.id,
+                        'sender_name': message.sender.username,
+                        'created_date': message.created_date.isoformat(),
+                        'is_read': message.is_read
+                    }
+                }
+            )
+        except ChatRoom.DoesNotExist:
+            raise NotFound("Không tìm thấy phòng chat")
+
+    def perform_update(self, serializer):
+        message = serializer.instance
+        if message.sender != self.request.user:
+            raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
+        message = serializer.save()
+
+        # Broadcast cập nhật tin nhắn qua WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{message.chat_room.id}',
+            {
+                'type': 'message_update',
+                'message': {
+                    'id': message.id,
+                    'content': message.content,
+                    'sender_id': message.sender.id,
+                    'sender_name': message.sender.username,
+                    'created_date': message.created_date.isoformat(),
+                    'is_read': message.is_read,
+                    'action': 'update'
+                }
+            }
+        )
+
+    def perform_destroy(self, instance):
+        if instance.sender != self.request.user:
+            raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
+        chat_room_id = instance.chat_room.id
+        instance.active = False
+        instance.save()
+
+        # Broadcast xóa tin nhắn qua WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{chat_room_id}',
+            {
+                'type': 'message_update',
+                'message': {
+                    'id': instance.id,
+                    'action': 'delete'
+                }
+            }
+        )
+
+    @action(detail=True, methods=['put'], url_path='read')
+    def read(self, request, chat_room_id=None, pk=None):
+        message = self.get_object()
+        message.is_read = True
+        message.save()
+
+        # Broadcast trạng thái đã đọc qua WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{chat_room_id}',
+            {
+                'type': 'message_update',
+                'message': {
+                    'id': message.id,
+                    'is_read': True,
+                    'action': 'read'
+                }
+            }
+        )
+        return Response({'status': 'tin nhắn được đánh dấu là đã đọc'})
+
+
+class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = serializers.PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginators.ItemPanigator
+
+    def get_permissions(self):
+        if self.action in ['list', 'create']:
+            return [permissions.IsAuthenticated()]
+        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'update_status']:
+            return [permissions.IsAuthenticated(), IsPaymentOwnerOrMotelOwner()]
+        return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        # Kiểm tra xem có phải là swagger view không
+        if getattr(self, 'swagger_fake_view', False):
+            return Payment.objects.none()
+
+        # Kiểm tra xem user có được xác thực không
+        if not self.request.user.is_authenticated:
+            return Payment.objects.none()
+
+        queryset = Payment.objects.filter(active=True).select_related(
+            'payer',
+            'room',
+            'room__motel',
+            'room__motel__user'
+        )
+        user = self.request.user
+
+        # Admin có thể xem tất cả payment
+        if user.is_staff:
+            return queryset
+
+        # Chủ trọ có thể xem payments của các phòng trong nhà trọ của họ
+        if user.role == UserRole.LANDLORD:
+            return queryset.filter(room__motel__user=user)
+
+        # Người thuê chỉ có thể xem payments của họ
+        return queryset.filter(payer=user)
+
+    def perform_create(self, serializer):
+        payment = serializer.save(payer=self.request.user)
+
+        # Thông báo cho chủ nhà khi có thanh toán mới
+        Notifications.objects.create(
+            receiver=payment.room.motel.user,
+            title="Thanh toán mới",
+            content=f"Có thanh toán mới cho phòng {payment.room.room_name} từ {self.request.user.username}",
+            notification_type=NotificationType.PAYMENT,
+            related_object_id=payment.id
+        )
+
+    def perform_update(self, serializer):
+        payment = serializer.save()
+
+        # Thông báo cho người thanh toán khi có cập nhật
+        Notifications.objects.create(
+            receiver=payment.payer,
+            title="Cập nhật thanh toán",
+            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được cập nhật",
+            notification_type=NotificationType.PAYMENT,
+            related_object_id=payment.id
+        )
+
+    # cập nhập trạng thái thanh toán
+    @action(detail=True, methods=['patch'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        payment = self.get_object()
+        new_status = request.data.get('status')
+
+        valid_statuses = []
+        for choice in PaymentStatus.choices:
+            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
+            valid_statuses.append(status_code)
+        if new_status not in valid_statuses:
+            raise ValidationError({
+                "error": "Trạng thái không hợp lệ",
+                "detail": f"Trạng thái phải là một trong các giá trị: {valid_statuses}"
+            })
+
+        payment.status = new_status
+        payment.save()
+
+        # Thông báo cho người thanh toán khi trạng thái thay đổi
+        Notifications.objects.create(
+            receiver=payment.payer,
+            title="Cập nhật trạng thái thanh toán",
+            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được cập nhật trạng thái: {payment.status}",
+            notification_type=NotificationType.PAYMENT,
+            related_object_id=payment.id
+        )
+
+        # Thông báo cho chủ nhà nếu trạng thái là COMPLETED hoặc FAILED
+        if new_status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED]:
+            status_text = "thành công" if new_status == PaymentStatus.COMPLETED else "thất bại"
+            Notifications.objects.create(
+                receiver=payment.room.motel.user,
+                title=f"Thanh toán {status_text}",
+                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã {status_text}",
+                notification_type=NotificationType.PAYMENT,
+                related_object_id=payment.id
+            )
+
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data)
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if not (user.is_staff or instance.room.motel in user.motels.all()):
+            raise PermissionDenied("Chỉ admin hoặc chủ nhà mới được phép xóa thanh toán")
+        instance.active = False
+        instance.save()
+
+    #  lấy danh sách các thanh toán của một phòng (room) cụ thể.
+    @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
+    def room_payments(self, request, room_id=None):
+        try:
+            room = Room.objects.get(id=room_id)
+            # Kiểm tra quyền xem thanh toán của phòng
+            if not (request.user.is_staff or request.user == room.motel.user):
+                return Response(
+                    {'error': 'Không có quyền xem thanh toán của phòng này'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            payments = self.get_queryset().filter(room=room)
+            serializer = self.get_serializer(payments, many=True)
+            return Response(serializer.data)
+        except Room.DoesNotExist:
+            return Response(
+                {'error': 'Phòng không tồn tại'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
+    def status_payments(self, request, status=None):
+        valid_statuses = []
+        for choice in PaymentStatus.choices:
+            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
+            valid_statuses.append(status_code)
+        if status not in valid_statuses:
+            return Response(
+                {'error': 'Trạng thái không hợp lệ'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Sử dụng get_queryset để lấy payments theo quyền của user
+        payments = self.get_queryset().filter(status=status)
+        serializer = self.get_serializer(payments, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='method/(?P<method>[^/.]+)')
+    def method_payments(self, request, method=None):
+        valid_methods = []
+        for choice in PaymentMethod.choices:
+            method_code = choice[0]
+            valid_methods.append(method_code)
+        if method not in valid_methods:
+            return Response(
+                {'error': 'Phương thức thanh toán không hợp lệ'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Sử dụng get_queryset để lấy payments theo quyền của user
+        payments = self.get_queryset().filter(payment_method=method)
+        serializer = self.get_serializer(payments, many=True)
+        return Response(serializer.data)
+
+
+class SearchViewSet(viewsets.ViewSet):
+    def list(self, request):
+        search_query = request.query_params.get('q')
+        if search_query:
+            motels = Motel.objects.filter(
+                Q(motel_name__icontains=search_query) |
+                Q(description__icontains=search_query)
+            )
+        else:
+            motels = Motel.objects.all()
+
+            district = request.query_params.get('district')
+            if district:
+                motels = motels.filter(district__icontains=district)
+
+            city = request.query_params.get('city')
+            if city:
+                motels = motels.filter(city__icontains=city)
+
+            province = request.query_params.get('province')
+            if province:
+                motels = motels.filter(province__icontains=province)
+
+            min_price = request.query_params.get('min_price')
+            max_price = request.query_params.get('max_price')
+            if min_price or max_price:
+                post_query = Post.objects.filter(motel=OuterRef('pk'))  # tham chiếu đến pk của bảng Motel
+                # Tạo một subquery để lấy các Post có motel_id bằng với pk của Motel
+                if min_price:
+                    post_query = post_query.filter(min_price__gte=min_price)
+                if max_price:
+                    post_query = post_query.filter(max_price__lte=max_price)
+                motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
+                # Subquery nhúng một query bên trong một query khác
+
+                # # Cách 1: Không dùng Subquery (sẽ tạo nhiều query)
+                # post_ids = Post.objects.values_list('motel_id', flat=True)  # Query 1
+                # motels = Motel.objects.filter(id__in=post_ids)  # Query 2
+
+                # # Cách 2: Dùng Subquery (chỉ 1 query)
+                # motels = Motel.objects.filter(
+                #     id__in=Subquery(Post.objects.values('motel_id'))
+                # )
+
+            max_people = request.query_params.get('max_people')
+            if max_people:
+                room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
+                motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
+
+            # Serialize và trả về kết quả
+            serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
+            return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='nearby')
+    def nearby(self, request):
+        """
+        API tìm kiếm nhà trọ xung quanh một vị trí
+        Query Parameters:
+        - latitude: Vĩ độ (float)
+        - longitude: Kinh độ (float)
+        - radius: Bán kính tìm kiếm tính bằng km (float)
+        """
+        try:
+            # Lấy các tham số từ request
+            latitude = float(request.query_params.get('latitude'))
+            longitude = float(request.query_params.get('longitude'))
+            radius = float(request.query_params.get('radius', 5))  # Mặc định 5km nếu không có radius
+
+            # Kiểm tra giá trị hợp lệ
+            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                return Response(
+                    {"error": "Tọa độ không hợp lệ"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Lấy tất cả nhà trọ có tọa độ
+            motels = Motel.objects.filter(
+                active=True,
+                latitude__isnull=False,
+                longitude__isnull=False
+            )
+
+            # Lọc nhà trọ trong bán kính
+            nearby_motels = []
+            for motel in motels:
+                distance = calculate_distance(
+                    latitude,
+                    longitude,
+                    motel.latitude,
+                    motel.longitude
+                )
+                if distance <= radius:
+                    motel.distance = distance  # Thêm khoảng cách vào object
+                    nearby_motels.append(motel)
+
+            # Sắp xếp theo khoảng cách
+            nearby_motels.sort(key=lambda x: x.distance)
+
+            # Phân trang sử dụng ItemPanigator
+            paginator = paginators.ItemPanigator()
+            result_page = paginator.paginate_queryset(nearby_motels, request)
+
+            # Serialize kết quả
+            serializer = serializers.MotelSerializer(result_page, many=True, context={'request': request})
+
+            # Thêm khoảng cách vào kết quả
+            response_data = serializer.data
+            for i, motel in enumerate(result_page):
+                response_data[i]['distance'] = round(motel.distance, 2)
+
+            logger.info(f"Tìm kiếm nhà trọ gần vị trí: {latitude}, {longitude}")
+            return paginator.get_paginated_response(response_data)
+
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Tham số không hợp lệ"},
+                status=400
+            )
+        except Exception as e:
+            logger.error(f"Lỗi khi tìm kiếm nhà trọ: {str(e)}")
+            return Response(
+                {"error": "Có lỗi xảy ra khi tìm kiếm"},
+                status=500
+            )
+
+
+class StatisticsViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAdminUser]
+
+    def _parse_date(self, date_str):
+        if not date_str:
+            return None
+        try:
+            # Phân tích chuỗi ngày và làm cho nó nhận biết múi giờ
+            naive_dt = datetime.strptime(date_str, '%Y-%m-%d')
+            return timezone.make_aware(naive_dt, timezone=pytz.UTC)
+        except ValueError:
+            return None
+
+    @action(detail=False, methods=['get'], url_path='landlords')
+    def landlord_count(self, request):
+        """
+        Thống kê số lượng chủ trọ theo ngày, tháng, năm, quý.
+        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+        """
+        from_date = self._parse_date(request.query_params.get('from'))
+        to_date = self._parse_date(request.query_params.get('to'))
+        type_ = request.query_params.get('type', 'month')
+        queryset = Landlord.objects.all()
+        if from_date:
+            queryset = queryset.filter(created_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(created_date__lte=to_date)
+        if type_ == 'day':
+            data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('user_id')).order_by('day')
+        elif type_ == 'month':
+            data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('user_id')).order_by('month')
+        elif type_ == 'year':
+            data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('user_id')).order_by('year')
+        elif type_ == 'quarter':
+            data = queryset.extra({
+                'year': "DATE_FORMAT(created_date, '%%Y')",
+                'quarter': "QUARTER(created_date)"
+            }).values('year', 'quarter').annotate(count=Count('user_id')).order_by('year', 'quarter')
+        else:
+            return Response({'error': 'type phải là day, month, year, quarter'})
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='users')
+    def user_count(self, request):
+        """
+        Thống kê số lượng người dùng theo ngày, tháng, năm, quý.
+        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+        """
+        from_date = self._parse_date(request.query_params.get('from'))
+        to_date = self._parse_date(request.query_params.get('to'))
+        type_ = request.query_params.get('type', 'month')
+        queryset = User.objects.filter(is_active=True)
+        if from_date:
+            queryset = queryset.filter(created_date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(created_date__lte=to_date)
+        if type_ == 'day':
+            data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
+        elif type_ == 'month':
+            data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('id')).order_by('month')
+        elif type_ == 'year':
+            data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('id')).order_by('year')
+        elif type_ == 'quarter':
+            data = queryset.extra({
+                'year': "DATE_FORMAT(created_date, '%%Y')",
+                'quarter': "QUARTER(created_date)"
+            }).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
+        else:
+            return Response({'error': 'type phải là day, month, year, quarter'})
+        return Response(data)
 
 
 class VNPayViewSet(viewsets.ViewSet):
@@ -1301,771 +2066,6 @@ class VNPayViewSet(viewsets.ViewSet):
                 "status": "error",
                 "message": "Không có dữ liệu"
             }, status=status.HTTP_400_BAD_REQUEST)
-
-
-class SearchViewSet(viewsets.ViewSet):
-    def list(self, request):
-        search_query = request.query_params.get('q')
-        if search_query:
-            motels = Motel.objects.filter(
-                Q(motel_name__icontains=search_query) |
-                Q(description__icontains=search_query)
-            )
-        else:
-            motels = Motel.objects.all()
-
-            district = request.query_params.get('district')
-            if district:
-                motels = motels.filter(district__icontains=district)
-
-            city = request.query_params.get('city')
-            if city:
-                motels = motels.filter(city__icontains=city)
-
-            province = request.query_params.get('province')
-            if province:
-                motels = motels.filter(province__icontains=province)
-
-            min_price = request.query_params.get('min_price')
-            max_price = request.query_params.get('max_price')
-            if min_price or max_price:
-                post_query = Post.objects.filter(motel=OuterRef('pk'))  # tham chiếu đến pk của bảng Motel
-                # Tạo một subquery để lấy các Post có motel_id bằng với pk của Motel
-                if min_price:
-                    post_query = post_query.filter(min_price__gte=min_price)
-                if max_price:
-                    post_query = post_query.filter(max_price__lte=max_price)
-                motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
-                # Subquery nhúng một query bên trong một query khác
-
-                # # Cách 1: Không dùng Subquery (sẽ tạo nhiều query)
-                # post_ids = Post.objects.values_list('motel_id', flat=True)  # Query 1
-                # motels = Motel.objects.filter(id__in=post_ids)  # Query 2
-
-                # # Cách 2: Dùng Subquery (chỉ 1 query)
-                # motels = Motel.objects.filter(
-                #     id__in=Subquery(Post.objects.values('motel_id'))
-                # )
-
-            max_people = request.query_params.get('max_people')
-            if max_people:
-                room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
-                motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
-
-            # Serialize và trả về kết quả
-            serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
-            return Response(serializer.data)
-
-    @action(detail=False, methods=['get'], url_path='nearby')
-    def nearby(self, request):
-        """
-        API tìm kiếm nhà trọ xung quanh một vị trí
-        Query Parameters:
-        - latitude: Vĩ độ (float)
-        - longitude: Kinh độ (float)
-        - radius: Bán kính tìm kiếm tính bằng km (float)
-        """
-        try:
-            # Lấy các tham số từ request
-            latitude = float(request.query_params.get('latitude'))
-            longitude = float(request.query_params.get('longitude'))
-            radius = float(request.query_params.get('radius', 5))  # Mặc định 5km nếu không có radius
-
-            # Kiểm tra giá trị hợp lệ
-            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
-                return Response(
-                    {"error": "Tọa độ không hợp lệ"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Lấy tất cả nhà trọ có tọa độ
-            motels = Motel.objects.filter(
-                active=True,
-                latitude__isnull=False,
-                longitude__isnull=False
-            )
-
-            # Lọc nhà trọ trong bán kính
-            nearby_motels = []
-            for motel in motels:
-                distance = calculate_distance(
-                    latitude,
-                    longitude,
-                    motel.latitude,
-                    motel.longitude
-                )
-                if distance <= radius:
-                    motel.distance = distance  # Thêm khoảng cách vào object
-                    nearby_motels.append(motel)
-
-            # Sắp xếp theo khoảng cách
-            nearby_motels.sort(key=lambda x: x.distance)
-
-            # Phân trang sử dụng ItemPanigator
-            paginator = paginators.ItemPanigator()
-            result_page = paginator.paginate_queryset(nearby_motels, request)
-
-            # Serialize kết quả
-            serializer = serializers.MotelSerializer(result_page, many=True, context={'request': request})
-
-            # Thêm khoảng cách vào kết quả
-            response_data = serializer.data
-            for i, motel in enumerate(result_page):
-                response_data[i]['distance'] = round(motel.distance, 2)
-
-            logger.info(f"Tìm kiếm nhà trọ gần vị trí: {latitude}, {longitude}")
-            return paginator.get_paginated_response(response_data)
-
-        except (ValueError, TypeError):
-            return Response(
-                {"error": "Tham số không hợp lệ"},
-                status=400
-            )
-        except Exception as e:
-            logger.error(f"Lỗi khi tìm kiếm nhà trọ: {str(e)}")
-            return Response(
-                {"error": "Có lỗi xảy ra khi tìm kiếm"},
-                status=500
-            )
-
-
-class SearchHistoryViewSet(viewsets.ModelViewSet):
-    serializer_class = serializers.SearchHistorySerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.ItemPanigator
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return SearchHistory.objects.none()
-        return SearchHistory.objects.filter(
-            user=self.request.user,
-            active=True
-        ).order_by('-created_date')
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.active = False
-        instance.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
-    queryset = Notifications.objects.filter(active=True)
-    permission_classes = [IsAuthenticated]
-    serializer_class = serializers.NotificationSerializer
-    pagination_class = paginators.ItemPanigator
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Notifications.objects.none()
-        return Notifications.objects.filter(receiver=self.request.user, active=True).order_by('-created_date')
-
-    def perform_destroy(self, instance):
-        instance.active = False
-        instance.save()
-
-    # lấy danh sách thông báo chưa đọc
-    @action(detail=False, methods=['get'], url_path='unread')
-    def unread(self, request):
-        notifications = self.get_queryset().filter(is_read=False)
-        serializer = self.serializer_class(notifications, many=True)
-        return Response(serializer.data)
-
-    # Đánh dấu một thông báo là đã đọc
-    @action(detail=True, methods=['put'], url_path='read')
-    def read(self, request, pk=None):
-        try:
-            notification = self.get_object()
-            notification.is_read = True
-            notification.save()
-            return Response({'message': 'Thông báo được đánh dấu là đã đọc'})
-        except Notifications.DoesNotExist:
-            return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_200_OK)
-
-    # Đánh dấu tất cả thông báo là đã đọc
-    @action(detail=False, methods=['put'], url_path='read_all')
-    def read_all(self, request):
-        self.get_queryset().filter(is_read=False).update(is_read=True)
-        return Response({'message': 'Tất cả thông báo được đánh dấu là đã đọc'})
-
-    # Xóa tất cả thông báo
-    @action(detail=False, methods=['delete'], url_path='delete_all')
-    def delete_all(self, request):
-        self.get_queryset().update(active=False)
-        return Response({'message': 'Tất cả thông báo đã bị xóa'})
-
-    # Đếm số thông báo chưa đọc
-    @action(detail=False, methods=['get'], url_path='unread_count')
-    def unread_count(self, request):
-        count = self.get_queryset().filter(is_read=False).count()
-        return Response({'unread_count': count})
-
-    # Lọc thông báo theo loại
-    @action(detail=False, methods=['get'], url_path='by_type')
-    def by_type(self, request):
-        notification_type = request.query_params.get('type')
-        if not notification_type:
-            return Response({'error': 'Notification type là bắt buộc'}, status=status.HTTP_400_BAD_REQUEST)
-
-        notifications = self.get_queryset().filter(notification_type=notification_type)
-        serializer = self.serializer_class(notifications, many=True)
-        return Response(serializer.data)
-
-
-class ChatRoomViewSet(viewsets.ModelViewSet):
-    serializer_class = serializers.ChatRoomSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.ItemPanigator
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return ChatRoom.objects.none()
-        return self.request.user.chat_rooms.filter(active=True).order_by('-updated_date')
-
-    def perform_create(self, serializer):
-        chat_room = serializer.save()
-        chat_room.participants.add(self.request.user)
-        participants = self.request.data.get('participants', [])
-        for participant_id in participants:
-            try:
-                user = User.objects.get(id=participant_id)
-                chat_room.participants.add(user)
-            except User.DoesNotExist:
-                continue
-
-
-class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = serializers.MessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.ItemPanigator
-
-    def get_queryset(self):
-        chat_room_id = self.kwargs.get('chat_room_id')
-        return Message.objects.filter(chat_room_id=chat_room_id, active=True).order_by('created_date')
-
-    def perform_create(self, serializer):
-        chat_room_id = self.kwargs.get('chat_room_id')
-        try:
-            chat_room = ChatRoom.objects.get(id=chat_room_id)
-            if self.request.user not in chat_room.participants.all():
-                raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
-            # Lưu tin nhắn mới với người gửi là user hiện tại, gán vào phòng chat đó.
-            message = serializer.save(sender=self.request.user, chat_room=chat_room)
-
-            # Broadcast tin nhắn qua WebSocket
-            # Gửi bản tin mới đến các user đang kết nối vào nhóm chat_<ID phòng> trên WebSocket, Sử dụng Django Channels.
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f'chat_{chat_room_id}',
-                {
-                    'type': 'chat_message',
-                    'message': {
-                        'id': message.id,
-                        'content': message.content,
-                        'sender_id': message.sender.id,
-                        'sender_name': message.sender.username,
-                        'created_date': message.created_date.isoformat(),
-                        'is_read': message.is_read
-                    }
-                }
-            )
-        except ChatRoom.DoesNotExist:
-            raise NotFound("Không tìm thấy phòng chat")
-
-    def perform_update(self, serializer):
-        message = serializer.instance
-        if message.sender != self.request.user:
-            raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
-        message = serializer.save()
-
-        # Broadcast cập nhật tin nhắn qua WebSocket
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'chat_{message.chat_room.id}',
-            {
-                'type': 'message_update',
-                'message': {
-                    'id': message.id,
-                    'content': message.content,
-                    'sender_id': message.sender.id,
-                    'sender_name': message.sender.username,
-                    'created_date': message.created_date.isoformat(),
-                    'is_read': message.is_read,
-                    'action': 'update'
-                }
-            }
-        )
-
-    def perform_destroy(self, instance):
-        if instance.sender != self.request.user:
-            raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
-        chat_room_id = instance.chat_room.id
-        instance.active = False
-        instance.save()
-
-        # Broadcast xóa tin nhắn qua WebSocket
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'chat_{chat_room_id}',
-            {
-                'type': 'message_update',
-                'message': {
-                    'id': instance.id,
-                    'action': 'delete'
-                }
-            }
-        )
-
-    @action(detail=True, methods=['put'], url_path='read')
-    def read(self, request, chat_room_id=None, pk=None):
-        message = self.get_object()
-        message.is_read = True
-        message.save()
-
-        # Broadcast trạng thái đã đọc qua WebSocket
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'chat_{chat_room_id}',
-            {
-                'type': 'message_update',
-                'message': {
-                    'id': message.id,
-                    'is_read': True,
-                    'action': 'read'
-                }
-            }
-        )
-        return Response({'status': 'tin nhắn được đánh dấu là đã đọc'})
-
-
-class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = serializers.FollowSerializer
-    pagination_class = paginators.ItemPanigator
-
-    def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return Follow.objects.none()
-        return Follow.objects.filter(follower_user=self.request.user, active=True).select_related('followed_user').order_by('-created_date')
-
-    def perform_create(self, serializer):
-        # Lấy ID người cần theo dõi từ request
-        followed_user_id = self.request.data.get('followed_user_id')
-        if not followed_user_id:
-            raise ValidationError({"error": "Thiếu ID người dùng cần theo dõi"})
-
-        try:
-            followed_user = User.objects.get(id=followed_user_id)
-        except User.DoesNotExist:
-            raise ValidationError({"error": "Người dùng không tồn tại"})
-
-        if followed_user == self.request.user:
-            raise ValidationError({"error": "Không thể theo dõi chính mình"})
-
-        # Kiểm tra xem đã follow chưa
-        #  Lọc xem người dùng hiện tại (request.user) có đang theo dõi followed_user hay không.
-        # Sau khi lọc, .first() sẽ lấy bản ghi đầu tiên nếu có, nếu không có thì trả về None.
-        follow = Follow.objects.filter(followed_user=followed_user, follower_user=self.request.user).first()
-
-        if follow:
-            follow.active = not follow.active
-            follow.save()
-            if follow.active:
-                # Tạo thông báo khi follow
-                Notifications.objects.create(
-                    receiver=followed_user,
-                    title="Người dùng mới theo dõi",
-                    content=f"{self.request.user.username} đã bắt đầu theo dõi bạn",
-                    notification_type=NotificationType.FOLLOW,
-                    related_object_id=follow.id
-                )
-            serializer.instance = follow
-        else:
-            follow = serializer.save(followed_user=followed_user, follower_user=self.request.user, active=True)
-            # Tạo thông báo khi follow
-            Notifications.objects.create(
-                receiver=followed_user,
-                title="Người dùng mới theo dõi",
-                content=f"{self.request.user.username} đã bắt đầu theo dõi bạn",
-                notification_type=NotificationType.FOLLOW,
-                related_object_id=follow.id
-            )
-
-    def destroy(self, request, pk=None):
-        """
-        Hủy theo dõi một người dùng
-        """
-        try:
-            follow = Follow.objects.get(
-                followed_user_id=pk,
-                follower_user=request.user
-            )
-            follow.active = False
-            follow.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Follow.DoesNotExist:
-            return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=status.HTTP_404_NOT_FOUND)
-
-
-class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = serializers.PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.ItemPanigator
-
-    def get_permissions(self):
-        if self.action in ['list', 'create']:
-            return [permissions.IsAuthenticated()]
-        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'update_status']:
-            return [permissions.IsAuthenticated(), IsPaymentOwnerOrMotelOwner()]
-        return [permissions.IsAuthenticated()]
-
-    def get_queryset(self):
-        # Kiểm tra xem có phải là swagger view không
-        if getattr(self, 'swagger_fake_view', False):
-            return Payment.objects.none()
-
-        # Kiểm tra xem user có được xác thực không
-        if not self.request.user.is_authenticated:
-            return Payment.objects.none()
-
-        queryset = Payment.objects.filter(active=True).select_related(
-            'payer',
-            'room',
-            'room__motel',
-            'room__motel__user'
-        )
-        user = self.request.user
-
-        # Admin có thể xem tất cả payment
-        if user.is_staff:
-            return queryset
-
-        # Chủ trọ có thể xem payments của các phòng trong nhà trọ của họ
-        if user.role == UserRole.LANDLORD:
-            return queryset.filter(room__motel__user=user)
-
-        # Người thuê chỉ có thể xem payments của họ
-        return queryset.filter(payer=user)
-
-    def perform_create(self, serializer):
-        payment = serializer.save(payer=self.request.user)
-
-        # Thông báo cho chủ nhà khi có thanh toán mới
-        Notifications.objects.create(
-            receiver=payment.room.motel.user,
-            title="Thanh toán mới",
-            content=f"Có thanh toán mới cho phòng {payment.room.room_name} từ {self.request.user.username}",
-            notification_type=NotificationType.PAYMENT,
-            related_object_id=payment.id
-        )
-
-    def perform_update(self, serializer):
-        payment = serializer.save()
-
-        # Thông báo cho người thanh toán khi có cập nhật
-        Notifications.objects.create(
-            receiver=payment.payer,
-            title="Cập nhật thanh toán",
-            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được cập nhật",
-            notification_type=NotificationType.PAYMENT,
-            related_object_id=payment.id
-        )
-
-    # cập nhập trạng thái thanh toán
-    @action(detail=True, methods=['patch'], url_path='update-status')
-    def update_status(self, request, pk=None):
-        payment = self.get_object()
-        new_status = request.data.get('status')
-
-        valid_statuses = []
-        for choice in PaymentStatus.choices:
-            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
-            valid_statuses.append(status_code)
-        if new_status not in valid_statuses:
-            raise ValidationError({
-                "error": "Trạng thái không hợp lệ",
-                "detail": f"Trạng thái phải là một trong các giá trị: {valid_statuses}"
-            })
-
-        payment.status = new_status
-        payment.save()
-
-        # Thông báo cho người thanh toán khi trạng thái thay đổi
-        Notifications.objects.create(
-            receiver=payment.payer,
-            title="Cập nhật trạng thái thanh toán",
-            content=f"Thanh toán của bạn cho phòng {payment.room.room_name} đã được cập nhật trạng thái: {payment.status}",
-            notification_type=NotificationType.PAYMENT,
-            related_object_id=payment.id
-        )
-
-        # Thông báo cho chủ nhà nếu trạng thái là COMPLETED hoặc FAILED
-        if new_status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED]:
-            status_text = "thành công" if new_status == PaymentStatus.COMPLETED else "thất bại"
-            Notifications.objects.create(
-                receiver=payment.room.motel.user,
-                title=f"Thanh toán {status_text}",
-                content=f"Thanh toán cho phòng {payment.room.room_name} từ {payment.payer.username} đã {status_text}",
-                notification_type=NotificationType.PAYMENT,
-                related_object_id=payment.id
-            )
-
-        serializer = self.get_serializer(payment)
-        return Response(serializer.data)
-
-    def perform_destroy(self, instance):
-        user = self.request.user
-        if not (user.is_staff or instance.room.motel in user.motels.all()):
-            raise PermissionDenied("Chỉ admin hoặc chủ nhà mới được phép xóa thanh toán")
-        instance.active = False
-        instance.save()
-
-    #  lấy danh sách các thanh toán của một phòng (room) cụ thể.
-    @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
-    def room_payments(self, request, room_id=None):
-        try:
-            room = Room.objects.get(id=room_id)
-            # Kiểm tra quyền xem thanh toán của phòng
-            if not (request.user.is_staff or request.user == room.motel.user):
-                return Response(
-                    {'error': 'Không có quyền xem thanh toán của phòng này'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            payments = self.get_queryset().filter(room=room)
-            serializer = self.get_serializer(payments, many=True)
-            return Response(serializer.data)
-        except Room.DoesNotExist:
-            return Response(
-                {'error': 'Phòng không tồn tại'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-    @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
-    def status_payments(self, request, status=None):
-        valid_statuses = []
-        for choice in PaymentStatus.choices:
-            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
-            valid_statuses.append(status_code)
-        if status not in valid_statuses:
-            return Response(
-                {'error': 'Trạng thái không hợp lệ'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Sử dụng get_queryset để lấy payments theo quyền của user
-        payments = self.get_queryset().filter(status=status)
-        serializer = self.get_serializer(payments, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'], url_path='method/(?P<method>[^/.]+)')
-    def method_payments(self, request, method=None):
-        valid_methods = []
-        for choice in PaymentMethod.choices:
-            method_code = choice[0]
-            valid_methods.append(method_code)
-        if method not in valid_methods:
-            return Response(
-                {'error': 'Phương thức thanh toán không hợp lệ'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Sử dụng get_queryset để lấy payments theo quyền của user
-        payments = self.get_queryset().filter(payment_method=method)
-        serializer = self.get_serializer(payments, many=True)
-        return Response(serializer.data)
-
-
-class RoomImageViewSet(viewsets.ModelViewSet):
-    queryset = RoomImage.objects.filter(active=True)
-    serializer_class = serializers.RoomImageSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        return [permissions.AllowAny()]
-
-    def get_queryset(self):
-        queryset = RoomImage.objects.filter(active=True)
-        room_id = self.request.query_params.get('room_id', None)
-        if room_id is not None:
-            queryset = queryset.filter(room_id=room_id)
-        return queryset
-
-    def create(self, request, *args, **kwargs):
-        room_id = request.data.get('room')
-        if not room_id:
-            return Response({'error': 'Cần ID phòng'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            room = Room.objects.get(id=room_id)
-            if request.user != room.motel.user and not request.user.is_staff:
-                return Response({'error': 'Không có quyền'}, status=status.HTTP_403_FORBIDDEN)
-
-            images = request.FILES.getlist('image_url')
-            if not images:
-                return Response({'error': 'Chưa chọn ảnh'}, status=status.HTTP_400_BAD_REQUEST)
-
-            created_images = []
-            for image in images:
-                room_image = RoomImage.objects.create(
-                    room=room,
-                    image_url=image
-                )
-                created_images.append(room_image)
-
-            serializer = self.get_serializer(created_images, many=True)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        except Room.DoesNotExist:
-            return Response({'error': 'Không tìm thấy phòng'}, status=status.HTTP_404_NOT_FOUND)
-
-    def perform_destroy(self, instance):
-        instance.active = False
-        instance.save()
-
-
-class MotelImageViewSet(viewsets.ModelViewSet):
-    serializer_class = serializers.MotelImageSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    queryset = MotelImage.objects.filter(active=True)
-
-    def get_queryset(self):
-        queryset = MotelImage.objects.filter(active=True)
-        motel_id = self.request.query_params.get('motel_id', None)
-        if motel_id is not None:
-            queryset = queryset.filter(motel_id=motel_id)
-        return queryset
-
-    def create(self, request, *args, **kwargs):
-        motel_id = request.data.get('motel')
-        if not motel_id:
-            return Response({"error": "Cần ID nhà trọ"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            motel = Motel.objects.get(pk=motel_id)
-            if motel.user != request.user:
-                return Response({"error": "Không có quyền"}, status=status.HTTP_403_FORBIDDEN)
-        except Motel.DoesNotExist:
-            return Response({"error": "Không tìm thấy nhà trọ"}, status=status.HTTP_404_NOT_FOUND)
-
-        images = request.FILES.getlist('image_url')
-        if not images:
-            return Response({"error": "Chưa chọn ảnh"}, status=status.HTTP_400_BAD_REQUEST)
-
-        created_images = []
-        for image in images:
-            motel_image = MotelImage.objects.create(
-                motel=motel,
-                image_url=image,
-                image_type=request.data.get('image_type', 'INSIDE')
-            )
-            created_images.append(motel_image)
-
-        serializer = self.get_serializer(created_images, many=True)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def perform_destroy(self, instance):
-        instance.active = False
-        instance.save()
-
-
-class AmenityViewSet(viewsets.ModelViewSet):
-    queryset = Amenity.objects.filter(active=True)
-    serializer_class = serializers.AmenitySerializer
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        return [AllowAny()]
-
-    def perform_destroy(self, instance):
-        instance.active = False
-        instance.save()
-
-
-class FavoriteViewSet(viewsets.ViewSet, generics.ListAPIView):
-    serializer_class = serializers.FavoriteSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = paginators.ItemPanigator
-
-    def get_queryset(self):
-        return self.request.user.favorites.filter(active=True)
-
-
-class StatisticsViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAdminUser]
-
-    def _parse_date(self, date_str):
-        if not date_str:
-            return None
-        try:
-            # Phân tích chuỗi ngày và làm cho nó nhận biết múi giờ
-            naive_dt = datetime.strptime(date_str, '%Y-%m-%d')
-            return timezone.make_aware(naive_dt, timezone=pytz.UTC)
-        except ValueError:
-            return None
-
-    @action(detail=False, methods=['get'], url_path='landlords')
-    def landlord_count(self, request):
-        """
-        Thống kê số lượng chủ trọ theo ngày, tháng, năm, quý.
-        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
-        """
-        from_date = self._parse_date(request.query_params.get('from'))
-        to_date = self._parse_date(request.query_params.get('to'))
-        type_ = request.query_params.get('type', 'month')
-        queryset = Landlord.objects.all()
-        if from_date:
-            queryset = queryset.filter(created_date__gte=from_date)
-        if to_date:
-            queryset = queryset.filter(created_date__lte=to_date)
-        if type_ == 'day':
-            data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('user_id')).order_by('day')
-        elif type_ == 'month':
-            data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('user_id')).order_by('month')
-        elif type_ == 'year':
-            data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('user_id')).order_by('year')
-        elif type_ == 'quarter':
-            data = queryset.extra({
-                'year': "DATE_FORMAT(created_date, '%%Y')",
-                'quarter': "QUARTER(created_date)"
-            }).values('year', 'quarter').annotate(count=Count('user_id')).order_by('year', 'quarter')
-        else:
-            return Response({'error': 'type phải là day, month, year, quarter'})
-        return Response(data)
-
-    @action(detail=False, methods=['get'], url_path='users')
-    def user_count(self, request):
-        """
-        Thống kê số lượng người dùng theo ngày, tháng, năm, quý.
-        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
-        """
-        from_date = self._parse_date(request.query_params.get('from'))
-        to_date = self._parse_date(request.query_params.get('to'))
-        type_ = request.query_params.get('type', 'month')
-        queryset = User.objects.filter(is_active=True)
-        if from_date:
-            queryset = queryset.filter(created_date__gte=from_date)
-        if to_date:
-            queryset = queryset.filter(created_date__lte=to_date)
-        if type_ == 'day':
-            data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
-        elif type_ == 'month':
-            data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('id')).order_by('month')
-        elif type_ == 'year':
-            data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('id')).order_by('year')
-        elif type_ == 'quarter':
-            data = queryset.extra({
-                'year': "DATE_FORMAT(created_date, '%%Y')",
-                'quarter': "QUARTER(created_date)"
-            }).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
-        else:
-            return Response({'error': 'type phải là day, month, year, quarter'})
-        return Response(data)
 
 
 class GoogleAuthView(APIView):

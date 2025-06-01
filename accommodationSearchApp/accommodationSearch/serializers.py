@@ -60,6 +60,7 @@ class UserSerializer(ItemSerializer):
 #         model = Admin
 #         fields = '__all__'
 
+
 class LandlordSerializer(ItemSerializer):
     class Meta:
         model = Landlord
@@ -108,24 +109,6 @@ class MotelSerializer(ItemSerializer):
         read_only_fields = ['user', 'rating_score', 'is_verified']
 
 
-class MotelRatingSerializer(ItemSerializer):
-    class Meta:
-        model = MotelRating
-        fields = ['id', 'motel', 'user', 'rating', 'comment', 'created_date']
-        read_only_fields = ['id', 'created_date']
-
-    def validate_rating(self, value):
-        if value < 1 or value > 5:
-            raise serializers.ValidationError("Rating must be between 1 and 5")
-        return value
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['user'] = UserSerializer(instance.user).data
-        data['motel'] = MotelSerializer(instance.motel).data
-        return data
-
-
 class RoomSerializer(ItemSerializer):
     amenities = serializers.PrimaryKeyRelatedField(many=True, queryset=Amenity.objects.all())
     amenities_display = serializers.SerializerMethodField()
@@ -145,6 +128,34 @@ class RoomSerializer(ItemSerializer):
         # Loại bỏ các giá trị trùng lặp trong tenants
         if 'tenants' in data:
             data['tenants'] = list(set(data['tenants']))
+        return data
+
+
+class AmenitySerializer(ItemSerializer):
+    class Meta:
+        model = Amenity
+        fields = ['id', 'name']
+
+
+class MotelImageSerializer(ItemSerializer):
+    class Meta:
+        model = MotelImage
+        fields = ['id', 'motel', 'image_url', 'image_type', 'created_date', 'updated_date', 'active']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['image_url'] = instance.image_url.url if instance.image_url else None
+        return data
+
+
+class RoomImageSerializer(ItemSerializer):
+    class Meta:
+        model = RoomImage
+        fields = ['id', 'room', 'image_url', 'created_date', 'updated_date', 'active']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['image_url'] = instance.image_url.url if instance.image_url else None
         return data
 
 
@@ -172,6 +183,35 @@ class RoomTenantSerializer(ItemSerializer):
         if value not in dict(RoomTenantStatus.choices):
             raise serializers.ValidationError("Trạng thái không hợp lệ")
         return value
+
+
+class MotelRatingSerializer(ItemSerializer):
+    class Meta:
+        model = MotelRating
+        fields = ['id', 'motel', 'user', 'rating', 'comment', 'created_date']
+        read_only_fields = ['id', 'created_date']
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5")
+        return value
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['user'] = UserSerializer(instance.user).data
+        data['motel'] = MotelSerializer(instance.motel).data
+        return data
+
+
+class FavoriteSerializer(ItemSerializer):
+    motel = MotelSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
+    motel_id = serializers.IntegerField(write_only=True)
+
+    class Meta:
+        model = Favorite
+        fields = ['id', 'user', 'motel', 'motel_id', 'created_date', 'updated_date', 'active']
+        read_only_fields = ['user', 'created_date', 'updated_date']
 
 
 class PostImageSerializer(ItemSerializer):
@@ -278,6 +318,24 @@ class SearchHistorySerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_date']
 
 
+class FollowSerializer(serializers.ModelSerializer):
+    followed_user = UserSerializer(read_only=True)
+    follower_user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = Follow
+        fields = ['id', 'followed_user', 'follower_user', 'last_message_time']
+        read_only_fields = ['id', 'last_message_time']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Thêm thông tin chi tiết của người được theo dõi
+        data['followed_user'] = UserSerializer(instance.followed_user).data
+        # Thêm thông tin chi tiết của người theo dõi
+        data['follower_user'] = UserSerializer(instance.follower_user).data
+        return data
+
+
 class NotificationSerializer(ItemSerializer):
     class Meta:
         model = Notifications
@@ -323,24 +381,6 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only_fields = ['sender', 'created_date']
 
 
-class FollowSerializer(serializers.ModelSerializer):
-    followed_user = UserSerializer(read_only=True)
-    follower_user = UserSerializer(read_only=True)
-
-    class Meta:
-        model = Follow
-        fields = ['id', 'followed_user', 'follower_user', 'last_message_time']
-        read_only_fields = ['id', 'last_message_time']
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Thêm thông tin chi tiết của người được theo dõi
-        data['followed_user'] = UserSerializer(instance.followed_user).data
-        # Thêm thông tin chi tiết của người theo dõi
-        data['follower_user'] = UserSerializer(instance.follower_user).data
-        return data
-
-
 class PaymentSerializer(serializers.ModelSerializer):
     payer = serializers.SlugRelatedField(
         slug_field='username',
@@ -356,40 +396,5 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'payer', 'created_date', 'updated_date']
 
 
-class MotelImageSerializer(ItemSerializer):
-    class Meta:
-        model = MotelImage
-        fields = ['id', 'motel', 'image_url', 'image_type', 'created_date', 'updated_date', 'active']
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['image_url'] = instance.image_url.url if instance.image_url else None
-        return data
 
 
-class RoomImageSerializer(ItemSerializer):
-    class Meta:
-        model = RoomImage
-        fields = ['id', 'room', 'image_url', 'created_date', 'updated_date', 'active']
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['image_url'] = instance.image_url.url if instance.image_url else None
-        return data
-
-
-class AmenitySerializer(ItemSerializer):
-    class Meta:
-        model = Amenity
-        fields = ['id', 'name']
-
-
-class FavoriteSerializer(ItemSerializer):
-    motel = MotelSerializer(read_only=True)
-    user = UserSerializer(read_only=True)
-    motel_id = serializers.IntegerField(write_only=True)
-
-    class Meta:
-        model = Favorite
-        fields = ['id', 'user', 'motel', 'motel_id', 'created_date', 'updated_date', 'active']
-        read_only_fields = ['user', 'created_date', 'updated_date']
