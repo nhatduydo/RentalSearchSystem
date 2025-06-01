@@ -92,12 +92,3 @@ class IsPaymentOwnerOrMotelOwner(permissions.BasePermission):
             return any(room_tenant.tenant.user == request.user for room_tenant in room_tenants)
         except Exception:
             return False
-
-
-class IsMotelOwner(permissions.BasePermission):
-    """
-    Kiểm tra xem người dùng có phải là chủ nhà không
-    """
-
-    def has_permission(self, request, view):
-        return hasattr(request.user, 'motel')

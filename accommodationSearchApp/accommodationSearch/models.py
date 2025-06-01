@@ -337,8 +337,8 @@ class RoomTenant(ActiveModel):
 
 class MotelRating(ActiveModel):
     id = models.AutoField(primary_key=True)
-    motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='ratings')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ratings', null=True, blank=True)
+    motel = models.ForeignKey(Motel, on_delete=models.CASCADE, related_name='motel_ratings')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_ratings', null=True, blank=True)
     rating = models.IntegerField()
     comment = models.TextField()
 

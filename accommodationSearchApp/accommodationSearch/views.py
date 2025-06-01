@@ -23,9 +23,7 @@ from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import (NotFound, PermissionDenied,
                                        ValidationError)
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import (SAFE_METHODS, AllowAny, IsAdminUser,
-                                        IsAuthenticated)
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -38,7 +36,7 @@ from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
                      PostType, Room, RoomImage, RoomTenant, RoomTenantStatus,
                      SearchHistory, Tenant, User, UserRole)
 from .permissions import (IsAdmin, IsLandlordOfRoom, IsLandlordOrTenant,
-                          IsMotelOwner, IsOwnerOrAdmin, IsOwnerOrReadOnly,
+                          IsOwnerOrAdmin, IsOwnerOrReadOnly,
                           IsPaymentOwnerOrMotelOwner)
 from .utils import calculate_distance
 from .vnpay import vnpay
@@ -48,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 def index(request):
     return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
+
 
 class UserViewSet(viewsets.ViewSet,
                   generics.ListAPIView,
@@ -419,9 +418,9 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 # lọc các thanh toán do người dùng đó thực hiện.
                 #  JOIN luôn bảng Room để tối ưu truy vấn
                 payments = Payment.objects.filter(
-                payer=tenant.user,
-                active=True
-            ).select_related('room')
+                    payer=tenant.user,
+                    active=True
+                ).select_related('room')
 
             serializer = serializers.PaymentSerializer(payments, many=True)
             return Response(serializer.data)
@@ -641,7 +640,7 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
-        if self.action in ['create','update', 'partial_update', 'destroy']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
@@ -683,7 +682,7 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
             if max_people:
                 filters['max_people__gte'] = max_people
             if filters:
-                query = query.filter(**filters)
+                query = query.filter(**filters)  # truyền các điều kiện lọc vào hàm filter() bằng cách giải nén dict (**filters) thành các tham số keyword.
         return query
 
 
@@ -810,6 +809,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             return [IsLandlordOrTenant()]
         return [IsAuthenticated()]
 
+    #  tránh thực hiện truy vấn cơ sở dữ liệu không cần thiết khi Swagger đang tạo tài liệu (fake request).
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return RoomTenant.objects.none()
@@ -821,11 +821,11 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         )
 
         if user.role == UserRole.ADMIN:
-            return queryset
+            return queryset  # Admin được xem tất cả dữ liệu
         elif user.role == UserRole.LANDLORD:
-            return queryset.filter(room__motel__user=user)
+            return queryset.filter(room__motel__user=user)  # Chủ trọ chỉ xem được dữ liệu liên quan đến các phòng trong nhà trọ của mình
         elif user.role == UserRole.TENANT:
-            return queryset.filter(tenant__user=user)
+            return queryset.filter(tenant__user=user)  # Người thuê chỉ được xem dữ liệu liên quan đến chính họ
         return RoomTenant.objects.none()
 
     def perform_create(self, serializer):
@@ -922,13 +922,13 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(motel_id=motel_id)
         return queryset.select_related('user', 'motel')
 
-    def _update_motel_rating(self, motel):
-        """Helper method to update motel's rating_score"""
+    def update_motel_rating(self, motel):
         # Lấy tất cả đánh giá active của motel
-        ratings = MotelRating.objects.filter(motel=motel, active=True)
+        ratings = motel.motel_ratings.filter(active=True)
         if ratings.exists():
             # Tính trung bình rating
-            avg_rating = ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
+            result = ratings.aggregate(Avg('rating'))  # result là dict: {'rating__avg': giá trị}
+            avg_rating = result['rating__avg']
             motel.rating_score = round(avg_rating, 1)  # Làm tròn đến 1 chữ số thập phân
         else:
             motel.rating_score = 0
@@ -957,7 +957,7 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
                 action = "đánh giá"
 
             # Cập nhật rating_score của motel
-            self._update_motel_rating(rating.motel)
+            self.update_motel_rating(rating.motel)
 
             # Thông báo cho chủ nhà khi có đánh giá mới hoặc cập nhật
             if rating.motel.user != request.user:
@@ -978,14 +978,14 @@ class MotelRatingViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         rating = serializer.save()
         # Cập nhật rating_score của motel
-        self._update_motel_rating(rating.motel)
+        self.update_motel_rating(rating.motel)
 
     def perform_destroy(self, instance):
         motel = instance.motel
         instance.active = False
         instance.save()
         # Cập nhật rating_score của motel sau khi xóa đánh giá
-        self._update_motel_rating(motel)
+        self.update_motel_rating(motel)
 
 
 class FavoriteViewSet(viewsets.ViewSet, generics.ListAPIView):

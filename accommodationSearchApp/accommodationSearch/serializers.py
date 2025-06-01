@@ -193,7 +193,7 @@ class MotelRatingSerializer(ItemSerializer):
 
     def validate_rating(self, value):
         if value < 1 or value > 5:
-            raise serializers.ValidationError("Rating must be between 1 and 5")
+            raise serializers.ValidationError("Xếp hạng phải nằm trong khoảng từ 1 đến 5")
         return value
 
     def to_representation(self, instance):
