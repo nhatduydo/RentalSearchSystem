@@ -1657,22 +1657,73 @@ class SearchViewSet(viewsets.ViewSet):
             min_price = request.query_params.get('min_price')
             max_price = request.query_params.get('max_price')
             if min_price or max_price:
-                post_query = Post.objects.filter(motel=OuterRef('pk'))  # tham chiếu đến pk của bảng Motel
-                # Tạo một subquery để lấy các Post có motel_id bằng với pk của Motel
-                if min_price:
-                    post_query = post_query.filter(min_price__gte=min_price)
-                if max_price:
-                    post_query = post_query.filter(max_price__lte=max_price)
-                motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
-                # Subquery nhúng một query bên trong một query khác
+                try:
+                    # Chuyển đổi giá trị sang float
+                    min_price = float(min_price) if min_price else None
+                    max_price = float(max_price) if max_price else None
+
+                    # Tìm kiếm trong bảng Post
+                    post_query = Post.objects.filter(motel=OuterRef('pk'))
+                    if min_price:
+                        post_query = post_query.filter(min_price__gte=min_price)
+                    if max_price:
+                        post_query = post_query.filter(max_price__lte=max_price)
+
+                    # Tìm kiếm trong bảng Room
+                    room_query = Room.objects.filter(motel=OuterRef('pk'))
+                    if min_price:
+                        room_query = room_query.filter(price__gte=min_price)
+                    if max_price:
+                        room_query = room_query.filter(price__lte=max_price)
+
+                    # Kết hợp kết quả từ cả hai bảng
+                    motels = motels.filter(
+                        Q(id__in=Subquery(post_query.values('motel_id'))) |
+                        Q(id__in=Subquery(room_query.values('motel_id')))
+                    )
+                except ValueError:
+                    # Nếu giá trị không phải số, bỏ qua điều kiện tìm kiếm theo giá
+                    pass
+
             max_people = request.query_params.get('max_people')
             if max_people:
                 room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
                 motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
 
-            # Serialize và trả về kết quả
-            serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
-            return Response(serializer.data)
+            # Tìm kiếm theo amenities
+            amenities = request.query_params.getlist('amenities')
+            if amenities:
+                # Tìm các phòng có chứa ít nhất một trong các amenities được chọn
+                room_query = Room.objects.filter(
+                    motel=OuterRef('pk'),
+                    amenities__id__in=amenities
+                )
+                motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
+
+        # Lưu lịch sử tìm kiếm nếu người dùng đã đăng nhập
+        if request.user.is_authenticated:
+            search_params = {
+                'q': search_query,
+                'district': request.query_params.get('district'),
+                'city': request.query_params.get('city'),
+                'province': request.query_params.get('province'),
+                'min_price': request.query_params.get('min_price'),
+                'max_price': request.query_params.get('max_price'),
+                'max_people': request.query_params.get('max_people'),
+                'amenities': request.query_params.getlist('amenities')
+            }
+            # Chỉ lưu các tham số không None và không rỗng
+            search_params = {k: v for k, v in search_params.items() if v is not None and v != []}
+
+            if search_params:  # Chỉ lưu nếu có ít nhất một tham số tìm kiếm
+                SearchHistory.objects.create(
+                    user=request.user,
+                    search_params=search_params
+                )
+
+        # Serialize và trả về kết quả
+        serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='nearby')
     def nearby(self, request):
