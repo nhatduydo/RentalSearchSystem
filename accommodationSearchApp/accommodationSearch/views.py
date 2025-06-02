@@ -1477,7 +1477,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
-        # Kiểm tra xem có phải là swagger view không
         if getattr(self, 'swagger_fake_view', False):
             return Payment.objects.none()
 

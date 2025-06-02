@@ -278,8 +278,7 @@ class PostDetailSerializer(ItemSerializer):
                         order=order
                     )
                 except Exception as e:
-                    pass  # Handle exception silently
-
+                    print("loi ", e) 
         return post
 
 
