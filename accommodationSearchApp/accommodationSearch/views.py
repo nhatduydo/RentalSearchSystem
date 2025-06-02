@@ -1799,9 +1799,22 @@ class SearchViewSet(viewsets.ViewSet):
 
 
 class StatisticsViewSet(viewsets.ViewSet):
+    """
+    ViewSet xử lý thống kê số lượng người dùng và chủ trọ theo thời gian.
+    Chỉ cho phép admin truy cập.
+    """
     permission_classes = [permissions.IsAdminUser]
 
     def _parse_date(self, date_str):
+        """
+        Chuyển đổi chuỗi ngày thành đối tượng datetime có timezone.
+
+        Args:
+            date_str (str): Chuỗi ngày theo định dạng 'YYYY-MM-DD'
+
+        Returns:
+            datetime: Đối tượng datetime có timezone hoặc None nếu không hợp lệ
+        """
         if not date_str:
             return None
         try:
@@ -1815,58 +1828,106 @@ class StatisticsViewSet(viewsets.ViewSet):
     def landlord_count(self, request):
         """
         Thống kê số lượng chủ trọ theo ngày, tháng, năm, quý.
-        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+
+        Args:
+            request: Request object chứa các tham số:
+                - type: Loại thống kê ('day', 'month', 'year', 'quarter')
+                - from: Ngày bắt đầu (YYYY-MM-DD)
+                - to: Ngày kết thúc (YYYY-MM-DD)
+
+        Returns:
+            Response: JSON chứa dữ liệu thống kê theo định dạng:
+                - day: [{'day': 'YYYY-MM-DD', 'count': N}, ...]
+                - month: [{'month': 'YYYY-MM', 'count': N}, ...]
+                - year: [{'year': 'YYYY', 'count': N}, ...]
+                - quarter: [{'year': 'YYYY', 'quarter': Q, 'count': N}, ...]
         """
+        # Lấy và xử lý các tham số từ request
         from_date = self._parse_date(request.query_params.get('from'))
         to_date = self._parse_date(request.query_params.get('to'))
         type_ = request.query_params.get('type', 'month')
+
+        # Lấy queryset cơ bản
         queryset = Landlord.objects.all()
+
+        # Áp dụng bộ lọc thời gian nếu có
         if from_date:
             queryset = queryset.filter(created_date__gte=from_date)
         if to_date:
             queryset = queryset.filter(created_date__lte=to_date)
+
+        # Thực hiện thống kê theo loại được chọn
         if type_ == 'day':
+            # Thống kê theo ngày
             data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('user_id')).order_by('day')
         elif type_ == 'month':
+            # Thống kê theo tháng
             data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('user_id')).order_by('month')
         elif type_ == 'year':
+            # Thống kê theo năm
             data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('user_id')).order_by('year')
         elif type_ == 'quarter':
+            # Thống kê theo quý
             data = queryset.extra({
                 'year': "DATE_FORMAT(created_date, '%%Y')",
                 'quarter': "QUARTER(created_date)"
             }).values('year', 'quarter').annotate(count=Count('user_id')).order_by('year', 'quarter')
         else:
             return Response({'error': 'type phải là day, month, year, quarter'})
+
         return Response(data)
 
     @action(detail=False, methods=['get'], url_path='users')
     def user_count(self, request):
         """
         Thống kê số lượng người dùng theo ngày, tháng, năm, quý.
-        Truyền params: type=[day|month|year|quarter], from, to (yyyy-mm-dd)
+
+        Args:
+            request: Request object chứa các tham số:
+                - type: Loại thống kê ('day', 'month', 'year', 'quarter')
+                - from: Ngày bắt đầu (YYYY-MM-DD)
+                - to: Ngày kết thúc (YYYY-MM-DD)
+
+        Returns:
+            Response: JSON chứa dữ liệu thống kê theo định dạng:
+                - day: [{'day': 'YYYY-MM-DD', 'count': N}, ...]
+                - month: [{'month': 'YYYY-MM', 'count': N}, ...]
+                - year: [{'year': 'YYYY', 'count': N}, ...]
+                - quarter: [{'year': 'YYYY', 'quarter': Q, 'count': N}, ...]
         """
+        # Lấy và xử lý các tham số từ request
         from_date = self._parse_date(request.query_params.get('from'))
         to_date = self._parse_date(request.query_params.get('to'))
         type_ = request.query_params.get('type', 'month')
+
+        # Lấy queryset cơ bản, chỉ lấy người dùng đang hoạt động
         queryset = User.objects.filter(is_active=True)
+
+        # Áp dụng bộ lọc thời gian nếu có
         if from_date:
             queryset = queryset.filter(created_date__gte=from_date)
         if to_date:
             queryset = queryset.filter(created_date__lte=to_date)
+
+        # Thực hiện thống kê theo loại được chọn
         if type_ == 'day':
+            # Thống kê theo ngày
             data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
         elif type_ == 'month':
+            # Thống kê theo tháng
             data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('id')).order_by('month')
         elif type_ == 'year':
+            # Thống kê theo năm
             data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('id')).order_by('year')
         elif type_ == 'quarter':
+            # Thống kê theo quý
             data = queryset.extra({
                 'year': "DATE_FORMAT(created_date, '%%Y')",
                 'quarter': "QUARTER(created_date)"
             }).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
         else:
             return Response({'error': 'type phải là day, month, year, quarter'})
+
         return Response(data)
 
 
