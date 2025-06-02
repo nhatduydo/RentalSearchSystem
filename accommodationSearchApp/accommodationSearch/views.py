@@ -1665,16 +1665,6 @@ class SearchViewSet(viewsets.ViewSet):
                     post_query = post_query.filter(max_price__lte=max_price)
                 motels = motels.filter(id__in=Subquery(post_query.values('motel_id')))
                 # Subquery nhúng một query bên trong một query khác
-
-                # # Cách 1: Không dùng Subquery (sẽ tạo nhiều query)
-                # post_ids = Post.objects.values_list('motel_id', flat=True)  # Query 1
-                # motels = Motel.objects.filter(id__in=post_ids)  # Query 2
-
-                # # Cách 2: Dùng Subquery (chỉ 1 query)
-                # motels = Motel.objects.filter(
-                #     id__in=Subquery(Post.objects.values('motel_id'))
-                # )
-
             max_people = request.query_params.get('max_people')
             if max_people:
                 room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
