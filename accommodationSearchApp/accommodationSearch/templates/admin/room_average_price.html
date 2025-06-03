@@ -1,0 +1,58 @@
+{% extends 'admin/base_site.html' %}
+{% block content %}
+<h1>THỐNG KÊ GIÁ PHÒNG TRUNG BÌNH THEO KHU VỰC</h1>
+
+<ul>
+    {% for s in stats %}
+    <li>{{ s.motel__district }}: {{ s.avg_price }}</li>
+    {% endfor %}
+</ul>
+
+<div style="width: 50%;">
+    <canvas id="myChart"></canvas>
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+      let data = [];
+      let labels = [];
+      let backgroundColors = [];
+
+      {% for s in stats %}
+      data.push({{ s.avg_price }});
+      labels.push('{{ s.motel__district }}');
+      backgroundColors.push(`hsl(${Math.random() * 360}, 60%, 50%)`);
+      {% endfor %}
+  
+      window.onload = function() {
+          const ctx = document.getElementById('myChart').getContext('2d');
+  
+            new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Giá phòng trung bình theo khu vực',
+                  data: data,
+                  borderWidth: 1,
+                  backgroundColor: backgroundColors,
+                hoverOffset: 4
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: { display: false }
+              },
+                scales: {
+                  y: {
+                    beginAtZero: true
+                  }
+                }
+              }
+            });
+      }
+  </script>
+
+{% endblock %}

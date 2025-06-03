@@ -1,40 +1,66 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# dependencies
-node_modules/
+# Virtual environment
+venv/
+env/
+ENV/
+*.env
+*.venv
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+# Django stuff:
+db.sqlite3
+*.sqlite3
+*.log
+media/
+staticfiles/
 
-# Native
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
+# Ignore migrations cache files
+**/migrations/__pycache__/
+**/migrations/*.pyc
+**/migrations/*.pyo
+**/migrations/*.pyd
+**/migrations/*.log
 
-# Metro
-.metro-health-check*
+# Ignore IDE/Editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
 
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# Ignore compiled files
+*.so
+*.o
+*.a
 
-# macOS
+# Ignore dependencies
+*.lock
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# Ignore MacOS system files
 .DS_Store
-*.pem
 
+# Ignore test and coverage files
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+htmlcov/
+/.history
+test_socket_native.js
 # local env files
 .env*.local
 
 # typescript
 *.tsbuildinfo
 /.history
-/.history/accommodationSearchApp/accommodationSearch
 /venv
 /accommodationSearchApp/accommodationSearch/__pycache__
