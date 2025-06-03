@@ -1,19 +1,17 @@
-from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
-                                        Favorite, Follow, Landlord,
-                                        LikeComment, LikeMotel, Message, Motel,
-                                        MotelImage, MotelRating, Notifications,
-                                        Payment, Post, Room, RoomImage,
-                                        RoomTenant, SearchHistory, Tenant,
-                                        User)
+from accommodationSearch.models import (Amenity, ChatRoom, Comment, Favorite,
+                                        Follow, Landlord, LikeComment,
+                                        LikeMotel, Motel, MotelImage,
+                                        MotelRating, Notifications, Payment,
+                                        Post, Room, RoomImage, RoomTenant,
+                                        SearchHistory, Tenant, User)
+from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db.models import Avg, Count
 from django.template.response import TemplateResponse
 from django.urls import path
-from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
 
 class UserForm(forms.ModelForm):
@@ -65,16 +63,18 @@ class TenantAdmin(admin.ModelAdmin):
 
 
 class MotelAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'motel_name', 'address', 'district', 'city', 'province', 'total_rooms', 'available_rooms', 'rating_score',  'active', 'is_verified']
+    list_display = ['id', 'user', 'motel_name', 'address', 'district', 'city', 'province', 'total_rooms', 'available_rooms', 'rating_score', 'active', 'is_verified', 'image_view']
     search_fields = ['motel_name', 'address', 'active',  'created_date']
     list_filter = ['city', 'province',  'created_date']
-    readonly_fields = ['slug']
-    readonly_fields = ['rating_score']
+    readonly_fields = ['slug', 'rating_score', 'image_view']
     exclude = ['slug']
 
-    @staticmethod
-    def image_view(motel):
-        return mark_safe(f"<img src='{motel.image.url}' width='200' />")
+    def image_view(self, obj):
+        first_image = obj.images.first()
+        if first_image and first_image.image_url:
+            return mark_safe(f"<img src='{first_image.image_url.url}' width='300' />")
+        return "No image"
+    image_view.short_description = 'Motel Image'
 
 
 class MotelImageAdmin(admin.ModelAdmin):
@@ -89,9 +89,10 @@ class MotelImageAdmin(admin.ModelAdmin):
 
 
 class RoomAdmin(admin.ModelAdmin):
-    list_display = ['motel', 'room_name', 'area', 'price', 'max_people', 'is_verified', 'tenant_list']
+    list_display = ['motel', 'room_name', 'area', 'price', 'max_people', 'is_verified', 'tenant_list', 'image_view']
     search_fields = ['room_name', 'motel', 'created_date']
     list_filter = ['price', 'max_people', 'motel', 'created_date']
+    readonly_fields = ['slug', 'image_view']
     exclude = ['slug']
     inlines = [RoomTenantInline]
 
@@ -100,9 +101,12 @@ class RoomAdmin(admin.ModelAdmin):
 
     tenant_list.short_description = "tenant"
 
-    @staticmethod
-    def image_view(room):
-        return mark_safe(f"<img src='{room.image.url}' width='200' />")
+    def image_view(self, obj):
+        first_image = obj.images.first()
+        if first_image and first_image.image_url:
+            return mark_safe(f"<img src='{first_image.image_url.url}' width='100' />")
+        return "No image"
+    image_view.short_description = 'Room Image'
 
 
 class RoomImageAdmin(admin.ModelAdmin):
@@ -170,6 +174,7 @@ class MessageAdmin(admin.ModelAdmin):
     list_display = ['id', 'chat_room', 'sender', 'content', 'is_read', 'created_date']
     list_filter = ['is_read', 'created_date']
     search_fields = ['content', 'sender__username']
+
 
 class MyAdminSite(admin.AdminSite):
     site_header = 'HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ'

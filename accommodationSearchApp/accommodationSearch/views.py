@@ -152,7 +152,6 @@ class UserViewSet(viewsets.ViewSet,
         request.user.save()
         return Response({"success": "Thay đổi mật khẩu thành công"})
 
-    # Lấy thông tin chi tiết người dùng theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             username = get_object_or_404(User, id=pk)
@@ -174,13 +173,11 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
-    # Lấy thông tin chi tiết chủ nhà theo ID, username hoặc slug
     def retrieve(self, request, pk=None):
         try:
             if pk.isdigit():
                 landlord = get_object_or_404(Landlord, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 landlord = get_object_or_404(Landlord, Q(user__username=pk) | Q(slug=pk))
 
             serializers = self.get_serializer(landlord)
@@ -191,7 +188,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    # Lấy danh sách chủ nhà với các điều kiện tìm kiếm
     def get_queryset(self):
         query = self.queryset
 
@@ -209,26 +205,22 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 query = query.filter(slug=slug_source)
         return query
 
-    # Cập nhật thông tin chủ nhà
     def update(self, request, *args, **kwargs):
         try:
             pk = kwargs.get('pk')
             if pk.isdigit():
                 landlord = get_object_or_404(Landlord, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 landlord = get_object_or_404(Landlord, Q(user__username=pk) | Q(slug=pk))
 
-            # Kiểm tra quyền cập nhật
             if request.user != landlord.user and not request.user.is_staff:
                 return Response(
                     {'error': 'Bạn không có quyền cập nhật thông tin này'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Cập nhật thông tin
             serializer = self.get_serializer(landlord, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)  # Kiểm tra dữ liệu có hợp lệ không.
+            serializer.is_valid(raise_exception=True) 
             serializer.save()
 
             return Response({
@@ -243,17 +235,14 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-    # Xác thực chủ nhà (chỉ admin mới có quyền)
     @action(methods=['PATCH'], detail=True, url_path='verify')
     def verify(self, request, pk=None):
         try:
             if pk.isdigit():
                 landlord = get_object_or_404(Landlord, user_id=pk)
             else:
-                # Tìm theo username hoặc slug
                 landlord = get_object_or_404(Landlord, Q(user__username=pk) | Q(slug=pk))
 
-            # Kiểm tra quyền xác thực
             if not request.user.is_staff:
                 return Response(
                     {'error': 'Chỉ admin mới có quyền xác thực chủ nhà'},
@@ -263,7 +252,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             landlord.is_verified = True
             landlord.save()
 
-            # Tạo thông báo cho chủ nhà
             Notifications.objects.create(
                 receiver=landlord.user,
                 title="Tài khoản đã được xác thực",
@@ -296,7 +284,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
-    # Lấy thông tin chi tiết người thuê theo ID, username hoặc slug
     def retrieve(self, request, pk=None):
         try:
             if pk.isdigit():
@@ -313,7 +300,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    # Lấy danh sách người thuê với các điều kiện tìm kiếm
     def get_queryset(self):
         query = self.queryset
 
@@ -330,12 +316,10 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             if slug_source:
                 query = query.filter(slug=slug_source)
 
-            # Lọc theo giới tính
             gender = self.request.query_params.get('gender')
             if gender:
                 query = query.filter(gender=gender)
 
-            # Lọc theo khoảng tuổi
             min_age = self.request.query_params.get('min_age')
             max_age = self.request.query_params.get('max_age')
             if min_age or max_age:
@@ -344,11 +328,10 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                     max_date = today.replace(year=today.year - int(min_age))
                     query = query.filter(date_of_birth__lte=max_date)
                 if max_age:
-                    min_date = today.replace(year=today.year - int(max_age) - 1)  # trừ 1 vì để tính chưa tới sinh nhật thứ 25, hay 25 tuổi mấy ngày không lấy
+                    min_date = today.replace(year=today.year - int(max_age) - 1)
                     query = query.filter(date_of_birth__gt=min_date)
         return query
 
-    # Cập nhật thông tin người thuê
     def update(self, request, *args, **kwargs):
         try:
             pk = kwargs.get('pk')
@@ -357,7 +340,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             else:
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
-            # Nếu người đang gửi yêu cầu không phải là chủ tài khoản và cũng không phải là admin không được phép cập nhật.
             if request.user != tenant.user and not request.user.is_staff:
                 return Response(
                     {'error': 'Bạn không có quyền cập nhật thông tin này'},
@@ -365,7 +347,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 )
 
             serializer = self.get_serializer(tenant, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)  # Giúp kiểm tra dữ liệu đầu vào và dừng lại ngay nếu có lỗi, không cần viết thêm code xử lý lỗi thủ công.
+            serializer.is_valid(raise_exception=True) 
             serializer.save()
 
             return Response({
@@ -380,7 +362,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-    # Lấy danh sách phòng đã thuê
     @action(detail=True, methods=['get'], url_path='rooms')
     def get_rented_rooms(self, request, pk=None):
         try:
@@ -393,9 +374,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 tenant=tenant,
                 active=True
             ).select_related('room', 'room__motel')
-            # 'room': lấy luôn thông tin của phòng (Room) gắn với RoomTenant.
-            # 'room__motel': lấy luôn thông tin nhà trọ (Motel) chứa phòng đó.
-            # bạn tối ưu hóa hiệu năng bằng cách dùng JOIN trong SQL để lấy dữ liệu liên kết trong 1 truy vấn duy nhất.
             serializer = serializers.RoomTenantSerializer(room_tenants, many=True)
             return Response(serializer.data)
         except Exception as e:
@@ -405,7 +383,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    # Lấy lịch sử thanh toán
     @action(detail=True, methods=['get'], url_path='payments')
     def get_payment_history(self, request, pk=None):
         try:
@@ -414,8 +391,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
             else:
                 tenant = get_object_or_404(Tenant, Q(user__username=pk) | Q(slug=pk))
 
-                # lọc các thanh toán do người dùng đó thực hiện.
-                #  JOIN luôn bảng Room để tối ưu truy vấn
                 payments = Payment.objects.filter(
                     payer=tenant.user,
                     active=True
@@ -449,14 +424,12 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     def perform_create(self, serializer):
         motel = serializer.save(user=self.request.user)
 
-        # lây danh sách người theo giỏi
         followers = self.request.user.followers.filter(active=True)
         print(f"Số người theo dõi: {followers.count()}")
 
-        # với mỗi người theo giỏi, gửi thông báo về
         for follower in followers:
             print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
-            # Tạo thông báo trong database
+            
             Notifications.objects.create(
                 receiver=follower.follower_user,
                 title="Nhà trọ mới",
@@ -465,7 +438,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 related_object_id=motel.id
             )
 
-            # Gửi email thông báo
             try:
                 email_data = {
                     'name': follower.follower_user.username,
@@ -481,7 +453,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     'longitude': motel.longitude
                 }
 
-                # Gửi email bất đồng bộ sử dụng asyncio.run()
                 asyncio.run(
                     EmailService.send_notification(
                         to_email=follower.follower_user.email,
@@ -496,8 +467,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     @transaction.atomic
     def perform_update(self, serializer):
         motel = serializer.save()
-        # Notify followers about the update
-        # followers = Follow.objects.filter(followed_user=self.request.user, active=True)
         followers = self.request.user.followers.filter(active=True)
         print(f"Số người theo dõi: {followers.count()}")
 
@@ -526,7 +495,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     'longitude': motel.longitude
                 }
 
-                # Gửi email bất đồng bộ sử dụng asyncio.run()
                 asyncio.run(
                     EmailService.send_notification(
                         to_email=follow.follower_user.email,
@@ -538,7 +506,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             except Exception as e:
                 print(f"Lỗi khi gửi email cập nhật đến {follow.follower_user.email}: {str(e)}")
 
-    # Lấy thông tin chi tiết nhà trọ theo ID hoặc slug
     def retrieve(self, request, pk=None):
         if pk.isdigit():
             motel = get_object_or_404(Motel, id=pk)
@@ -548,7 +515,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
         serializers = self.get_serializer(motel)
         return Response(serializers.data)
 
-    # like (thích) một phòng trọ
     @action(methods=['POST'], detail=True, url_path='like')
     def like_motel(self, request, pk):
         motel = self.get_object()
@@ -557,7 +523,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             like.active = not like.active
         like.save()
 
-        # Thông báo cho chủ nhà khi có người like nhà trọ
         if like.active:
             Notifications.objects.create(
                 receiver=motel.user,
@@ -576,7 +541,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
             favorite.active = not favorite.active
         favorite.save()
 
-        # Thông báo cho chủ nhà khi có người thêm yêu thích
         if favorite.active:
             Notifications.objects.create(
                 receiver=motel.user,
@@ -606,7 +570,6 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                     'error': 'Nhà trọ chưa đủ điều kiện để xác minh. Cần có ít nhất 3 hình ảnh và địa chỉ đầy đủ'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Xét duyệt nhà trọ
             motel.is_verified = True
             motel.save()
 
@@ -798,31 +761,29 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['accept_request', 'reject_request']:
-            return [IsLandlordOfRoom()]  # Chỉ chủ trọ mới được accept/reject
+            return [IsLandlordOfRoom()]  
         elif self.action == 'cancel_contract':
-            # Cho phép admin, chủ trọ hoặc người thuê cancel contract
             if self.request.user.role == UserRole.ADMIN:
                 return [IsAdmin()]
             return [IsLandlordOrTenant()]
         return [IsAuthenticated()]
 
-    #  tránh thực hiện truy vấn cơ sở dữ liệu không cần thiết khi Swagger đang tạo tài liệu (fake request).
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return RoomTenant.objects.none()
 
         user = self.request.user
         queryset = RoomTenant.objects.select_related(
-            'room__motel__user',  # Lấy thông tin user của motel
-            'tenant__user'        # Lấy thông tin user của tenant
+            'room__motel__user', 
+            'tenant__user'     
         )
 
         if user.role == UserRole.ADMIN:
-            return queryset  # Admin được xem tất cả dữ liệu
+            return queryset  
         elif user.role == UserRole.LANDLORD:
-            return queryset.filter(room__motel__user=user)  # Chủ trọ chỉ xem được dữ liệu liên quan đến các phòng trong nhà trọ của mình
+            return queryset.filter(room__motel__user=user)  
         elif user.role == UserRole.TENANT:
-            return queryset.filter(tenant__user=user)  # Người thuê chỉ được xem dữ liệu liên quan đến chính họ
+            return queryset.filter(tenant__user=user) 
         return RoomTenant.objects.none()
 
     def perform_create(self, serializer):
@@ -884,14 +845,13 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         room_tenant.status = RoomTenantStatus.CANCELLED
         room_tenant.save()
 
-        # Thông báo cho bên còn lại dựa vào người thực hiện
         if request.user.role == UserRole.ADMIN:
             receiver = room_tenant.tenant.user
             content = "Hợp đồng của bạn đã bị hủy bởi admin"
         elif request.user == room_tenant.tenant.user:
             receiver = room_tenant.room.motel.user
             content = f"Hợp đồng với {room_tenant.tenant.full_name} đã bị hủy"
-        else:  # landlord
+        else: 
             receiver = room_tenant.tenant.user
             content = "Hợp đồng của bạn đã bị hủy bởi chủ trọ"
 
@@ -990,7 +950,6 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     def perform_create(self, serializer):
         post = serializer.save(user=self.request.user)
 
-        # Xử lý lưu hình ảnh
         images_data = self.request.FILES.getlist('images')
         image_type = self.request.data.get('image_type', 'INSIDE')
 
@@ -1007,7 +966,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
             followers = self.request.user.followers.all()
             for follow in followers:
                 Notifications.objects.create(
-                    receiver=follow.follower_user,  # Người nhận thông báo là người theo dõi
+                    receiver=follow.follower_user,
                     title="New Post",
                     content=f"{self.request.user.username} đã đăng một bài đăng mới: {post.title}",
                     notification_type=NotificationType.NEW_POST,
@@ -1016,11 +975,8 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
 
     def perform_update(self, serializer):
         post = serializer.save()
-        # Xử lý cập nhật hình ảnh nếu có
         if 'images' in self.request.FILES:
-            # Xóa các hình ảnh cũ
             post.images.all().delete()
-            # Thêm các hình ảnh mới
             for order, image in enumerate(self.request.FILES.getlist('images')):
                 PostImage.objects.create(
                     post=post,
@@ -1028,7 +984,6 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     order=order
                 )
 
-    # lấy danh sách các bình luận cấp cao nhất
     @action(detail=True, methods=['get'])
     def comments(self, request, pk=None):
         post = self.get_object()
@@ -1036,7 +991,6 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         serializer = serializers.CommentSerializer(comments, many=True)
         return Response(serializer.data)
 
-    # API endpoint để xóa một hình ảnh cụ thể
     @action(detail=True, methods=['delete'], url_path='images/(?P<image_id>[^/.]+)')
     def delete_image(self, request, pk=None, image_id=None):
         try:
@@ -1065,17 +1019,14 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
             return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
-    # lấy danh sách bình luận (Comment) cho một bài viết cụ thể.
     def list(self, request):
         post_id = request.GET.get('post_id')
         if post_id:
-            # Chỉ lấy các bình luận gốc (không phải replies), đang hoạt động, thuộc bài viết đó.
             comments = Comment.objects.filter(post=post_id, active=True, parent=None).select_related('user')
         else:
             comments = Comment.objects.filter(active=True, parent=None).select_related('user')
         return Response(serializers.CommentSerializer(comments, many=True, context={"request": request}).data)
 
-    # Tạo mới bình luận gốc
     def create(self, request):
         data = {
             'post': request.data.get('post'),
@@ -1097,7 +1048,6 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
         comment = serializer.save()
 
-        # Thông báo cho chủ bài viết khi có bình luận mới
         if comment.post.user != request.user:
             Notifications.objects.create(
                 receiver=comment.post.user,
@@ -1109,13 +1059,11 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    # Chi tiết 1 bình luận
     def retrieve(self, request, pk=None):
         comment = self.get_object()
         serializer = serializers.CommentSerializer(comment, context={'request': request})
         return Response(serializer.data)
 
-    # Danh sách phản hồi bình luận
     @action(methods=['GET'], detail=True, url_path='replies')
     def get_replies(self, request, pk=None):
         comment = self.get_object()
@@ -1123,7 +1071,6 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
         serializer = serializers.CommentSerializer(replies, many=True, context={'request': request})
         return Response(serializer.data)
 
-    # like (thích) cho một bình luận.
     @action(methods=['POST'], detail=True, url_path='like')
     def like_comment(self, request, pk):
         comment = self.get_object()
@@ -1132,7 +1079,6 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
             like.active = not like.active
         like.save()
 
-        # Thông báo cho người viết bình luận khi có người like
         if like.active and comment.user != request.user:
             Notifications.objects.create(
                 receiver=comment.user,
@@ -1144,23 +1090,20 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
         return Response(serializers.CommentSerializer(comment, context={'request': request}).data)
 
-    # trả lời một bình luận.
-    # Lấy danh sách các comment con (replies) của comment hiện tại (parent=comment).
     @action(methods=['POST'], detail=True, url_path='reply')
     def reply_comment(self, request, pk):
-        parent = self.get_object()  # Lấy comment cha (parent) và tạo dữ liệu comment mới là reply.
+        parent = self.get_object()  
         data = {
-            'post': parent.post.id,  # bài viết mà comment cha thuộc về.
-            'user': request.user.id,  # người đang gửi request (người trả lời).
-            'content': request.data.get('content'),  # nội dung phản hồi, lấy từ request.
-            'parent': parent.id  # : gán ID của comment cha để tạo quan hệ cha – con
+            'post': parent.post.id,  
+            'user': request.user.id, 
+            'content': request.data.get('content'),
+            'parent': parent.id 
         }
 
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
-        serializer.is_valid(raise_exception=True)  # nếu dữ liệu không hợp lệ sẽ raise lỗi 400 ngay.
+        serializer.is_valid(raise_exception=True)
         reply = serializer.save()
 
-        # Thông báo cho người viết bình luận gốc khi có phản hồi
         if parent.user != request.user:
             Notifications.objects.create(
                 receiver=parent.user,
@@ -1207,7 +1150,6 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
         return Follow.objects.filter(follower_user=self.request.user, active=True).select_related('followed_user').order_by('-created_date')
 
     def perform_create(self, serializer):
-        # Lấy ID người cần theo dõi từ request
         followed_user_id = self.request.data.get('followed_user_id')
         if not followed_user_id:
             raise ValidationError({"error": "Thiếu ID người dùng cần theo dõi"})
@@ -1220,16 +1162,12 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
         if followed_user == self.request.user:
             raise ValidationError({"error": "Không thể theo dõi chính mình"})
 
-        # Kiểm tra xem đã follow chưa
-        #  Lọc xem người dùng hiện tại (request.user) có đang theo dõi followed_user hay không.
-        # Sau khi lọc, .first() sẽ lấy bản ghi đầu tiên nếu có, nếu không có thì trả về None.
         follow = Follow.objects.filter(followed_user=followed_user, follower_user=self.request.user).first()
 
         if follow:
             follow.active = not follow.active
             follow.save()
             if follow.active:
-                # Tạo thông báo khi follow
                 Notifications.objects.create(
                     receiver=followed_user,
                     title="Người dùng mới theo dõi",
@@ -1240,7 +1178,6 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
             serializer.instance = follow
         else:
             follow = serializer.save(followed_user=followed_user, follower_user=self.request.user, active=True)
-            # Tạo thông báo khi follow
             Notifications.objects.create(
                 receiver=followed_user,
                 title="Người dùng mới theo dõi",
@@ -1250,9 +1187,6 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
             )
 
     def destroy(self, request, pk=None):
-        """
-        Hủy theo dõi một người dùng
-        """
         try:
             follow = Follow.objects.get(
                 followed_user_id=pk,
@@ -1266,9 +1200,6 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
 
     @action(detail=False, methods=['get'], url_path='followers')
     def followers(self, request):
-        """
-        Lấy danh sách những người đang follow bạn
-        """
         followers = request.user.followers.filter(active=True).select_related('follower_user').order_by('-created_date')
         serializer = self.get_serializer(followers, many=True)
         return Response(serializer.data)
@@ -1289,14 +1220,12 @@ class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retri
         instance.active = False
         instance.save()
 
-    # lấy danh sách thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread')
     def unread(self, request):
         notifications = self.get_queryset().filter(is_read=False)
         serializer = self.serializer_class(notifications, many=True)
         return Response(serializer.data)
 
-    # Đánh dấu một thông báo là đã đọc
     @action(detail=True, methods=['put'], url_path='read')
     def read(self, request, pk=None):
         try:
@@ -1307,25 +1236,21 @@ class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retri
         except Notifications.DoesNotExist:
             return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_200_OK)
 
-    # Đánh dấu tất cả thông báo là đã đọc
     @action(detail=False, methods=['put'], url_path='read_all')
     def read_all(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'message': 'Tất cả thông báo được đánh dấu là đã đọc'})
 
-    # Xóa tất cả thông báo
     @action(detail=False, methods=['delete'], url_path='delete_all')
     def delete_all(self, request):
         self.get_queryset().update(active=False)
         return Response({'message': 'Tất cả thông báo đã bị xóa'})
 
-    # Đếm số thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread_count')
     def unread_count(self, request):
         count = self.get_queryset().filter(is_read=False).count()
         return Response({'unread_count': count})
 
-    # Lọc thông báo theo loại
     @action(detail=False, methods=['get'], url_path='by_type')
     def by_type(self, request):
         notification_type = request.query_params.get('type')
@@ -1374,11 +1299,8 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             chat_room = ChatRoom.objects.get(id=chat_room_id)
             if self.request.user not in chat_room.participants.all():
                 raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
-            # Lưu tin nhắn mới với người gửi là user hiện tại, gán vào phòng chat đó.
             message = serializer.save(sender=self.request.user, chat_room=chat_room)
 
-            # Broadcast tin nhắn qua WebSocket
-            # Gửi bản tin mới đến các user đang kết nối vào nhóm chat_<ID phòng> trên WebSocket, Sử dụng Django Channels.
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'chat_{chat_room_id}',
@@ -1403,7 +1325,6 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
         message = serializer.save()
 
-        # Broadcast cập nhật tin nhắn qua WebSocket
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f'chat_{message.chat_room.id}',
@@ -1428,7 +1349,6 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         instance.active = False
         instance.save()
 
-        # Broadcast xóa tin nhắn qua WebSocket
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f'chat_{chat_room_id}',
@@ -1447,7 +1367,6 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         message.is_read = True
         message.save()
 
-        # Broadcast trạng thái đã đọc qua WebSocket
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f'chat_{chat_room_id}',
@@ -1479,7 +1398,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         if getattr(self, 'swagger_fake_view', False):
             return Payment.objects.none()
 
-        # Kiểm tra xem user có được xác thực không
         if not self.request.user.is_authenticated:
             return Payment.objects.none()
 
@@ -1491,21 +1409,17 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         )
         user = self.request.user
 
-        # Admin có thể xem tất cả payment
         if user.is_staff:
             return queryset
 
-        # Chủ trọ có thể xem payments của các phòng trong nhà trọ của họ
         if user.role == UserRole.LANDLORD:
             return queryset.filter(room__motel__user=user)
 
-        # Người thuê chỉ có thể xem payments của họ
         return queryset.filter(payer=user)
 
     def perform_create(self, serializer):
         payment = serializer.save(payer=self.request.user)
 
-        # Thông báo cho chủ nhà khi có thanh toán mới
         Notifications.objects.create(
             receiver=payment.room.motel.user,
             title="Thanh toán mới",
@@ -1517,7 +1431,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     def perform_update(self, serializer):
         payment = serializer.save()
 
-        # Thông báo cho người thanh toán khi có cập nhật
         Notifications.objects.create(
             receiver=payment.payer,
             title="Cập nhật thanh toán",
@@ -1526,7 +1439,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
-    # cập nhập trạng thái thanh toán
     @action(detail=True, methods=['patch'], url_path='update-status')
     def update_status(self, request, pk=None):
         payment = self.get_object()
@@ -1534,7 +1446,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
         valid_statuses = []
         for choice in PaymentStatus.choices:
-            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
+            status_code = choice[0] 
             valid_statuses.append(status_code)
         if new_status not in valid_statuses:
             raise ValidationError({
@@ -1545,7 +1457,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         payment.status = new_status
         payment.save()
 
-        # Thông báo cho người thanh toán khi trạng thái thay đổi
         Notifications.objects.create(
             receiver=payment.payer,
             title="Cập nhật trạng thái thanh toán",
@@ -1554,7 +1465,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
-        # Thông báo cho chủ nhà nếu trạng thái là COMPLETED hoặc FAILED
         if new_status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED]:
             status_text = "thành công" if new_status == PaymentStatus.COMPLETED else "thất bại"
             Notifications.objects.create(
@@ -1575,12 +1485,10 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         instance.active = False
         instance.save()
 
-    #  lấy danh sách các thanh toán của một phòng (room) cụ thể.
     @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
     def room_payments(self, request, room_id=None):
         try:
             room = Room.objects.get(id=room_id)
-            # Kiểm tra quyền xem thanh toán của phòng
             if not (request.user.is_staff or request.user == room.motel.user):
                 return Response(
                     {'error': 'Không có quyền xem thanh toán của phòng này'},
@@ -1599,7 +1507,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     def status_payments(self, request, status=None):
         valid_statuses = []
         for choice in PaymentStatus.choices:
-            status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
+            status_code = choice[0] 
             valid_statuses.append(status_code)
         if status not in valid_statuses:
             return Response(
@@ -1624,7 +1532,6 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Sử dụng get_queryset để lấy payments theo quyền của user
         payments = self.get_queryset().filter(payment_method=method)
         serializer = self.get_serializer(payments, many=True)
         return Response(serializer.data)
@@ -1657,31 +1564,26 @@ class SearchViewSet(viewsets.ViewSet):
             max_price = request.query_params.get('max_price')
             if min_price or max_price:
                 try:
-                    # Chuyển đổi giá trị sang float
                     min_price = float(min_price) if min_price else None
                     max_price = float(max_price) if max_price else None
 
-                    # Tìm kiếm trong bảng Post
                     post_query = Post.objects.filter(motel=OuterRef('pk'))
                     if min_price:
                         post_query = post_query.filter(min_price__gte=min_price)
                     if max_price:
                         post_query = post_query.filter(max_price__lte=max_price)
 
-                    # Tìm kiếm trong bảng Room
                     room_query = Room.objects.filter(motel=OuterRef('pk'))
                     if min_price:
                         room_query = room_query.filter(price__gte=min_price)
                     if max_price:
                         room_query = room_query.filter(price__lte=max_price)
 
-                    # Kết hợp kết quả từ cả hai bảng
                     motels = motels.filter(
                         Q(id__in=Subquery(post_query.values('motel_id'))) |
                         Q(id__in=Subquery(room_query.values('motel_id')))
                     )
                 except ValueError:
-                    # Nếu giá trị không phải số, bỏ qua điều kiện tìm kiếm theo giá
                     pass
 
             max_people = request.query_params.get('max_people')
@@ -1689,7 +1591,6 @@ class SearchViewSet(viewsets.ViewSet):
                 room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
                 motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
 
-            # Tìm kiếm theo amenities
             amenities = request.query_params.getlist('amenities')
             if amenities:
                 # Tìm các phòng có chứa ít nhất một trong các amenities được chọn
@@ -1699,7 +1600,6 @@ class SearchViewSet(viewsets.ViewSet):
                 )
                 motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
 
-        # Lưu lịch sử tìm kiếm nếu người dùng đã đăng nhập
         if request.user.is_authenticated:
             search_params = {
                 'q': search_query,
@@ -1711,16 +1611,14 @@ class SearchViewSet(viewsets.ViewSet):
                 'max_people': request.query_params.get('max_people'),
                 'amenities': request.query_params.getlist('amenities')
             }
-            # Chỉ lưu các tham số không None và không rỗng
             search_params = {k: v for k, v in search_params.items() if v is not None and v != []}
 
-            if search_params:  # Chỉ lưu nếu có ít nhất một tham số tìm kiếm
+            if search_params: 
                 SearchHistory.objects.create(
                     user=request.user,
                     search_params=search_params
                 )
 
-        # Serialize và trả về kết quả
         serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -1734,26 +1632,22 @@ class SearchViewSet(viewsets.ViewSet):
         - radius: Bán kính tìm kiếm tính bằng km (float)
         """
         try:
-            # Lấy các tham số từ request
             latitude = float(request.query_params.get('latitude'))
             longitude = float(request.query_params.get('longitude'))
-            radius = float(request.query_params.get('radius', 5))  # Mặc định 5km nếu không có radius
+            radius = float(request.query_params.get('radius', 5))
 
-            # Kiểm tra giá trị hợp lệ
             if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
                 return Response(
                     {"error": "Tọa độ không hợp lệ"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Lấy tất cả nhà trọ có tọa độ
             motels = Motel.objects.filter(
                 active=True,
                 latitude__isnull=False,
                 longitude__isnull=False
             )
 
-            # Lọc nhà trọ trong bán kính
             nearby_motels = []
             for motel in motels:
                 distance = calculate_distance(
@@ -1763,20 +1657,16 @@ class SearchViewSet(viewsets.ViewSet):
                     motel.longitude
                 )
                 if distance <= radius:
-                    motel.distance = distance  # Thêm khoảng cách vào object
+                    motel.distance = distance 
                     nearby_motels.append(motel)
 
-            # Sắp xếp theo khoảng cách
             nearby_motels.sort(key=lambda x: x.distance)
 
-            # Phân trang sử dụng ItemPanigator
             paginator = paginators.ItemPanigator()
             result_page = paginator.paginate_queryset(nearby_motels, request)
 
-            # Serialize kết quả
             serializer = serializers.MotelSerializer(result_page, many=True, context={'request': request})
 
-            # Thêm khoảng cách vào kết quả
             response_data = serializer.data
             for i, motel in enumerate(result_page):
                 response_data[i]['distance'] = round(motel.distance, 2)
