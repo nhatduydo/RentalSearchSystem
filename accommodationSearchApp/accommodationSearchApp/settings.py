@@ -289,6 +289,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://0.0.0.0:8000",
     "http://100.85.57.9:8000",
     "https://systemaccommodation.online",
+    "https://www.systemaccommodation.online",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 
