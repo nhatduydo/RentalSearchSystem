@@ -55,6 +55,12 @@ coverage.xml
 .pytest_cache/
 htmlcov/
 /.history
-accommodationSearchApp/accommodationSearchApp/settingForPythonAnyWhere.py
-accommodationSearchApp/accommodationSearchApp/wsgiForPythonanywhere.py
 test_socket_native.js
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+/.history
+/venv
+/accommodationSearchApp/accommodationSearch/__pycache__
