@@ -11,6 +11,7 @@ load_dotenv()
 
 DJANGO_ALLOW_ASYNC_UNSAFE = True
 REST_USE_JWT = True
+
 # Configuration
 cloudinary.config(
     cloud_name="devtqlbho",
