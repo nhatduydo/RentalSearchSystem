@@ -327,5 +327,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Maximum upload file size (10MB)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760
+
+# Firebase Configuration
+FIREBASE_CREDENTIALS_PATH = os.path.join(BASE_DIR, 'systemaccommodation-eca81-firebase-adminsdk-fbsvc-3a81cc66db.json')

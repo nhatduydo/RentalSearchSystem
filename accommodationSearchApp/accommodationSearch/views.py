@@ -28,6 +28,7 @@ from rest_framework.views import APIView
 
 from . import paginators, serializers
 from .email_service import EmailService
+from .firebase_config import send_notification
 from .models import (Amenity, ChatRoom, Comment, Favorite, Follow, Landlord,
                      LikeComment, LikeMotel, Message, Motel, MotelImage,
                      MotelRating, Notifications, NotificationType, Payment,
@@ -220,7 +221,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 )
 
             serializer = self.get_serializer(landlord, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True) 
+            serializer.is_valid(raise_exception=True)
             serializer.save()
 
             return Response({
@@ -259,6 +260,18 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 notification_type=NotificationType.VERIFICATION_SUCCESS,
                 related_object_id=landlord.user.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
             return Response({
                 'landlord': self.get_serializer(landlord).data,
@@ -347,7 +360,7 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
                 )
 
             serializer = self.get_serializer(tenant, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True) 
+            serializer.is_valid(raise_exception=True)
             serializer.save()
 
             return Response({
@@ -429,7 +442,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
 
         for follower in followers:
             print(f"Đang gửi thông báo cho: {follower.follower_user.email}")
-            
+
             Notifications.objects.create(
                 receiver=follower.follower_user,
                 title="Nhà trọ mới",
@@ -531,6 +544,19 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 notification_type=NotificationType.MOTEL_LIKE,
                 related_object_id=motel.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
+
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
 
     @action(methods=['POST'], detail=True, url_path='favorite')
@@ -549,6 +575,18 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 notification_type=NotificationType.MOTEL_LIKE,
                 related_object_id=motel.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
         return Response(serializers.MotelSerializer(motel, context={'request': request}).data)
 
@@ -580,6 +618,18 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 notification_type=NotificationType.VERIFICATION_SUCCESS,
                 related_object_id=motel.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
             return Response({
                 'motel': self.get_serializer(motel).data,
@@ -761,7 +811,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['accept_request', 'reject_request']:
-            return [IsLandlordOfRoom()]  
+            return [IsLandlordOfRoom()]
         elif self.action == 'cancel_contract':
             if self.request.user.role == UserRole.ADMIN:
                 return [IsAdmin()]
@@ -774,16 +824,16 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
 
         user = self.request.user
         queryset = RoomTenant.objects.select_related(
-            'room__motel__user', 
-            'tenant__user'     
+            'room__motel__user',
+            'tenant__user'
         )
 
         if user.role == UserRole.ADMIN:
-            return queryset  
+            return queryset
         elif user.role == UserRole.LANDLORD:
-            return queryset.filter(room__motel__user=user)  
+            return queryset.filter(room__motel__user=user)
         elif user.role == UserRole.TENANT:
-            return queryset.filter(tenant__user=user) 
+            return queryset.filter(tenant__user=user)
         return RoomTenant.objects.none()
 
     def perform_create(self, serializer):
@@ -796,6 +846,18 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             notification_type=NotificationType.SYSTEM,
             related_object_id=str(room_tenant.id)
         )
+
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
 
     @action(detail=True, methods=['post'], url_path='accept-request')
     def accept_request(self, request, pk=None):
@@ -814,6 +876,19 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             notification_type=NotificationType.SYSTEM,
             related_object_id=str(room_tenant.id)
         )
+
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+
         return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
     @action(detail=True, methods=['post'], url_path='reject-request')
@@ -833,6 +908,19 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             notification_type=NotificationType.SYSTEM,
             related_object_id=str(room_tenant.id)
         )
+
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+
         return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
     @action(detail=True, methods=['post'], url_path='cancel-contract')
@@ -851,7 +939,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
         elif request.user == room_tenant.tenant.user:
             receiver = room_tenant.room.motel.user
             content = f"Hợp đồng với {room_tenant.tenant.full_name} đã bị hủy"
-        else: 
+        else:
             receiver = room_tenant.tenant.user
             content = "Hợp đồng của bạn đã bị hủy bởi chủ trọ"
 
@@ -862,6 +950,19 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             notification_type=NotificationType.SYSTEM,
             related_object_id=str(room_tenant.id)
         )
+
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+
         return Response(serializers.RoomTenantSerializer(room_tenant).data)
 
 
@@ -889,6 +990,18 @@ class MotelRatingViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.
                 notification_type=NotificationType.SYSTEM,
                 related_object_id=rating.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
     def create(self, request, *args, **kwargs):
         try:
@@ -972,6 +1085,18 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     notification_type=NotificationType.NEW_POST,
                     related_object_id=post.id
                 )
+
+                # Gửi thông báo đến Firebase
+                notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+                notification_data = {
+                    'id': notification.id,
+                    'title': notification.title,
+                    'content': notification.content,
+                    'notification_type': notification.notification_type,
+                    'created_date': notification.created_date.isoformat(),
+                    'is_read': notification.is_read
+                }
+                send_notification(notification.receiver.id, notification_data)
 
     def perform_update(self, serializer):
         post = serializer.save()
@@ -1057,6 +1182,18 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 related_object_id=comment.id
             )
 
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, pk=None):
@@ -1088,16 +1225,28 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 related_object_id=comment.id
             )
 
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
+
         return Response(serializers.CommentSerializer(comment, context={'request': request}).data)
 
     @action(methods=['POST'], detail=True, url_path='reply')
     def reply_comment(self, request, pk):
-        parent = self.get_object()  
+        parent = self.get_object()
         data = {
-            'post': parent.post.id,  
-            'user': request.user.id, 
+            'post': parent.post.id,
+            'user': request.user.id,
             'content': request.data.get('content'),
-            'parent': parent.id 
+            'parent': parent.id
         }
 
         serializer = serializers.CommentSerializer(data=data, context={'request': request})
@@ -1112,6 +1261,18 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 notification_type=NotificationType.NEW_COMMENT,
                 related_object_id=reply.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -1175,6 +1336,18 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
                     notification_type=NotificationType.FOLLOW,
                     related_object_id=follow.id
                 )
+
+                # Gửi thông báo đến Firebase
+                notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+                notification_data = {
+                    'id': notification.id,
+                    'title': notification.title,
+                    'content': notification.content,
+                    'notification_type': notification.notification_type,
+                    'created_date': notification.created_date.isoformat(),
+                    'is_read': notification.is_read
+                }
+                send_notification(notification.receiver.id, notification_data)
             serializer.instance = follow
         else:
             follow = serializer.save(followed_user=followed_user, follower_user=self.request.user, active=True)
@@ -1185,6 +1358,18 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
                 notification_type=NotificationType.FOLLOW,
                 related_object_id=follow.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
     def destroy(self, request, pk=None):
         try:
@@ -1216,6 +1401,20 @@ class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retri
             return Notifications.objects.none()
         return Notifications.objects.filter(receiver=self.request.user, active=True).order_by('-created_date')
 
+    def perform_create(self, serializer):
+        notification = serializer.save()
+        # Gửi thông báo đến Firebase Realtime Database
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+        return notification
+
     def perform_destroy(self, instance):
         instance.active = False
         instance.save()
@@ -1240,11 +1439,6 @@ class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retri
     def read_all(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'message': 'Tất cả thông báo được đánh dấu là đã đọc'})
-
-    @action(detail=False, methods=['delete'], url_path='delete_all')
-    def delete_all(self, request):
-        self.get_queryset().update(active=False)
-        return Response({'message': 'Tất cả thông báo đã bị xóa'})
 
     @action(detail=False, methods=['get'], url_path='unread_count')
     def unread_count(self, request):
@@ -1428,6 +1622,18 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+
     def perform_update(self, serializer):
         payment = serializer.save()
 
@@ -1439,6 +1645,18 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+
     @action(detail=True, methods=['patch'], url_path='update-status')
     def update_status(self, request, pk=None):
         payment = self.get_object()
@@ -1446,7 +1664,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
         valid_statuses = []
         for choice in PaymentStatus.choices:
-            status_code = choice[0] 
+            status_code = choice[0]
             valid_statuses.append(status_code)
         if new_status not in valid_statuses:
             raise ValidationError({
@@ -1465,6 +1683,18 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification_data = {
+            'id': notification.id,
+            'title': notification.title,
+            'content': notification.content,
+            'notification_type': notification.notification_type,
+            'created_date': notification.created_date.isoformat(),
+            'is_read': notification.is_read
+        }
+        send_notification(notification.receiver.id, notification_data)
+
         if new_status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED]:
             status_text = "thành công" if new_status == PaymentStatus.COMPLETED else "thất bại"
             Notifications.objects.create(
@@ -1474,6 +1704,18 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
                 notification_type=NotificationType.PAYMENT,
                 related_object_id=payment.id
             )
+
+            # Gửi thông báo đến Firebase
+            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'notification_type': notification.notification_type,
+                'created_date': notification.created_date.isoformat(),
+                'is_read': notification.is_read
+            }
+            send_notification(notification.receiver.id, notification_data)
 
         serializer = self.get_serializer(payment)
         return Response(serializer.data)
@@ -1507,7 +1749,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
     def status_payments(self, request, status=None):
         valid_statuses = []
         for choice in PaymentStatus.choices:
-            status_code = choice[0] 
+            status_code = choice[0]
             valid_statuses.append(status_code)
         if status not in valid_statuses:
             return Response(
@@ -1613,7 +1855,7 @@ class SearchViewSet(viewsets.ViewSet):
             }
             search_params = {k: v for k, v in search_params.items() if v is not None and v != []}
 
-            if search_params: 
+            if search_params:
                 SearchHistory.objects.create(
                     user=request.user,
                     search_params=search_params
@@ -1657,7 +1899,7 @@ class SearchViewSet(viewsets.ViewSet):
                     motel.longitude
                 )
                 if distance <= radius:
-                    motel.distance = distance 
+                    motel.distance = distance
                     nearby_motels.append(motel)
 
             nearby_motels.sort(key=lambda x: x.distance)
@@ -1722,13 +1964,13 @@ class StatisticsViewSet(viewsets.ViewSet):
 
         if type_ == 'day':
             data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('user_id')).order_by('day')
-        
+
         elif type_ == 'month':
             data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('user_id')).order_by('month')
-        
+
         elif type_ == 'year':
             data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('user_id')).order_by('year')
-        
+
         elif type_ == 'quarter':
             data = queryset.extra({
                 'year': "DATE_FORMAT(created_date, '%%Y')",
@@ -1757,13 +1999,13 @@ class StatisticsViewSet(viewsets.ViewSet):
 
         if type_ == 'day':
             data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
-        
+
         elif type_ == 'month':
             data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('id')).order_by('month')
-        
+
         elif type_ == 'year':
             data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('id')).order_by('year')
-        
+
         elif type_ == 'quarter':
             data = queryset.extra({
                 'year': "DATE_FORMAT(created_date, '%%Y')",
@@ -1918,7 +2160,7 @@ class VNPayViewSet(viewsets.ViewSet):
                         }
                     }, status=status.HTTP_200_OK)
 
-                else: 
+                else:
                     try:
                         payment = Payment.objects.get(id=order_id)
 
@@ -2067,7 +2309,7 @@ class GoogleAuthView(APIView):
                     SocialAccount.objects.create(
                         user=user,
                         provider='google',
-                        uid=idinfo.get('sub'), 
+                        uid=idinfo.get('sub'),
                         extra_data=idinfo
                     )
                 except Exception as e:
