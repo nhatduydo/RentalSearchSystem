@@ -12,16 +12,12 @@ from rest_framework_simplejwt.tokens import AccessToken
 from .models import ChatRoom, Message
 
 logger = logging.getLogger(__name__)
-User = get_user_model()  # User là model người dùng hiện tại của Django (dùng khi xác thực)
+User = get_user_model()
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
-    # Đây là phương thức đặc biệt của AsyncWebsocketConsumer, được gọi khi client bắt đầu kết nối.
     async def connect(self):
         try:
-            # Lấy token từ query string
-            # Lấy chuỗi query string từ request (ví dụ: ?token=abc123)
-            # Parse nó thành dict để lấy giá trị token.
             query_string = self.scope['query_string'].decode()
 
             query_params = parse_qs(query_string)
@@ -32,15 +28,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.close()
                 return
 
-            # Loại bỏ prefix "Bearer " nếu có
             if token.startswith('Bearer '):
                 token = token[7:]
 
-            # Xác thực token và lấy user
             self.user = await self.get_user_from_token(token)  # để kiểm tra token và lấy người dùng.
             if not self.user:
                 logger.error("Xác thực token thất bại")
-                # Nếu không hợp lệ → đóng kết nối.
                 await self.close()
                 return
 
@@ -48,30 +41,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             self.room_group_name = f'chat_{self.room_id}'
 
-            # Kiểm tra quyền tham gia phòng chat
             if not await self.check_room_permission():
                 logger.error(f"Người dùng {self.user.username} không có quyền tham gia phòng {self.room_id}")
                 await self.close()
                 return
 
-            #  Tham gia vào group WebSocket
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
 
-            # Chấp nhận kết nối WebSocket
-            await self.accept()  # Cho phép kết nối thành công từ client.
+            await self.accept()
             logger.info(f"Người dùng {self.user.username} đã kết nối vào phòng {self.room_id}")
 
         except Exception as e:
             logger.exception(f"Lỗi trong quá trình kết nối WebSocket: {str(e)}")
             await self.close()
 
-    # Hàm này dùng để xác thực người dùng từ token trong kết nối WebSocket, hỗ trợ cả 2 loại token:
+    # xác thực người dùng từ token trong kết nối WebSocket, hỗ trợ cả 2 loại token:
     # JWT (Json Web Token)
     # OAuth2 Access Token
-    @database_sync_to_async  # Cho phép hàm đồng bộ (query Django ORM) được dùng trong context async, Vì WebSocket sử dụng async, nên cần chuyển User.objects.get(...) sang async an toàn
+    @database_sync_to_async
     def get_user_from_token(self, token):
         try:
             # Thử xác thực với JWT token trước
@@ -81,7 +71,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 user = User.objects.get(id=user_id)
                 return user
             except Exception:
-                # Nếu không phải JWT, thử xác thực với OAuth2 token
                 try:
                     oauth2_token = OAuth2AccessToken.objects.get(token=token)
                     if oauth2_token.is_expired():
@@ -89,7 +78,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     user = oauth2_token.user
                     return user
                 except OAuth2AccessToken.DoesNotExist:
-                    pass  # Not an OAuth2 token either
+                    pass 
 
             return None
         except Exception as e:
@@ -97,7 +86,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
 
     # Kiểm tra người dùng hiện tại (self.user) có quyền tham gia phòng chat (self.room_id) hay không.
-    @database_sync_to_async  # Giúp hàm chạy được trong môi trường async của WebSocket. Cho phép gọi các thao tác Django ORM như ChatRoom.objects.get(...)
+    @database_sync_to_async
     def check_room_permission(self):
         try:
             chat_room = ChatRoom.objects.get(id=self.room_id, active=True)
@@ -107,11 +96,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.error(f"Phòng chat {self.room_id} không tồn tại")
             return False
 
-    async def disconnect(self, close_code):  # hàm bất đồng bộ (async) xử lý khi WebSocket disconnect.
+    async def disconnect(self, close_code):
         try:
             if hasattr(self, 'room_group_name'):
                 await self.channel_layer.group_discard(
-                    self.room_group_name,  # tên nhóm phòng chat
+                    self.room_group_name,
                     self.channel_name  # ID kênh hiện tại (được gán tự động), đại diện cho client đang kết nối.
                 )
                 # Ghi log việc user nào rời khỏi phòng nào với mã disconnect là gì.
@@ -130,7 +119,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 logger.error("Không thể lưu tin nhắn")
                 return
 
-            # Gửi tin nhắn đến tất cả trong group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -148,7 +136,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.exception(f"Lỗi xử lý tin nhắn: {str(e)}")
 
-    #  lưu tin nhắn mới vào cơ sở dữ liệu trong ứng dụng chat sử dụng Django và asynchronous WebSocket.
+    #  lưu tin nhắn mới vào cơ sở dữ liệu
     @database_sync_to_async
     def save_message(self, content):
         try:
@@ -161,8 +149,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 sender=self.user,
                 content=content
             )
-            # Cập nhật updated_date của phòng chat
-            chat_room.save()  # Trigger updated_date update
+            chat_room.save() 
             return message
         except ChatRoom.DoesNotExist:
             logger.error(f"Phòng chat {self.room_id} không tồn tại")

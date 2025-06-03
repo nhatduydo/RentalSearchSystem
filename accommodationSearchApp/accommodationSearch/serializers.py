@@ -1,7 +1,7 @@
-from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
-                                        Favorite, Follow, Landlord,
-                                        LikeComment, LikeMotel, Message, Motel,
-                                        MotelImage, MotelRating, Notifications,
+from accommodationSearch.models import (Amenity, ChatRoom, Comment, Favorite,
+                                        Follow, Landlord, LikeComment,
+                                        LikeMotel, Message, Motel, MotelImage,
+                                        MotelRating, Notifications,
                                         NotificationType, Payment, Post,
                                         PostImage, Room, RoomImage, RoomTenant,
                                         RoomTenantStatus, SearchHistory,
@@ -30,6 +30,13 @@ class UserSerializer(ItemSerializer):
             }
         }
 
+    def validate_password(self, value):
+        role = self.initial_data.get('role')
+        if role in ['LANDLORD', 'TENANT']:
+            if len(value) < 8:
+                raise serializers.ValidationError("Mật khẩu phải có ít nhất 8 ký tự ")
+        return value
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if instance.avatar:
@@ -55,12 +62,6 @@ class UserSerializer(ItemSerializer):
         return instance
 
 
-# class AdminSerializer(ItemSerializer):
-#     class Meta:
-#         model = Admin
-#         fields = '__all__'
-
-
 class LandlordSerializer(ItemSerializer):
     class Meta:
         model = Landlord
@@ -75,16 +76,12 @@ class TenantSerializer(ItemSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Loại bỏ các giá trị trùng lặp trong rooms
         if 'rooms' in data:
             data['rooms'] = list(set(data['rooms']))
         return data
 
 
 class MotelSerializer(ItemSerializer):
-    # Kiểm tra người dùng đã like nhà trọ chưa
-    # Nếu bạn đã từng like nhà trọ này → trả về True.
-    # Nếu chưa → trả về False.
 
     def get_liked(self, motel):
         request = self.context.get('request')
@@ -99,8 +96,8 @@ class MotelSerializer(ItemSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['user'] = UserSerializer(instance.user).data
-        data['like'] = self.get_liked(instance) # Thêm trường like vào output.
-        data['favorite'] = self.get_favorite(instance) # Thêm trường favorite vào output.
+        data['like'] = self.get_liked(instance)
+        data['favorite'] = self.get_favorite(instance)
         return data
 
     class Meta:
@@ -125,7 +122,6 @@ class RoomSerializer(ItemSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Loại bỏ các giá trị trùng lặp trong tenants
         if 'tenants' in data:
             data['tenants'] = list(set(data['tenants']))
         return data
@@ -268,7 +264,6 @@ class PostDetailSerializer(ItemSerializer):
 
         post = super().create(validated_data)
 
-        # Lưu các hình ảnh
         if images_data:
             for order, image in enumerate(images_data):
                 try:
@@ -278,7 +273,7 @@ class PostDetailSerializer(ItemSerializer):
                         order=order
                     )
                 except Exception as e:
-                    print("loi ", e) 
+                    print("có lỗi xảy ra: ", e)
         return post
 
 
@@ -328,9 +323,7 @@ class FollowSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Thêm thông tin chi tiết của người được theo dõi
         data['followed_user'] = UserSerializer(instance.followed_user).data
-        # Thêm thông tin chi tiết của người theo dõi
         data['follower_user'] = UserSerializer(instance.follower_user).data
         return data
 
@@ -393,7 +386,3 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ['id', 'payer', 'room', 'amount', 'payment_method', 'status', 'description', 'vnp_transaction_no', 'vnp_bank_code', 'vnp_bank_tran_no', 'vnp_card_type', 'vnp_pay_date', 'vnp_response_code', 'vnp_txn_ref', 'created_date', 'updated_date']
         read_only_fields = ['id', 'payer', 'created_date', 'updated_date']
-
-
-
-

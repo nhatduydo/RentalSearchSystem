@@ -142,7 +142,7 @@ class User(AbstractUser):
             })
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # Gọi clean() trước khi save
+        self.full_clean()
         super().save(*args, **kwargs)
 
 
@@ -158,11 +158,11 @@ class Landlord(InformationUserModel):
     is_verified = models.BooleanField(default=False)
     slug_source = "full_name"
 
-    def __str__(self):  # hiển thị tên đại diện của đối tượng khi in ra hoặc hiển thị trong admin.
+    def __str__(self): 
         return self.full_name
 
     def email(self):
-        return self.user.email  # Trả về địa chỉ email từ đối tượng user liên kết
+        return self.user.email
 
     class Meta:
         verbose_name = "Chủ nhà trọ"
@@ -216,17 +216,14 @@ class Motel(SlugModel):
 
     def check_verification(self):
         try:
-            # Kiểm tra số lượng hình ảnh
             active_images_count = self.images.filter(active=True).count()
             if active_images_count < 3:
                 raise ValidationError('Nhà trọ cần có ít nhất 3 hình ảnh để được xác minh')
 
-            # Kiểm tra địa chỉ đầy đủ
             has_valid_address = bool(self.address and self.district and (self.city or self.province))
             if not has_valid_address:
                 raise ValidationError('Nhà trọ cần có địa chỉ đầy đủ để được xác minh')
 
-            # Kiểm tra số điện thoại chủ trọ
             has_valid_phone = bool(self.user.landlord_profile.phone)
             if not has_valid_phone:
                 raise ValidationError('Chủ trọ cần có số điện thoại để được xác minh')
@@ -236,7 +233,7 @@ class Motel(SlugModel):
             return False
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # Validate basic fields
+        self.full_clean() 
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -279,8 +276,6 @@ class Room(SlugModel):
 
     def __str__(self):
         return self.room_name
-        # return f"{self.motel.motel_name} - {self.room_name}"
-
 
 class Amenity(SlugModel):
     id = models.AutoField(primary_key=True)
@@ -390,7 +385,7 @@ class PostImage(ActiveModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="images")
     image_url = CloudinaryField('image')
     image_type = models.CharField(max_length=20, choices=ImageType.choices, default=ImageType.INSIDE)
-    order = models.IntegerField(default=0)  # Để sắp xếp thứ tự hiển thị ảnh
+    order = models.IntegerField(default=0) 
 
     class Meta:
         verbose_name = 'Hình ảnh bài đăng'
@@ -499,7 +494,7 @@ class Notifications(ActiveModel):
 
 class ChatRoom(ActiveModel):
     id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255, null=True, blank=True)  # Tên phòng chat (cho nhóm)
+    name = models.CharField(max_length=255, null=True, blank=True)
     participants = models.ManyToManyField(User, related_name="chat_rooms")
 
     def __str__(self):

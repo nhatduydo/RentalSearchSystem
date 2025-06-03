@@ -11,13 +11,11 @@ class EmailService:
     @staticmethod
     async def send_notification(to_email, data, notification_type=NotificationType.NEW_MOTEL):
         try:
-            # Khởi tạo SendGrid client với API key
             sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
 
             # Tạo nội dung email dựa trên loại thông báo
             subject, html_content = EmailService._get_email_content(notification_type, data)
 
-            # Tạo đối tượng email
             message = Mail(
                 from_email=Email(settings.SENDER_EMAIL, settings.SENDER_NAME),
                 to_emails=to_email,
@@ -25,7 +23,6 @@ class EmailService:
                 html_content=Content('text/html', html_content)
             )
 
-            # Gửi email bất đồng bộ
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(None, lambda: sg.send(message))
 

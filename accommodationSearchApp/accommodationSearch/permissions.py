@@ -15,13 +15,10 @@ class IsOwnerOrReadOnly(permissions.IsAuthenticated):
 
 class IsOwnerOrAdmin(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
-        # Admin có quyền truy cập tất cả
         if request.user.is_staff:
             return True
-        # Nếu object có thuộc tính user
         if hasattr(obj, 'user'):
             return request.user == obj.user
-        # Nếu object có thuộc tính motel và motel có user
         if hasattr(obj, 'motel') and hasattr(obj.motel, 'user'):
             return request.user == obj.motel.user
         return False
@@ -29,13 +26,11 @@ class IsOwnerOrAdmin(permissions.BasePermission):
 
 class IsLandlordOfRoom(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
-        # Kiểm tra xem user có phải là chủ trọ của phòng này không
         return request.user == obj.room.motel.user
 
 
 class IsLandlordOrTenant(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
-        # Kiểm tra xem user có phải là chủ trọ hoặc người thuê của hợp đồng này không
         return request.user in [obj.room.motel.user, obj.tenant.user]
 
     def has_permission(self, request, view):
@@ -68,21 +63,16 @@ class IsPaymentOwnerOrMotelOwner(permissions.BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        # Admin có quyền truy cập tất cả
         if request.user.is_staff:
             return True
 
-        # Chủ nhà có quyền truy cập tất cả payment của phòng trong motel của họ
         if obj.room.motel.user == request.user:
             return True
 
-        # Người thanh toán có quyền truy cập payment của họ
         if obj.payer == request.user:
             return True
 
-        # Kiểm tra xem người dùng có phải là người thuê phòng không
         try:
-            # Lấy danh sách người thuê phòng đang active
             room_tenants = obj.room.room_tenants.filter(
                 status='ACTIVE',
                 active=True

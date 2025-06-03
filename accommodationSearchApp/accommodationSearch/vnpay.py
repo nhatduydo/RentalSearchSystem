@@ -1,9 +1,3 @@
-"""
-Module tích hợp thanh toán VNPay
-Cung cấp các phương thức để:
-1. Tạo URL thanh toán với chữ ký bảo mật
-2. Xác thực dữ liệu trả về từ VNPay
-"""
 
 import hashlib
 import hmac
@@ -11,11 +5,6 @@ import urllib.parse
 
 
 class vnpay:
-    """
-    Class xử lý tích hợp thanh toán VNPay
-    - requestData: Dictionary chứa dữ liệu gửi đến VNPay
-    - responseData: Dictionary chứa dữ liệu trả về từ VNPay
-    """
     requestData = {}
     responseData = {}
 
@@ -36,11 +25,9 @@ class vnpay:
         Returns:
             URL thanh toán đầy đủ với chữ ký bảo mật
         """
-        # Sắp xếp các tham số theo thứ tự alphabet để đảm bảo tính nhất quán
         inputData = sorted(self.requestData.items())
         queryString = ''
         seq = 0
-        # Tạo chuỗi query string từ các tham số
         for key, val in inputData:
             if seq == 1:
                 queryString = queryString + "&" + key + '=' + urllib.parse.quote_plus(str(val))
@@ -84,8 +71,6 @@ class vnpay:
         hasData = ''
         seq = 0 # seq: Dùng để biết khi nào thêm dấu &. Dòng đầu tiên thì không cần &, các dòng sau thì thêm.
         for key, val in inputData:
-            # Chỉ xử lý các tham số bắt đầu bằng 'vnp_'
-            #  Ghép các cặp key=value thành chuỗi hasData, phân cách bằng dấu &.
             if str(key).startswith('vnp_'):
                 if seq == 1:
                     # urllib.parse.quote_plus(str(val)): Mã hóa URL giá trị (vd: dấu cách thành +, ký tự đặc biệt thành %XX).
@@ -97,9 +82,7 @@ class vnpay:
         # Tạo lại chữ ký từ dữ liệu
         hashValue = self.__hmacsha512(secret_key, hasData)
 
-        # In thông tin debug (có thể bỏ trong môi trường production)
-        print(
-            'Validate debug, HashData:' + hasData + "\n HashValue:" + hashValue + "\nInputHash:" + vnp_SecureHash)
+        print('Validate debug, HashData:' + hasData + "\n HashValue:" + hashValue + "\nInputHash:" + vnp_SecureHash)
 
         # So sánh chữ ký nhận được với chữ ký tính toán
         return vnp_SecureHash == hashValue

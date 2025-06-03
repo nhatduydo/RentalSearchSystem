@@ -5,7 +5,6 @@ import string
 from datetime import date, datetime, timedelta
 
 import pytz
-import requests
 from allauth.socialaccount.models import SocialAccount
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -29,11 +28,11 @@ from rest_framework.views import APIView
 
 from . import paginators, serializers
 from .email_service import EmailService
-from .models import (Admin, Amenity, ChatRoom, Comment, Favorite, Follow,
-                     Landlord, LikeComment, LikeMotel, Message, Motel,
-                     MotelImage, MotelRating, Notifications, NotificationType,
-                     Payment, PaymentMethod, PaymentStatus, Post, PostImage,
-                     PostType, Room, RoomImage, RoomTenant, RoomTenantStatus,
+from .models import (Amenity, ChatRoom, Comment, Favorite, Follow, Landlord,
+                     LikeComment, LikeMotel, Message, Motel, MotelImage,
+                     MotelRating, Notifications, NotificationType, Payment,
+                     PaymentMethod, PaymentStatus, Post, PostImage, PostType,
+                     Room, RoomImage, RoomTenant, RoomTenantStatus,
                      SearchHistory, Tenant, User, UserRole)
 from .permissions import (IsAdmin, IsLandlordOfRoom, IsLandlordOrTenant,
                           IsOwnerOrAdmin, IsOwnerOrReadOnly,
@@ -63,7 +62,7 @@ class UserViewSet(viewsets.ViewSet,
             return [IsOwnerOrAdmin()]
         return [AllowAny()]
 
-    @transaction.atomic  # đảm bảo tính toàn vẹn dữ liệu
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         try:
             user_serializer = serializers.UserSerializer(data=request.data)
@@ -121,7 +120,7 @@ class UserViewSet(viewsets.ViewSet,
             user.save()
 
             return Response(serializers.UserSerializer(user).data)
-        return Response(serializers.UserSerializer(request.user).data)  # Trường hợp này không sửa gì cả, chỉ đơn giản là trả lại JSON thông tin user đang đăng nhập.
+        return Response(serializers.UserSerializer(request.user).data)
 
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
     def change_password(self, request):
@@ -144,10 +143,10 @@ class UserViewSet(viewsets.ViewSet,
                 "error": "Mật khẩu mới không khớp"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # if len(new_password) < 8:
-        #     return Response({
-        #         "error": "Mật khẩu mới phải có ít nhất 8 ký tự"
-        #     }, status=status.HTTP_400_BAD_REQUEST)
+        if len(new_password) < 8:
+            return Response({
+                "error": "Mật khẩu mới phải có ít nhất 8 ký tự"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         request.user.set_password(new_password)
         request.user.save()
