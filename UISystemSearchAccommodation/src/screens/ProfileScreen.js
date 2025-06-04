@@ -10,6 +10,7 @@ import landlordProfileStyle from '../styles/landlordProfileStyle';
 
 import ListCard from '../components/ListCard';
 import PostCard from '../components/PostCard';
+import { Ionicons } from '@expo/vector-icons';
 
 const ProfileScreen = () => {
   const [user, setUser] = useState(null);
@@ -46,6 +47,16 @@ const ProfileScreen = () => {
         const userId = findUser.id;
         // console.log(userId)
 
+        let tenants = [];
+        let tenantUrl = endpoints.tenants;
+        while (tenantUrl) {
+          const res = await axios.get(tenantUrl, { headers: { Authorization: `Bearer ${token}` } });
+          tenants = [...tenants, ...res.data.results];
+          tenantUrl = res.data.next;
+        }
+        const matchedTenant = tenants.find(t => t.user === userId);
+
+
         let landlords = [];
         let landlordUrl = endpoints.landlords;
         while (landlordUrl) {
@@ -54,7 +65,7 @@ const ProfileScreen = () => {
           landlordUrl = res.data.next;
         }
         const matchedLandlord = landlords.find(l => l.user === userId);
-        setUser({ ...findUser, landlordInfo: matchedLandlord });
+        setUser({ ...findUser, landlordInfo: matchedLandlord, tenantInfo: matchedTenant });
 
         let allHostels = [];
         let motelUrl = `${endpoints.motels}?user=${userId}`;
@@ -105,6 +116,54 @@ const ProfileScreen = () => {
       }
     ]);
   };
+  const goToChatWithTenant = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      const username = await AsyncStorage.getItem("username");
+      if (!token || !username) return alert("Không có thông tin đăng nhập");
+
+      const resUser = await axios.get(`/users/${username}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const landlordId = resUser.data.id;
+
+      const resRooms = await axios.get(`/chat-rooms/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      let room = null;
+
+      for (const r of resRooms.data.results) {
+        for (const participant of r.participants) {
+          if (participant.id === landlordId) {
+            room = r;
+            break;
+          }
+        }
+        if (room) break;
+      }
+      console.log(room);
+
+
+      let roomId;
+      if (room) {
+        roomId = room.id;
+      } else {
+        Alert.alert("Thông báo", "Không tìm thấy phòng chat với người thuê.");
+        return;
+      }
+
+      navigation.navigate('Chat', {
+        roomId: roomId,
+        userId: landlordId,
+        token: token
+      });
+
+    } catch (err) {
+      console.error("Lỗi khi vào phòng chat:", err);
+      Alert.alert("Lỗi", "Không thể vào phòng chat.");
+    }
+  };
+
 
   if (loading) {
     return (
@@ -143,7 +202,9 @@ const ProfileScreen = () => {
         <ScrollView contentContainerStyle={{ alignItems: 'center', justifyContent: 'center' }}>
           <View style={landlordProfileStyle.landlordProfileHeader}>
             <View style={landlordProfileStyle.landlordProfileTopBar}>
-              <View />
+              <TouchableOpacity onPress={goToChatWithTenant}>
+                <Icon name="message1" size={24} color="#000" style={{ marginRight: 16 }} />
+              </TouchableOpacity>
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
                 <Menu
                   visible={menuVisible}
@@ -197,7 +258,54 @@ const ProfileScreen = () => {
             </ScrollView>
           </View>
 
-        </ScrollView>) : null}
+        </ScrollView>) : user.tenantInfo ? (
+          <ScrollView contentContainerStyle={{ alignItems: 'center', justifyContent: 'center' }}>
+            <View style={landlordProfileStyle.landlordProfileHeader}>
+              <View style={landlordProfileStyle.landlordProfileTopBar}>
+                <TouchableOpacity onPress={() => navigation.navigate('ListFavourite')}>
+                  <Ionicons name="heart-circle-outline" size={24} color="#000" style={{ marginRight: 16 }} />
+                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                  <Menu
+                    visible={menuVisible}
+                    onDismiss={closeMenu}
+                    anchor={
+                      <TouchableOpacity onPress={openMenu}>
+                        <Icon name="setting" size={24} color="#000" />
+                      </TouchableOpacity>
+                    }
+                  >
+                    <Menu.Item
+                      onPress={() => {
+                        navigation.navigate('EditProfile', { user });
+                        closeMenu();
+                      }}
+                      title="Thông tin cá nhân"
+                    />
+                    <Menu.Item
+                      onPress={handleLogout}
+                      title="Đăng xuất"
+                    />
+                  </Menu>
+                </View>
+              </View>
+
+              <View style={landlordProfileStyle.landlordProfileInfo}>
+                {user?.avatar && (
+                  <Image source={{ uri: user.avatar }} style={landlordProfileStyle.landlordAvatar} />
+                )}
+                <Text style={landlordProfileStyle.landlordName}>{user.tenantInfo.full_name}</Text>
+                <Text style={landlordProfileStyle.landlordEmail}>{user.email}</Text>
+              </View>
+            </View>
+
+            <View style={landlordProfileStyle.landlordInfoBox}>
+              <Text style={landlordProfileStyle.landlordSectionTitle}>Thông tin người thuê</Text>
+              <Text style={{ textAlign: 'center', marginTop: 10 }}>Bạn hiện đang là người thuê. Các chức năng quản lý sẽ hiển thị ở đây.</Text>
+            </View>
+          </ScrollView>
+        ) : null}
+
     </ScrollView>
   </Provider>
   );

@@ -74,7 +74,7 @@ const Homestyles = StyleSheet.create({
     alignItems: 'center',
   },
   cardDetails: {
-    height: 100,
+    height: 80,
     borderRadius: 15,
     backgroundColor: 'white',
     position: 'absolute',

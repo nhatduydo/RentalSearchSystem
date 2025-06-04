@@ -1,61 +1,132 @@
-import React from 'react';
-import { FlatList, Image, SafeAreaView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  FlatList,
+  Image,
+  SafeAreaView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { chatStyles } from '../styles/chatStyles';
 import useWebSocket from '../configs/useWebSocket';
+import axios, { endpoints } from '../configs/Apis';
+
 
 const ChatScreen = ({ navigation, route }) => {
-  const [message, setMessage] = React.useState('');
-  const { roomId, userId } = route.params;
-  const { messages, sendMessage, isConnected } = useWebSocket(roomId, userId);
+  const { roomId, userId, token, partner } = route.params;
+  const [messages, setMessages] = useState([]);
+  const [message, setMessage] = useState('');
 
-  const handleSend = () => {
-    if (message.trim()) {
-      sendMessage(message);
-      setMessage('');
+  //console.log("partner-->", partner);
+
+  const { sendMessage, status, lastMessage } = useWebSocket({ roomId, token });
+
+  const fetchMessages = async () => {
+    try {
+      const res = await axios.get(`${endpoints['chat-rooms']}${roomId}/messages/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      //console.log(res.data.results + roomId);
+      setMessages(res.data.results.reverse());
+    } catch (err) {
+      console.error('Lỗi khi lấy tin nhắn:', err.message);
     }
   };
 
-  const renderItem = ({ item }) => (
-    <View
+  useEffect(() => {
+    fetchMessages();
+  }, [roomId]);
+
+  useEffect(() => {
+    if (lastMessage) {
+      setMessages((prev) => {
+        const exists = prev.some((msg) => msg.id === lastMessage.id);
+        return exists ? prev : [lastMessage, ...prev];
+      });
+    }
+  }, [lastMessage]);
+
+
+  const handleSend = async () => {
+    if (!message.trim()) return;
+    try {
+      await axios.post(
+        `${endpoints['chat-rooms']}${roomId}/messages/`,
+        { content: message.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMessage('');
+
+      fetchMessages();
+    } catch (err) {
+      console.error('Lỗi khi gửi tin nhắn:', err.message);
+    }
+  };
+
+
+  const renderItem = ({ item }) => {
+    //console.log('sender.id:', item.sender?.id, '| userId:', userId);
+    return (<View
       style={[
         chatStyles.messageContainer,
-        item.sender_id === userId ? chatStyles.myMessage : chatStyles.otherMessage,
+        parseInt(item.sender?.id) === parseInt(userId)
+          ? chatStyles.myMessage : chatStyles.otherMessage,
       ]}>
-      <Text style={chatStyles.messageText}>{item.message}</Text>
-    </View>
-  );
+      <Text style={chatStyles.messageText}>{item.content}</Text>
+      <Text style={chatStyles.timestamp}>
+        {new Date(item.created_date).toLocaleTimeString()}
+      </Text>
+    </View>);
+  };
 
   return (
-    <SafeAreaView style={chatStyles.container}>
+    <SafeAreaView style={{ flex: 1 }}>
       <StatusBar backgroundColor="#2196F3" barStyle="light-content" />
-      <View style={chatStyles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Image source={require('../assets/images/meomeo1.jpg')} style={chatStyles.avatar} />
-        <Text style={chatStyles.name}>Trí</Text>
-      </View>
 
-      <FlatList
-        data={messages}
-        renderItem={renderItem}
-        keyExtractor={(_, index) => index.toString()}
-        contentContainerStyle={{ padding: 10 }}
-        inverted
-      />
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{ flex: 1 }}>
+          <View style={chatStyles.header}>
+            <Image source={{ uri: partner.avatar }} style={chatStyles.avatar} />
+            <Text style={chatStyles.name}>
+              Đang chat với {partner.firstName} {partner.lastName}
+            </Text>
+          </View>
 
-      <View style={chatStyles.inputContainer}>
-        <TextInput
-          style={chatStyles.input}
-          placeholder="Nhập tin nhắn..."
-          value={message}
-          onChangeText={setMessage}
-        />
-        <TouchableOpacity onPress={handleSend}>
-          <Icon name="send" size={24} color="#2196F3" />
-        </TouchableOpacity>
-      </View>
+          <FlatList
+            style={{ flex: 1 }}
+            data={messages}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id?.toString()}
+            contentContainerStyle={{ padding: 10 }}
+            inverted
+            keyboardShouldPersistTaps="handled"
+          />
+
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          >
+            <View style={chatStyles.inputContainer}>
+              <TextInput
+                style={chatStyles.input}
+                placeholder="Nhập tin nhắn..."
+                value={message}
+                onChangeText={setMessage}
+              />
+              <TouchableOpacity onPress={handleSend}>
+                <Icon name="send" size={24} color="#2196F3" />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 };

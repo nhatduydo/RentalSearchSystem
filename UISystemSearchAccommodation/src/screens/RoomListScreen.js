@@ -12,67 +12,102 @@ const RoomListScreen = () => {
   const [searchText, setSearchText] = useState('');
   const [page, setPage] = useState(1);
 
+
   const loadMotels = async () => {
-    if (page > 0) {
-      try {
-        setLoading(true);
-        let url = `${endpoints.motels}?page=${page}`;
-        if (searchText) url += `&q=${searchText}`;
+    try {
+      setLoading(true);
+      const url = `${endpoints.motels}?page=${page}`;
+      const res = await axios.get(url);
+      //console.log(res);
+      setMotels(prev =>
+        page === 1 ? res.data.results : [...prev, ...res.data.results]
+      );
 
-        let res = await axios.get(url);
-        setMotels(prev => [...prev, ...res.data.results]);
-
-        if (!res.data.next) setPage(0);
-      } catch (error) {
-        console.error("Lỗi khi tải danh sách trọ:", error);
-      } finally {
-        setLoading(false);
+      if (!res.data.next) {
+        setPage(0);
       }
+    } catch (error) {
+      console.error("Lỗi khi tải danh sách trọ:", error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const searchMotel = async (params) => {
+    setLoading(true);
+    try {
+      const filteredParams = Object.fromEntries(
+        Object.entries(params).filter(
+          ([key, value]) => value !== null && value !== undefined && value !== ''
+        )
+      );
+      const query = new URLSearchParams(filteredParams).toString();
+      //console.log("query --> ", query);
+      const response = await axios.get(`${endpoints.searchs}?${query}`);
+      //console.log("Dữ liệu sau khi lọc --> ", response.data);
+      setMotels(response.data);
+    } catch (error) {
+      console.error("err", error);
+      setMotels([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   useEffect(() => {
     setMotels([]);
     setPage(1);
   }, [searchText]);
 
-  useEffect(() => {
-    let timer = setTimeout(() => {
+  const handleSearch = () => {
+    if (searchText.trim() === '') {
+      setPage(1);
+      setMotels([]);
       loadMotels();
-    }, 500);
+    } else {
+      searchMotel({ q: searchText });
+    }
+  };
 
-    return () => clearTimeout(timer);
-  }, [page, searchText]);
+  useEffect(() => {
+    if (page > 0) {
+      loadMotels();
+    }
+  }, [page]);
+
+  const handleApplyFilter = (params) => {
+    searchMotel(params);
+  };
 
   const loadMore = () => {
-    if (!loading && page > 0) setPage(prev => prev + 1);
+    if (!loading && page !== 0) {
+      setLoading(true);
+      setPage(prev => prev + 1);
+    }
   };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.searchWrapper}>
-          <Icon name="search" size={20} color="gray" />
+          <TouchableOpacity onPress={() => handleSearch()}>
+            <Icon name="search" size={20} color="gray" />
+          </TouchableOpacity>
           <TextInput
             style={styles.searchInput}
             placeholder="Nhập nội dung tìm kiếm"
             value={searchText}
             onChangeText={setSearchText}
             returnKeyType="search"
+            onSubmitEditing={() => handleSearch()}
           />
         </View>
 
         <View style={styles.locationWrapper}>
           <Text style={styles.locationText}>Khu vực: Thành phố Hồ Chí Minh</Text>
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate('Filter', {
-                allMotels: motels,
-                selectedFilters: {},
-                onApplyFilter: () => { },
-              })
-            }
-          >
+          <TouchableOpacity onPress={() => navigation.navigate('Filter', { onApplyFilter: handleApplyFilter })}>
             <Icon name="filter-list" size={22} color="blue" />
           </TouchableOpacity>
         </View>

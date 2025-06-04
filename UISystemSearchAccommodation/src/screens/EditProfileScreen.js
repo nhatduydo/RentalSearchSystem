@@ -15,23 +15,36 @@ const EditProfileScreen = ({ route, navigation }) => {
   const [avatar, setAvatar] = useState(user.avatar);
   const [loading, setLoading] = useState(true);
 
+  const fetchAllPages = async (url, token) => {
+    let allResults = [];
+    let nextUrl = url;
+
+    while (nextUrl) {
+      const res = await axios.get(nextUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      allResults = allResults.concat(res.data.results);
+      nextUrl = res.data.next;
+    }
+
+    return allResults;
+  };
+
   useEffect(() => {
     const loadUserInfo = async () => {
       try {
         const token = await AsyncStorage.getItem('access_token');
-        let res;
+        let url;
 
         if (user.role === 'LANDLORD') {
-          res = await axios.get(`${endpoints.landlords}?user=${user.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          url = `${endpoints.landlords}?user=${user.id}`;
         } else if (user.role === 'TENANT') {
-          res = await axios.get(`${endpoints.tenants}?user=${user.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          url = `${endpoints.tenants}?user=${user.id}`;
         }
 
-        const matchedUser = res.data.results.find((item) => item.user === user.id);
+        const allResults = await fetchAllPages(url, token);
+
+        const matchedUser = allResults.find((item) => item.user === user.id);
         if (matchedUser) {
           setFormData(matchedUser);
         } else {
@@ -44,6 +57,7 @@ const EditProfileScreen = ({ route, navigation }) => {
         setLoading(false);
       }
     };
+
 
     loadUserInfo();
   }, []);

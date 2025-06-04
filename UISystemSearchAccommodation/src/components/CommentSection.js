@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const CommentSection = ({ roomId }) => {
-  // Placeholder - sau này sẽ fetch từ API bằng roomId
   const comments = [
     {
       id: 1,

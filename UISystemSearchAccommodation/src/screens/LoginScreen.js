@@ -92,7 +92,7 @@ const LoginScreen = () => {
                         <Icon name="facebook" size={20} color='#fff' />
                         <Text style={[loginStyles.fbText, { marginLeft: 8 }]}>Facebook</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={loginStyles.googleBtn}>
+                    <TouchableOpacity style={loginStyles.googleBtn} onPress={() => navigation.navigate('GoogleLogin')}>
                         <Icon name="google" size={20} color='#fff' />
                         <Text style={[loginStyles.googleText, { marginLeft: 8 }]}>Google</Text>
                     </TouchableOpacity>

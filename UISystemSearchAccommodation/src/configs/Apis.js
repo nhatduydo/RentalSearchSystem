@@ -17,6 +17,7 @@ export const endpoints = {
     'comments': '/comments/',
     'motelRatings': '/motelRatings/',
     'payments': '/payments/',
+    'vnpay': '/vnpay/',
     'payments-checkout': '/payments/checkout/',
     'searchs': '/searchs/',
     'search-historys': '/search-historys/',
@@ -26,6 +27,9 @@ export const endpoints = {
     'room-images': '/room-images/',
     'motel-images': '/motel-images/',
     'notifications': '/notifications/',
+    'google-auth': '/google-auth/',
+    'chat-rooms': '/chat-rooms/',
+    'favorites': '/favorites/'
 };
 
 export default instance;

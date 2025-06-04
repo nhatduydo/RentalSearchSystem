@@ -29,12 +29,16 @@ const detailStyles = StyleSheet.create({
     },
     description: {
         fontSize: 16,
+        fontStyle: 'italic',
         marginBottom: 12,
     },
     infoBlock1: {
         marginBottom: 8,
         flexDirection: 'row',
         justifyContent: 'space-between',
+    },
+    infoBlock2: {
+        marginBottom: 8,
     },
     section: {
         marginBottom: 20,

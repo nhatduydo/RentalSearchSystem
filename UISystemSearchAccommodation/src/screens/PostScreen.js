@@ -3,6 +3,7 @@ import { View, FlatList, ActivityIndicator, RefreshControl, Text, Image, Touchab
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from '@react-navigation/native';
 import PostCard from "../components/PostCard";
+import { useIsFocused } from '@react-navigation/native';
 import axios, { endpoints } from "../configs/Apis";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ const PostScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [avatarUri, setAvatarUri] = useState(null);
+    const isFocused = useIsFocused();
 
     const getPosts = async () => {
         try {
@@ -76,9 +78,11 @@ const PostScreen = () => {
     };
 
     useEffect(() => {
-        getPosts();
-        getAvatarUser();
-    }, []);
+        if (isFocused) {
+            getPosts();
+            getAvatarUser();
+        }
+    }, [isFocused]);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -91,8 +95,8 @@ const PostScreen = () => {
                             <Text style={{ fontSize: 28, fontWeight: 'bold', color: 'deepskyblue' }}>Bài Đăng</Text>
                         </View>
                         <View style={{ paddingTop: 8, flexDirection: 'row' }}>
-                            <Ionicons name="bookmark-outline" size={28} color='deepskyblue' style={{ marginLeft: 8 }}/>
-                            <Ionicons name="add-circle-outline" size={28} color='deepskyblue' style={{ marginLeft: 8 }} onPress={() => navigation.navigate('CreatePost')}/>
+                            <Ionicons name="bookmark-outline" size={28} color='deepskyblue' style={{ marginLeft: 8 }} />
+                            <Ionicons name="add-circle-outline" size={28} color='deepskyblue' style={{ marginLeft: 8 }} onPress={() => navigation.navigate('CreatePost')} />
                             <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={{ marginLeft: 8 }}>
                                 <Image
                                     source={{ uri: avatarUri }}

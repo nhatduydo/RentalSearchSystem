@@ -1,35 +1,41 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { View, Text, StyleSheet } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
-const MapScreen = () => {
-  const location = {
-    latitude: 10.762622,
-    longitude: 106.660172,
-  };
+const MapScreen = ({ route }) => {
+  const { latitude, longitude, motelName } = route.params;
 
   return (
     <View style={styles.container}>
       <MapView
         style={styles.map}
-        initialRegion={location}
+        initialRegion={{
+          latitude: latitude,
+          longitude: longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }}
+        provider={PROVIDER_GOOGLE}
+        showsUserLocation
+        showsMyLocationButton
       >
         <Marker
-          coordinate={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-          }}
-          title="Nhà trọ A"
-          description="Giá 2tr5/tháng, gần đại học"
+          coordinate={{ latitude, longitude }}
+          title={motelName}
+          description="Vị trí nhà trọ"
         />
       </MapView>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  map: { flex: 1 },
-});
-
 export default MapScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+});

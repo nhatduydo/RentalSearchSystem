@@ -5,6 +5,7 @@ import axios, { endpoints } from '../configs/Apis';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RichEditor, RichToolbar, actions } from 'react-native-pell-rich-editor';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 const CreatePostScreen = ({ navigation }) => {
     const [title, setTitle] = useState('');
@@ -42,10 +43,14 @@ const CreatePostScreen = ({ navigation }) => {
         if (!title || !content || !minPrice || !maxPrice) {
             return Alert.alert("Thông báo", "Vui lòng nhập đầy đủ tiêu đề, nội dung và giá");
         }
+        if (minPrice >= maxPrice) {
+            return Alert.alert("Không được nhập giá tối thiểu lớn hơn hoặc bằng giá tối đa");
+        }
 
         try {
             const token = await AsyncStorage.getItem('access_token');
             const postType = user?.role === 'Tenant' ? 'FIND_ROOM' : 'RENT_OUT';
+            
 
             const formData = new FormData();
             formData.append("title", title);
@@ -54,12 +59,22 @@ const CreatePostScreen = ({ navigation }) => {
             formData.append("min_price", minPrice);
             formData.append("max_price", maxPrice);
 
-            // Thêm ảnh
-            images.forEach((img, index) => {
+            images.forEach(async (img, index) => {
+                let uri = img.uri;
+
+                if (Platform.OS === 'android' && uri.startsWith('content://')) {
+                    const fileUri = `${FileSystem.documentDirectory}image_${index}.jpg`;
+                    await FileSystem.copyAsync({
+                        from: uri,
+                        to: fileUri,
+                    });
+                    uri = fileUri;
+                }
+
                 formData.append("images", {
-                    uri: img.uri,
-                    name: `image_${index}.jpg`,
-                    type: "image/jpeg",
+                    uri: uri,
+                    name: img.fileName || `image_${index}.jpg`,
+                    type: img.type || "image/jpeg",
                 });
             });
 
@@ -69,7 +84,7 @@ const CreatePostScreen = ({ navigation }) => {
                     Authorization: `Bearer ${token}`,
                 },
             });
-
+            console.log("Post response-->", res.data);
             Alert.alert("Thành công", "Đăng bài thành công!");
             navigation.goBack();
         } catch (error) {
@@ -85,16 +100,16 @@ const CreatePostScreen = ({ navigation }) => {
             alert("Permission denied!!");
         } else {
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: [ImagePicker.MediaType.IMAGE],
-                allowsMultipleSelection: true,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 quality: 1,
             });
             if (!result.canceled) {
-                const newImages = result.assets.map(asset => asset.uri);
+                const newImages = result.assets;
                 setImages(prev => [...prev, ...newImages]);
             }
         }
     };
+
 
     return (
         <ScrollView style={styles.container}>
@@ -160,7 +175,7 @@ const CreatePostScreen = ({ navigation }) => {
 
             <View style={styles.imageList}>
                 {images.map((img, index) => (
-                    <Image key={index} source={{ uri: img }} style={styles.imageBox} />
+                    <Image key={index} source={{ uri: img.uri }} style={styles.imageBox} />
                 ))}
 
                 <TouchableOpacity onPress={picker} style={styles.addBox}>

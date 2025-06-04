@@ -1,12 +1,21 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import RenderHTML from 'react-native-render-html';
 import dayjs from 'dayjs';
 import { useWindowDimensions } from 'react-native';
+import axios, { endpoints } from '../configs/Apis';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import CommentPostSection from './CommentPostSection';
 
 const PostCard = ({ post }) => {
     const { width } = useWindowDimensions();
+    const [showComments, setShowComments] = useState(false);
+    const [liked, setLiked] = useState(false);
+    const toggleLike = () => {
+        setLiked(!liked);
+    };
+    //console.log('Images:', post.images);
 
     return (
         <View style={styles.card}>
@@ -27,19 +36,30 @@ const PostCard = ({ post }) => {
 
             <RenderHTML contentWidth={width} source={{ html: post.content }} baseStyle={styles.content} />
 
-            {post.images.length > 0 && (
+            {Array.isArray(post.images) && post.images.length > 0 && post.images[0] && (
                 <Image source={{ uri: post.images[0] }} style={styles.postImage} />
             )}
 
             <View style={styles.footer}>
-                <View style={styles.footerItem}>
-                    <Icon name="heart-outline" size={20} />
-                    <Text style={styles.footerText}>0</Text>
-                </View>
-                <View style={styles.footerItem}>
+                <TouchableOpacity onPress={toggleLike}>
+                    <View style={styles.footerItem}>
+                        <Icon
+                            name={liked ? 'heart' : 'heart-outline'}
+                            size={20}
+                            color={liked ? 'red' : 'black'}
+                        />
+                    </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.footerItem} onPress={() => setShowComments(true)}>
                     <Icon name="comment-outline" size={20} />
                     <Text style={styles.footerText}>{post.comments_count}</Text>
-                </View>
+                </TouchableOpacity>
+
+                <CommentPostSection
+                    visible={showComments}
+                    onClose={() => setShowComments(false)}
+                    postId={post.id}
+                />
                 <TouchableOpacity style={styles.footerItem}>
                     <Icon name="share-outline" size={20} />
                 </TouchableOpacity>
@@ -114,6 +134,7 @@ const styles = StyleSheet.create({
         marginLeft: 4,
         fontSize: 13,
     },
+
 });
 
 export default PostCard;

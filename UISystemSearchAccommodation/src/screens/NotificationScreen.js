@@ -7,7 +7,26 @@ import axios, { endpoints } from '../configs/Apis';
 const NotificationScreen = () => {
   const [query, setQuery] = useState('');
   const [notifications, setNotifications] = useState([]);
+  const [user, setUser] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const loadUser = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) return;
+
+      const resUser = await axios.get(`${endpoints.users}current-user/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setUser(resUser.data);
+    } catch (err) {
+      console.error('Error loading avatar:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     const loadNotifications = async () => {
@@ -20,13 +39,10 @@ const NotificationScreen = () => {
             Authorization: `Bearer ${token}`,
           },
         });
-        
-
-        //setNotifications(res.data); 
         setNotifications(res.data.results);
-        console.log('Notifications from API:', res.data);
-        console.log('Set notifications:', res.data.results);
-        console.log('Notifications state:', notifications);
+        // console.log('Notifications from API:', res.data);
+        // console.log('Set notifications:', res.data.results);
+        // console.log('Notifications state:', notifications);
 
       } catch (err) {
         console.error('Error loading notifications:', err);
@@ -36,6 +52,8 @@ const NotificationScreen = () => {
     };
 
     loadNotifications();
+    loadUser();
+
   }, []);
 
   const filteredData = notifications.filter(item =>
@@ -63,7 +81,7 @@ const NotificationScreen = () => {
           renderItem={({ item }) => (
             <View style={NotificationStyles.itemContainer}>
               <Image
-                source={require('../assets/images/meomeo1.jpg')}
+                source={{ uri: user.avatar }}
                 style={NotificationStyles.logo}
               />
               <View style={NotificationStyles.textWrapper}>

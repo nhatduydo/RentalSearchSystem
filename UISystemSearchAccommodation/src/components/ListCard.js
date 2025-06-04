@@ -16,13 +16,13 @@ const ListCard = ({ room }) => {
       const token = await AsyncStorage.getItem("access_token");
       if (!token)
         return;
-      const res = await axios.get(`${endpoints['motel-images']}${room.id}/`, {
+      const res = await axios.get(`${endpoints['motel-images']}?motel_id=${room.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (res.data && res.data.image_url) {
-        setImageUrl(res.data.image_url);
+      if (res.data && res.data.results && res.data.results.length > 0) {
+        setImageUrl(res.data.results[0].image_url); 
       }
     } catch (error) {
       console.error("Lỗi khi tải ảnh:", error);
