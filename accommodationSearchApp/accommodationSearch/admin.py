@@ -1,17 +1,19 @@
-from accommodationSearch.models import (Amenity, ChatRoom, Comment, Favorite,
-                                        Follow, Landlord, LikeComment,
-                                        LikeMotel, Motel, MotelImage,
-                                        MotelRating, Notifications, Payment,
-                                        Post, Room, RoomImage, RoomTenant,
-                                        SearchHistory, Tenant, User)
-from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
+from accommodationSearch.models import (Admin, Amenity, ChatRoom, Comment,
+                                        Favorite, Follow, Landlord,
+                                        LikeComment, LikeMotel, Message, Motel,
+                                        MotelImage, MotelRating, Notifications,
+                                        Payment, Post, Room, RoomImage,
+                                        RoomTenant, SearchHistory, Tenant,
+                                        User)
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db.models import Avg, Count
 from django.template.response import TemplateResponse
 from django.urls import path
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
 
 class UserForm(forms.ModelForm):
@@ -174,7 +176,6 @@ class MessageAdmin(admin.ModelAdmin):
     list_display = ['id', 'chat_room', 'sender', 'content', 'is_read', 'created_date']
     list_filter = ['is_read', 'created_date']
     search_fields = ['content', 'sender__username']
-
 
 class MyAdminSite(admin.AdminSite):
     site_header = 'HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ'
