@@ -35,9 +35,9 @@ from .models import (Amenity, ChatRoom, Comment, Favorite, Follow, Landlord,
                      PaymentMethod, PaymentStatus, Post, PostImage, PostType,
                      Room, RoomImage, RoomTenant, RoomTenantStatus,
                      SearchHistory, Tenant, User, UserRole)
-from .permissions import (IsAdmin, IsCommentOwner, IsLandlordOfRoom,
-                          IsLandlordOrTenant, IsOwnerOrAdmin,
-                          IsOwnerOrReadOnly, IsPaymentOwnerOrMotelOwner)
+from .permissions import (IsAdmin, IsLandlordOfRoom, IsLandlordOrTenant,
+                          IsOwnerOrAdmin, IsOwnerOrReadOnly,
+                          IsPaymentOwnerOrMotelOwner)
 from .utils import calculate_distance
 from .vnpay import vnpay
 
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 def index(request):
-    return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")
+    return HttpResponse("HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ")  # Trả về trang chủ với thông báo
 
 
 class UserViewSet(viewsets.ViewSet,
@@ -59,12 +59,9 @@ class UserViewSet(viewsets.ViewSet,
     - Cho phép xem danh sách, chi tiết, tạo mới, cập nhật và xóa người dùng
     - Có phân quyền truy cập dựa trên vai trò
     """
-    # Lấy danh sách người dùng đang hoạt động
-    queryset = User.objects.filter(is_active=True)
-    # Sử dụng serializer để chuyển đổi dữ liệu
-    serializer_class = serializers.UserSerializer
-    # Sử dụng phân trang tùy chỉnh
-    pagination_class = paginators.ItemPanigator
+    queryset = User.objects.filter(is_active=True)  # Lấy danh sách người dùng đang hoạt động
+    serializer_class = serializers.UserSerializer  # Serializer chuyển đổi dữ liệu
+    pagination_class = paginators.ItemPanigator  # Phân trang tùy chỉnh
 
     def get_permissions(self):
         """
@@ -72,11 +69,11 @@ class UserViewSet(viewsets.ViewSet,
         - Chỉ cho phép chủ sở hữu hoặc admin cập nhật/xóa
         - Cho phép tất cả người dùng xem
         """
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        return [AllowAny()]
+        if self.action in ['update', 'partial_update', 'destroy']:  # Nếu là action cập nhật/xóa
+            return [IsOwnerOrAdmin()]  # Yêu cầu là chủ sở hữu hoặc admin
+        return [AllowAny()]  # Cho phép tất cả người dùng xem
 
-    @transaction.atomic
+    @transaction.atomic  # Đảm bảo tính toàn vẹn dữ liệu
     def create(self, request, *args, **kwargs):
         """
         Tạo người dùng mới với transaction để đảm bảo tính toàn vẹn dữ liệu
@@ -88,7 +85,7 @@ class UserViewSet(viewsets.ViewSet,
             # Validate dữ liệu người dùng
             user_serializer = serializers.UserSerializer(data=request.data)
             if user_serializer.is_valid():
-                user = user_serializer.save()
+                user = user_serializer.save()  # Lưu user mới
 
                 # Tạo profile data cho user
                 profile_data = {
@@ -209,14 +206,10 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     - Cho phép xem danh sách, chi tiết và cập nhật thông tin chủ nhà
     - Có phân quyền truy cập dựa trên vai trò
     """
-    # Lấy danh sách chủ nhà đang hoạt động và sắp xếp theo ID
-    queryset = Landlord.objects.filter(active=True).order_by('user_id')
-    # Sử dụng serializer để chuyển đổi dữ liệu
-    serializer_class = serializers.LandlordSerializer
-    # Sử dụng phân trang tùy chỉnh
-    pagination_class = paginators.ItemPanigator
-    # Mặc định cho phép tất cả người dùng truy cập
-    permission_classes = [AllowAny]
+    queryset = Landlord.objects.filter(active=True).order_by('user_id')  # Lấy danh sách chủ nhà đang hoạt động và sắp xếp theo ID
+    serializer_class = serializers.LandlordSerializer  # Serializer chuyển đổi dữ liệu
+    pagination_class = paginators.ItemPanigator  # Phân trang tùy chỉnh
+    permission_classes = [AllowAny]  # Mặc định cho phép tất cả người dùng truy cập
 
     def get_permissions(self):
         """
