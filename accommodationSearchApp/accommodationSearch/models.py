@@ -525,14 +525,14 @@ class Payment(ActiveModel):
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     status = models.CharField(max_length=20, choices=PaymentStatus.choices)
     description = models.TextField(null=True, blank=True)
-    # VNPay specific fields
-    vnp_transaction_no = models.CharField(max_length=15, null=True, blank=True)  # Mã giao dịch do VNPay cấp.
-    vnp_bank_code = models.CharField(max_length=20, null=True, blank=True)  # Mã ngân hàng thanh toán.
-    vnp_bank_tran_no = models.CharField(max_length=255, null=True, blank=True)  # Mã giao dịch tại ngân hàng.
-    vnp_card_type = models.CharField(max_length=20, null=True, blank=True)  # Loại thẻ (ATM, VISA, v.v.).
-    vnp_pay_date = models.DateTimeField(null=True, blank=True)  # Ngày thanh toán.
-    vnp_response_code = models.CharField(max_length=2, null=True, blank=True)  # Mã phản hồi của VNPay (00 là thành công).
-    vnp_txn_ref = models.CharField(max_length=100, null=True, blank=True)  # Mã tham chiếu giao dịch (do hệ thống của bạn tạo).
+    
+    vnp_transaction_no = models.CharField(max_length=15, null=True, blank=True)  
+    vnp_bank_code = models.CharField(max_length=20, null=True, blank=True)  
+    vnp_bank_tran_no = models.CharField(max_length=255, null=True, blank=True)  
+    vnp_card_type = models.CharField(max_length=20, null=True, blank=True)  
+    vnp_pay_date = models.DateTimeField(null=True, blank=True) 
+    vnp_response_code = models.CharField(max_length=2, null=True, blank=True)  
+    vnp_txn_ref = models.CharField(max_length=100, null=True, blank=True) 
 
     class Meta:
         verbose_name = "Thanh toán"

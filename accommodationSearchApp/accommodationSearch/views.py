@@ -261,8 +261,7 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
                 related_object_id=landlord.user.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date') 
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -545,8 +544,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 related_object_id=motel.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date') 
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -576,8 +574,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 related_object_id=motel.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -619,8 +616,7 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
                 related_object_id=motel.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -847,8 +843,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             related_object_id=str(room_tenant.id)
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -877,8 +872,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             related_object_id=str(room_tenant.id)
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -909,8 +903,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             related_object_id=str(room_tenant.id)
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -951,8 +944,7 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
             related_object_id=str(room_tenant.id)
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -991,8 +983,7 @@ class MotelRatingViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.
                 related_object_id=rating.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -1086,8 +1077,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     related_object_id=post.id
                 )
 
-                # Gửi thông báo đến Firebase
-                notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+                notification = Notifications.objects.latest('created_date')
                 notification_data = {
                     'id': notification.id,
                     'title': notification.title,
@@ -1182,8 +1172,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 related_object_id=comment.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -1225,8 +1214,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 related_object_id=comment.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -1262,8 +1250,7 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
                 related_object_id=reply.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -1337,8 +1324,7 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
                     related_object_id=follow.id
                 )
 
-                # Gửi thông báo đến Firebase
-                notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+                notification = Notifications.objects.latest('created_date')
                 notification_data = {
                     'id': notification.id,
                     'title': notification.title,
@@ -1359,8 +1345,7 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
                 related_object_id=follow.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -1403,7 +1388,6 @@ class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retri
 
     def perform_create(self, serializer):
         notification = serializer.save()
-        # Gửi thông báo đến Firebase Realtime Database
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -1622,8 +1606,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -1645,8 +1628,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -1683,8 +1665,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
-        # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -1705,8 +1686,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
                 related_object_id=payment.id
             )
 
-            # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,

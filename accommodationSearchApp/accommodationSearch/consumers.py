@@ -58,13 +58,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.exception(f"Lỗi trong quá trình kết nối WebSocket: {str(e)}")
             await self.close()
 
-    # xác thực người dùng từ token trong kết nối WebSocket, hỗ trợ cả 2 loại token:
-    # JWT (Json Web Token)
-    # OAuth2 Access Token
     @database_sync_to_async
     def get_user_from_token(self, token):
         try:
-            # Thử xác thực với JWT token trước
             try:
                 access_token = AccessToken(token)
                 user_id = access_token['user_id']
@@ -85,7 +81,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.exception(f"Lỗi xác thực token: {str(e)}")
             return None
 
-    # Kiểm tra người dùng hiện tại (self.user) có quyền tham gia phòng chat (self.room_id) hay không.
     @database_sync_to_async
     def check_room_permission(self):
         try:
@@ -101,9 +96,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if hasattr(self, 'room_group_name'):
                 await self.channel_layer.group_discard(
                     self.room_group_name,
-                    self.channel_name  # ID kênh hiện tại (được gán tự động), đại diện cho client đang kết nối.
+                    self.channel_name  
                 )
-                # Ghi log việc user nào rời khỏi phòng nào với mã disconnect là gì.
             logger.info(f"Người dùng {getattr(self, 'user', 'Không xác định')} đã ngắt kết nối khỏi phòng {getattr(self, 'room_id', 'Không xác định')} với mã {close_code}")
         except Exception as e:
             logger.exception(f"Lỗi trong quá trình ngắt kết nối: {str(e)}")
@@ -113,7 +107,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             text_data_json = json.loads(text_data)
             content = text_data_json['message']
 
-            # Lưu tin nhắn vào database
             message = await self.save_message(content)
             if not message:
                 logger.error("Không thể lưu tin nhắn")
@@ -136,7 +129,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.exception(f"Lỗi xử lý tin nhắn: {str(e)}")
 
-    #  lưu tin nhắn mới vào cơ sở dữ liệu
     @database_sync_to_async
     def save_message(self, content):
         try:
@@ -155,7 +147,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.error(f"Phòng chat {self.room_id} không tồn tại")
             return None
 
-    #  xử lý sự kiện khi nhận tin nhắn từ group WebSocket
     async def chat_message(self, event):
         try:
             await self.send(text_data=json.dumps(event['message']))

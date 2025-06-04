@@ -13,7 +13,6 @@ class EmailService:
         try:
             sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
 
-            # Tạo nội dung email dựa trên loại thông báo
             subject, html_content = EmailService._get_email_content(notification_type, data)
 
             message = Mail(
