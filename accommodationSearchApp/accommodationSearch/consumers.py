@@ -16,41 +16,61 @@ User = get_user_model()
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        try:
-            query_string = self.scope['query_string'].decode()
+    """
+    Consumer xử lý các kết nối WebSocket cho chat
+    Kế thừa từ AsyncWebsocketConsumer để xử lý bất đồng bộ
+    """
 
+    async def connect(self):
+        """
+        Xử lý khi client kết nối đến WebSocket
+        - Kiểm tra token xác thực
+        - Kiểm tra quyền truy cập phòng chat
+        - Thêm client vào group chat
+        """
+        try:
+            # Lấy và decode query string từ URL
+            query_string = self.scope['query_string'].decode()
+            # Parse query string thành dictionary
             query_params = parse_qs(query_string)
+            # Lấy token từ query params
             token = query_params.get('token', [None])[0]
 
+            # Kiểm tra nếu không có token
             if not token:
                 logger.error("Không tìm thấy token trong yêu cầu kết nối WebSocket")
                 await self.close()
                 return
 
+            # Xử lý token nếu có prefix "Bearer "
             if token.startswith('Bearer '):
                 token = token[7:]
 
-            self.user = await self.get_user_from_token(token)  # để kiểm tra token và lấy người dùng.
+            # Xác thực token và lấy thông tin user
+            self.user = await self.get_user_from_token(token)
             if not self.user:
                 logger.error("Xác thực token thất bại")
                 await self.close()
                 return
 
+            # Lấy room_id từ URL parameters
             self.room_id = self.scope['url_route']['kwargs']['room_id']
-
+            # Tạo tên group cho phòng chat
             self.room_group_name = f'chat_{self.room_id}'
 
+            # Kiểm tra quyền truy cập phòng chat
             if not await self.check_room_permission():
                 logger.error(f"Người dùng {self.user.username} không có quyền tham gia phòng {self.room_id}")
                 await self.close()
                 return
 
+            # Thêm client vào group chat
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
 
+            # Chấp nhận kết nối WebSocket
             await self.accept()
             logger.info(f"Người dùng {self.user.username} đã kết nối vào phòng {self.room_id}")
 
@@ -58,19 +78,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.exception(f"Lỗi trong quá trình kết nối WebSocket: {str(e)}")
             await self.close()
 
-    # xác thực người dùng từ token trong kết nối WebSocket, hỗ trợ cả 2 loại token:
-    # JWT (Json Web Token)
-    # OAuth2 Access Token
     @database_sync_to_async
     def get_user_from_token(self, token):
+        """
+        Xác thực token và lấy thông tin user
+        Hỗ trợ cả JWT token và OAuth2 token
+        """
         try:
-            # Thử xác thực với JWT token trước
+            # Thử xác thực với JWT token
             try:
                 access_token = AccessToken(token)
                 user_id = access_token['user_id']
                 user = User.objects.get(id=user_id)
                 return user
             except Exception:
+                # Nếu JWT không hợp lệ, thử với OAuth2 token
                 try:
                     oauth2_token = OAuth2AccessToken.objects.get(token=token)
                     if oauth2_token.is_expired():
@@ -78,16 +100,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     user = oauth2_token.user
                     return user
                 except OAuth2AccessToken.DoesNotExist:
-                    pass 
+                    pass
 
             return None
         except Exception as e:
             logger.exception(f"Lỗi xác thực token: {str(e)}")
             return None
 
-    # Kiểm tra người dùng hiện tại (self.user) có quyền tham gia phòng chat (self.room_id) hay không.
     @database_sync_to_async
     def check_room_permission(self):
+        """
+        Kiểm tra quyền truy cập phòng chat
+        - Kiểm tra phòng chat có tồn tại và active
+        - Kiểm tra user có phải là thành viên của phòng
+        """
         try:
             chat_room = ChatRoom.objects.get(id=self.room_id, active=True)
             is_participant = self.user in chat_room.participants.all()
@@ -97,6 +123,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return False
 
     async def disconnect(self, close_code):
+        """
+        Xử lý khi client ngắt kết nối
+        - Xóa client khỏi group chat
+        - Ghi log thông tin ngắt kết nối
+        """
         try:
             if hasattr(self, 'room_group_name'):
                 await self.channel_layer.group_discard(
@@ -109,6 +140,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.exception(f"Lỗi trong quá trình ngắt kết nối: {str(e)}")
 
     async def receive(self, text_data):
+        """
+        Xử lý khi nhận tin nhắn từ client
+        - Parse dữ liệu JSON
+        - Lưu tin nhắn vào database
+        - Gửi tin nhắn đến tất cả client trong phòng
+        """
         try:
             text_data_json = json.loads(text_data)
             content = text_data_json['message']
@@ -119,6 +156,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 logger.error("Không thể lưu tin nhắn")
                 return
 
+            # Gửi tin nhắn đến tất cả client trong phòng
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -136,9 +174,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.exception(f"Lỗi xử lý tin nhắn: {str(e)}")
 
-    #  lưu tin nhắn mới vào cơ sở dữ liệu
     @database_sync_to_async
     def save_message(self, content):
+        """
+        Lưu tin nhắn mới vào database
+        - Kiểm tra phòng chat tồn tại
+        - Kiểm tra quyền gửi tin nhắn
+        - Tạo và lưu tin nhắn mới
+        """
         try:
             chat_room = ChatRoom.objects.get(id=self.room_id, active=True)
             if self.user not in chat_room.participants.all():
@@ -149,20 +192,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 sender=self.user,
                 content=content
             )
-            chat_room.save() 
+            chat_room.save()
             return message
         except ChatRoom.DoesNotExist:
             logger.error(f"Phòng chat {self.room_id} không tồn tại")
             return None
 
-    #  xử lý sự kiện khi nhận tin nhắn từ group WebSocket
     async def chat_message(self, event):
+        """
+        Xử lý sự kiện khi nhận tin nhắn từ group
+        - Gửi tin nhắn đến client
+        """
         try:
             await self.send(text_data=json.dumps(event['message']))
         except Exception as e:
             logger.exception(f"Lỗi gửi tin nhắn: {str(e)}")
 
     async def message_update(self, event):
+        """
+        Xử lý sự kiện cập nhật tin nhắn
+        - Gửi thông tin cập nhật đến client
+        """
         try:
             await self.send(text_data=json.dumps({
                 'type': 'message_update',

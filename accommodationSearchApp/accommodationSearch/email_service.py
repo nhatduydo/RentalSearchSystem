@@ -4,18 +4,34 @@ from functools import partial
 from django.conf import settings
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Content, Email, Mail
+
 from .models import NotificationType
 
 
 class EmailService:
+    """
+    Service class xử lý việc gửi email thông báo
+    Sử dụng SendGrid làm dịch vụ gửi email
+    """
     @staticmethod
     async def send_notification(to_email, data, notification_type=NotificationType.NEW_MOTEL):
+        """
+        Gửi email thông báo đến người dùng
+        Args:
+            to_email: Email người nhận
+            data: Dictionary chứa dữ liệu để điền vào template email
+            notification_type: Loại thông báo (mặc định là NEW_MOTEL)
+        Returns:
+            bool: True nếu gửi thành công, False nếu thất bại
+        """
         try:
+            # Khởi tạo SendGrid client với API key từ settings
             sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
 
-            # Tạo nội dung email dựa trên loại thông báo
+            # Lấy nội dung email dựa trên loại thông báo
             subject, html_content = EmailService._get_email_content(notification_type, data)
 
+            # Tạo đối tượng Mail với các thông tin cần thiết
             message = Mail(
                 from_email=Email(settings.SENDER_EMAIL, settings.SENDER_NAME),
                 to_emails=to_email,
@@ -23,9 +39,11 @@ class EmailService:
                 html_content=Content('text/html', html_content)
             )
 
+            # Chạy hàm gửi email trong executor để không block event loop
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(None, lambda: sg.send(message))
 
+            # In thông tin response để debug
             print(f"Status Code: {response.status_code}")
             print(f"Response Body: {response.body}")
             print(f"Response Headers: {response.headers}")
@@ -37,7 +55,16 @@ class EmailService:
 
     @staticmethod
     def _get_email_content(notification_type, data):
+        """
+        Tạo nội dung email dựa trên loại thông báo
+        Args:
+            notification_type: Loại thông báo (NEW_MOTEL, MOTEL_UPDATE, etc.)
+            data: Dictionary chứa dữ liệu để điền vào template
+        Returns:
+            tuple: (subject, html_content) - Tiêu đề và nội dung HTML của email
+        """
         if notification_type == NotificationType.NEW_MOTEL:
+            # Template cho thông báo nhà trọ mới
             return (
                 'Thông báo nhà trọ mới',
                 f'''
@@ -56,6 +83,7 @@ class EmailService:
                 '''
             )
         elif notification_type == NotificationType.MOTEL_UPDATE:
+            # Template cho thông báo cập nhật nhà trọ
             return (
                 'Cập nhật thông tin nhà trọ',
                 f'''
@@ -74,6 +102,7 @@ class EmailService:
                 '''
             )
         else:
+            # Template mặc định cho các thông báo khác
             return (
                 'Thông báo từ hệ thống',
                 f'''
