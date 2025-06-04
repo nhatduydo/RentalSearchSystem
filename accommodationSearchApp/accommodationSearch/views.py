@@ -1914,11 +1914,25 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
 
 class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    """
+    ViewSet quản lý thanh toán
+    - Cho phép xem danh sách, chi tiết, tạo mới, cập nhật và xóa thanh toán
+    - Có phân quyền truy cập dựa trên vai trò người dùng
+    - Tự động gửi thông báo khi có thanh toán mới hoặc cập nhật
+    """
+    # Serializer chuyển đổi dữ liệu thanh toán
     serializer_class = serializers.PaymentSerializer
+    # Yêu cầu đăng nhập để truy cập các API
     permission_classes = [permissions.IsAuthenticated]
+    # Phân trang tùy chỉnh
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
+        """
+        Xác định quyền truy cập cho từng action
+        - list, create, update_status: Yêu cầu đăng nhập
+        - retrieve, update, destroy: Yêu cầu đăng nhập và là chủ sở hữu hoặc chủ nhà
+        """
         if self.action in ['list', 'create', 'update_status']:
             return [permissions.IsAuthenticated()]
         elif self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
@@ -1926,6 +1940,13 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
+        """
+        Lấy danh sách thanh toán dựa trên vai trò người dùng
+        - Admin: xem tất cả thanh toán
+        - Chủ trọ: xem thanh toán của các phòng trong nhà trọ của mình
+        - Người thuê: chỉ xem thanh toán của mình
+        """
+        # Kiểm tra nếu là request giả từ Swagger
         if getattr(self, 'swagger_fake_view', False):
             return Payment.objects.none()
 
@@ -1933,29 +1954,37 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         if not self.request.user.is_authenticated:
             return Payment.objects.none()
 
+        # Lấy tất cả thanh toán đang hoạt động và join các bảng liên quan
         queryset = Payment.objects.filter(active=True).select_related(
-            'payer',
-            'room',
-            'room__motel',
-            'room__motel__user'
+            'payer',  # Người thanh toán
+            'room',   # Phòng được thanh toán
+            'room__motel',  # Nhà trọ chứa phòng
+            'room__motel__user'  # Chủ nhà trọ
         )
         user = self.request.user
 
-        # Admin có thể xem tất cả payment
+        # Admin có thể xem tất cả thanh toán
         if user.is_staff:
             return queryset
 
-        # Chủ trọ có thể xem payments của các phòng trong nhà trọ của họ
+        # Chủ trọ chỉ xem được thanh toán của các phòng trong nhà trọ của mình
         if user.role == UserRole.LANDLORD:
             return queryset.filter(room__motel__user=user)
 
-        # Người thuê chỉ có thể xem payments của họ
+        # Người thuê chỉ xem được thanh toán của mình
         return queryset.filter(payer=user)
 
     def perform_create(self, serializer):
+        """
+        Tạo thanh toán mới
+        - Lưu thanh toán với người thanh toán là user hiện tại
+        - Tạo thông báo cho chủ nhà
+        - Gửi thông báo qua Firebase
+        """
+        # Lưu thanh toán mới
         payment = serializer.save(payer=self.request.user)
 
-        # Thông báo cho chủ nhà khi có thanh toán mới
+        # Tạo thông báo cho chủ nhà
         Notifications.objects.create(
             receiver=payment.room.motel.user,
             title="Thanh toán mới",
@@ -1965,7 +1994,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         )
 
         # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -1977,9 +2006,16 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         send_notification(notification.receiver.id, notification_data)
 
     def perform_update(self, serializer):
+        """
+        Cập nhật thông tin thanh toán
+        - Lưu thông tin cập nhật
+        - Tạo thông báo cho người thanh toán
+        - Gửi thông báo qua Firebase
+        """
+        # Lưu thông tin cập nhật
         payment = serializer.save()
 
-        # Thông báo cho người thanh toán khi có cập nhật
+        # Tạo thông báo cho người thanh toán
         Notifications.objects.create(
             receiver=payment.payer,
             title="Cập nhật thanh toán",
@@ -1989,7 +2025,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         )
 
         # Gửi thông báo đến Firebase
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -2002,19 +2038,32 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     @action(detail=True, methods=['patch'], url_path='update-status')
     def update_status(self, request, pk=None):
+        """
+        Cập nhật trạng thái thanh toán
+        - Kiểm tra trạng thái mới có hợp lệ không
+        - Cập nhật trạng thái
+        - Tạo thông báo cho người thanh toán và chủ nhà
+        - Gửi thông báo qua Firebase
+        """
+        # Lấy thanh toán cần cập nhật
         payment = self.get_object()
+        # Lấy trạng thái mới từ request
         new_status = request.data.get('status')
 
+        # Lấy danh sách trạng thái hợp lệ
         valid_statuses = []
         for choice in PaymentStatus.choices:
             status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
             valid_statuses.append(status_code)
+
+        # Kiểm tra trạng thái mới có hợp lệ không
         if new_status not in valid_statuses:
             raise ValidationError({
                 "error": "Trạng thái không hợp lệ",
                 "detail": f"Trạng thái phải là một trong các giá trị: {valid_statuses}"
             })
 
+        # Cập nhật trạng thái
         payment.status = new_status
         payment.save()
 
@@ -2027,7 +2076,8 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             related_object_id=payment.id
         )
 
-        notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+        # Gửi thông báo đến Firebase
+        notification = Notifications.objects.latest('created_date')
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -2038,6 +2088,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         }
         send_notification(notification.receiver.id, notification_data)
 
+        # Nếu trạng thái là COMPLETED hoặc FAILED, tạo thông báo cho chủ nhà
         if new_status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED]:
             status_text = "thành công" if new_status == PaymentStatus.COMPLETED else "thất bại"
             Notifications.objects.create(
@@ -2049,7 +2100,7 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             )
 
             # Gửi thông báo đến Firebase
-            notification = Notifications.objects.latest('created_date')  # Lấy notification vừa tạo
+            notification = Notifications.objects.latest('created_date')
             notification_data = {
                 'id': notification.id,
                 'title': notification.title,
@@ -2060,27 +2111,40 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             }
             send_notification(notification.receiver.id, notification_data)
 
+        # Trả về thông tin thanh toán đã cập nhật
         serializer = self.get_serializer(payment)
         return Response(serializer.data)
 
     def perform_destroy(self, instance):
+        """
+        Xóa mềm thanh toán (chỉ cập nhật trạng thái active=False)
+        - Chỉ cho phép admin hoặc chủ nhà xóa
+        """
         user = self.request.user
+        # Kiểm tra quyền xóa
         if not (user.is_staff or instance.room.motel in user.motels.all()):
             raise PermissionDenied("Chỉ admin hoặc chủ nhà mới được phép xóa thanh toán")
+        # Xóa mềm
         instance.active = False
         instance.save()
 
-    #  lấy danh sách các thanh toán của một phòng (room) cụ thể.
     @action(detail=False, methods=['get'], url_path='room/(?P<room_id>[^/.]+)')
     def room_payments(self, request, room_id=None):
+        """
+        Lấy danh sách thanh toán của một phòng
+        - Chỉ cho phép admin hoặc chủ nhà xem
+        - Trả về danh sách thanh toán của phòng được chỉ định
+        """
         try:
+            # Lấy thông tin phòng
             room = Room.objects.get(id=room_id)
-            # Kiểm tra quyền xem thanh toán của phòng
+            # Kiểm tra quyền xem
             if not (request.user.is_staff or request.user == room.motel.user):
                 return Response(
                     {'error': 'Không có quyền xem thanh toán của phòng này'},
                     status=status.HTTP_403_FORBIDDEN
                 )
+            # Lấy danh sách thanh toán của phòng
             payments = self.get_queryset().filter(room=room)
             serializer = self.get_serializer(payments, many=True)
             return Response(serializer.data)
@@ -2092,62 +2156,100 @@ class PaymentViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     @action(detail=False, methods=['get'], url_path='status/(?P<status>[^/.]+)')
     def status_payments(self, request, status=None):
+        """
+        Lấy danh sách thanh toán theo trạng thái
+        - Kiểm tra trạng thái có hợp lệ không
+        - Trả về danh sách thanh toán có trạng thái được chỉ định
+        """
+        # Lấy danh sách trạng thái hợp lệ
         valid_statuses = []
         for choice in PaymentStatus.choices:
             status_code = choice[0]  # phần tử đầu tiên trong tuple (code, label)
             valid_statuses.append(status_code)
+
+        # Kiểm tra trạng thái có hợp lệ không
         if status not in valid_statuses:
             return Response(
                 {'error': 'Trạng thái không hợp lệ'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Sử dụng get_queryset để lấy payments theo quyền của user
+        # Lấy danh sách thanh toán theo trạng thái
         payments = self.get_queryset().filter(status=status)
         serializer = self.get_serializer(payments, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='method/(?P<method>[^/.]+)')
     def method_payments(self, request, method=None):
+        """
+        Lấy danh sách thanh toán theo phương thức thanh toán
+        - Kiểm tra phương thức thanh toán có hợp lệ không
+        - Trả về danh sách thanh toán sử dụng phương thức được chỉ định
+        """
+        # Lấy danh sách phương thức thanh toán hợp lệ
         valid_methods = []
         for choice in PaymentMethod.choices:
             method_code = choice[0]
             valid_methods.append(method_code)
+
+        # Kiểm tra phương thức thanh toán có hợp lệ không
         if method not in valid_methods:
             return Response(
                 {'error': 'Phương thức thanh toán không hợp lệ'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Sử dụng get_queryset để lấy payments theo quyền của user
+        # Lấy danh sách thanh toán theo phương thức
         payments = self.get_queryset().filter(payment_method=method)
         serializer = self.get_serializer(payments, many=True)
         return Response(serializer.data)
 
 
 class SearchViewSet(viewsets.ViewSet):
+    """
+    ViewSet xử lý tìm kiếm nhà trọ
+    - Cung cấp API tìm kiếm theo nhiều tiêu chí
+    - Hỗ trợ tìm kiếm theo vị trí địa lý
+    - Lưu lịch sử tìm kiếm cho người dùng đã đăng nhập
+    """
+
     def list(self, request):
+        """
+        API endpoint tìm kiếm nhà trọ theo nhiều tiêu chí
+        - Tìm kiếm theo từ khóa
+        - Lọc theo địa điểm (quận/huyện, thành phố, tỉnh)
+        - Lọc theo khoảng giá
+        - Lọc theo số người tối đa
+        - Lọc theo tiện nghi
+        """
+        # Lấy từ khóa tìm kiếm từ query params
         search_query = request.query_params.get('q')
         if search_query:
+            # Tìm kiếm theo tên nhà trọ hoặc mô tả
             motels = Motel.objects.filter(
                 Q(motel_name__icontains=search_query) |
                 Q(description__icontains=search_query)
             )
         else:
+            # Nếu không có từ khóa, lấy tất cả nhà trọ
             motels = Motel.objects.all()
 
+            # Lọc theo quận/huyện nếu có
             district = request.query_params.get('district')
             if district:
                 motels = motels.filter(district__icontains=district)
 
+            # Lọc theo thành phố nếu có
             city = request.query_params.get('city')
             if city:
                 motels = motels.filter(city__icontains=city)
 
+            # Lọc theo tỉnh nếu có
             province = request.query_params.get('province')
             if province:
                 motels = motels.filter(province__icontains=province)
 
+            # Lọc theo khoảng giá
             min_price = request.query_params.get('min_price')
             max_price = request.query_params.get('max_price')
             if min_price or max_price:
@@ -2156,14 +2258,14 @@ class SearchViewSet(viewsets.ViewSet):
                     min_price = float(min_price) if min_price else None
                     max_price = float(max_price) if max_price else None
 
-                    # Tìm kiếm trong bảng Post
+                    # Tìm kiếm trong bảng Post (bài đăng cho thuê)
                     post_query = Post.objects.filter(motel=OuterRef('pk'))
                     if min_price:
                         post_query = post_query.filter(min_price__gte=min_price)
                     if max_price:
                         post_query = post_query.filter(max_price__lte=max_price)
 
-                    # Tìm kiếm trong bảng Room
+                    # Tìm kiếm trong bảng Room (phòng trọ)
                     room_query = Room.objects.filter(motel=OuterRef('pk'))
                     if min_price:
                         room_query = room_query.filter(price__gte=min_price)
@@ -2176,18 +2278,20 @@ class SearchViewSet(viewsets.ViewSet):
                         Q(id__in=Subquery(room_query.values('motel_id')))
                     )
                 except ValueError:
-                    # Nếu giá trị không phải số, bỏ qua điều kiện tìm kiếm theo giá
+                    # Bỏ qua điều kiện tìm kiếm theo giá nếu giá trị không hợp lệ
                     pass
 
+            # Lọc theo số người tối đa
             max_people = request.query_params.get('max_people')
             if max_people:
+                # Tìm các phòng có số người tối đa phù hợp
                 room_query = Room.objects.filter(motel=OuterRef('pk'), max_people__lte=max_people)
                 motels = motels.filter(id__in=Subquery(room_query.values('motel_id')))
 
-            # Tìm kiếm theo amenities
+            # Tìm kiếm theo tiện nghi
             amenities = request.query_params.getlist('amenities')
             if amenities:
-                # Tìm các phòng có chứa ít nhất một trong các amenities được chọn
+                # Tìm các phòng có chứa ít nhất một trong các tiện nghi được chọn
                 room_query = Room.objects.filter(
                     motel=OuterRef('pk'),
                     amenities__id__in=amenities
@@ -2196,6 +2300,7 @@ class SearchViewSet(viewsets.ViewSet):
 
         # Lưu lịch sử tìm kiếm nếu người dùng đã đăng nhập
         if request.user.is_authenticated:
+            # Tạo dictionary chứa các tham số tìm kiếm
             search_params = {
                 'q': search_query,
                 'district': request.query_params.get('district'),
@@ -2209,13 +2314,14 @@ class SearchViewSet(viewsets.ViewSet):
             # Chỉ lưu các tham số không None và không rỗng
             search_params = {k: v for k, v in search_params.items() if v is not None and v != []}
 
-            if search_params:  # Chỉ lưu nếu có ít nhất một tham số tìm kiếm
+            # Tạo bản ghi lịch sử tìm kiếm nếu có ít nhất một tham số
+            if search_params:
                 SearchHistory.objects.create(
                     user=request.user,
                     search_params=search_params
                 )
 
-        # Serialize và trả về kết quả
+        # Chuyển đổi kết quả thành JSON và trả về
         serializer = serializers.MotelSerializer(motels.distinct(), many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -2230,11 +2336,11 @@ class SearchViewSet(viewsets.ViewSet):
         """
         try:
             # Lấy các tham số từ request
-            latitude = float(request.query_params.get('latitude'))
-            longitude = float(request.query_params.get('longitude'))
-            radius = float(request.query_params.get('radius', 5))  # Mặc định 5km nếu không có radius
+            latitude = float(request.query_params.get('latitude'))  # Vĩ độ
+            longitude = float(request.query_params.get('longitude'))  # Kinh độ
+            radius = float(request.query_params.get('radius', 5))  # Bán kính tìm kiếm (mặc định 5km)
 
-            # Kiểm tra giá trị hợp lệ
+            # Kiểm tra giá trị tọa độ hợp lệ
             if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
                 return Response(
                     {"error": "Tọa độ không hợp lệ"},
@@ -2251,24 +2357,26 @@ class SearchViewSet(viewsets.ViewSet):
             # Lọc nhà trọ trong bán kính
             nearby_motels = []
             for motel in motels:
+                # Tính khoảng cách từ vị trí hiện tại đến nhà trọ
                 distance = calculate_distance(
                     latitude,
                     longitude,
                     motel.latitude,
                     motel.longitude
                 )
+                # Thêm vào danh sách nếu trong bán kính
                 if distance <= radius:
                     motel.distance = distance  # Thêm khoảng cách vào object
                     nearby_motels.append(motel)
 
-            # Sắp xếp theo khoảng cách
+            # Sắp xếp theo khoảng cách (gần nhất lên đầu)
             nearby_motels.sort(key=lambda x: x.distance)
 
-            # Phân trang sử dụng ItemPanigator
+            # Phân trang kết quả
             paginator = paginators.ItemPanigator()
             result_page = paginator.paginate_queryset(nearby_motels, request)
 
-            # Serialize kết quả
+            # Chuyển đổi kết quả thành JSON
             serializer = serializers.MotelSerializer(result_page, many=True, context={'request': request})
 
             # Thêm khoảng cách vào kết quả
@@ -2276,15 +2384,20 @@ class SearchViewSet(viewsets.ViewSet):
             for i, motel in enumerate(result_page):
                 response_data[i]['distance'] = round(motel.distance, 2)
 
+            # Ghi log thông tin tìm kiếm
             logger.info(f"Tìm kiếm nhà trọ gần vị trí: {latitude}, {longitude}")
+
+            # Trả về kết quả đã phân trang
             return paginator.get_paginated_response(response_data)
 
         except (ValueError, TypeError):
+            # Xử lý lỗi khi tham số không hợp lệ
             return Response(
                 {"error": "Tham số không hợp lệ"},
                 status=400
             )
         except Exception as e:
+            # Xử lý các lỗi khác
             logger.error(f"Lỗi khi tìm kiếm nhà trọ: {str(e)}")
             return Response(
                 {"error": "Có lỗi xảy ra khi tìm kiếm"},
@@ -2298,6 +2411,7 @@ class StatisticsViewSet(viewsets.ViewSet):
     - Chỉ cho phép admin truy cập
     - Cung cấp các API thống kê số lượng người dùng và chủ trọ
     """
+    # Chỉ cho phép admin truy cập các API trong ViewSet này
     permission_classes = [permissions.IsAdminUser]
 
     def _parse_date(self, date_str):
@@ -2307,13 +2421,16 @@ class StatisticsViewSet(viewsets.ViewSet):
         - Thêm timezone UTC cho datetime
         - Trả về None nếu chuỗi không hợp lệ
         """
+        # Kiểm tra nếu không có chuỗi ngày thì trả về None
         if not date_str:
             return None
         try:
             # Phân tích chuỗi ngày và làm cho nó nhận biết múi giờ
             naive_dt = datetime.strptime(date_str, '%Y-%m-%d')
+            # Thêm timezone UTC cho datetime
             return timezone.make_aware(naive_dt, timezone=pytz.UTC)
         except ValueError:
+            # Trả về None nếu chuỗi ngày không hợp lệ
             return None
 
     @action(detail=False, methods=['get'], url_path='landlords')
@@ -2325,34 +2442,46 @@ class StatisticsViewSet(viewsets.ViewSet):
         - Trả về số lượng chủ trọ cho mỗi khoảng thời gian
         """
         # Lấy và xử lý các tham số từ request
-        from_date = self._parse_date(request.query_params.get('from'))
-        to_date = self._parse_date(request.query_params.get('to'))
-        type_ = request.query_params.get('type', 'month')
+        from_date = self._parse_date(request.query_params.get('from'))  # Lấy ngày bắt đầu từ query params
+        to_date = self._parse_date(request.query_params.get('to'))      # Lấy ngày kết thúc từ query params
+        type_ = request.query_params.get('type', 'month')              # Lấy loại thống kê (mặc định là theo tháng)
 
+        # Lấy tất cả chủ trọ
         queryset = Landlord.objects.all()
 
+        # Lọc theo khoảng thời gian nếu có
         if from_date:
-            queryset = queryset.filter(created_date__gte=from_date)
+            queryset = queryset.filter(created_date__gte=from_date)  # Lọc từ ngày bắt đầu
         if to_date:
-            queryset = queryset.filter(created_date__lte=to_date)
+            queryset = queryset.filter(created_date__lte=to_date)    # Lọc đến ngày kết thúc
 
+        # Thống kê theo ngày
         if type_ == 'day':
+            # Sử dụng extra để thêm trường day từ created_date và đếm số lượng
             data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('user_id')).order_by('day')
 
+        # Thống kê theo tháng
         elif type_ == 'month':
+            # Sử dụng DATE_FORMAT để lấy năm-tháng và đếm số lượng
             data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('user_id')).order_by('month')
 
+        # Thống kê theo năm
         elif type_ == 'year':
+            # Sử dụng DATE_FORMAT để lấy năm và đếm số lượng
             data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('user_id')).order_by('year')
 
+        # Thống kê theo quý
         elif type_ == 'quarter':
+            # Sử dụng QUARTER để lấy quý và đếm số lượng
             data = queryset.extra({
                 'year': "DATE_FORMAT(created_date, '%%Y')",
                 'quarter': "QUARTER(created_date)"
             }).values('year', 'quarter').annotate(count=Count('user_id')).order_by('year', 'quarter')
         else:
+            # Trả về lỗi nếu type không hợp lệ
             return Response({'error': 'type phải là day, month, year, quarter'})
 
+        # Trả về kết quả thống kê
         return Response(data)
 
     @action(detail=False, methods=['get'], url_path='users')
@@ -2363,34 +2492,47 @@ class StatisticsViewSet(viewsets.ViewSet):
         - Nhóm theo đơn vị thời gian (day, month, year, quarter)
         - Trả về số lượng người dùng cho mỗi khoảng thời gian
         """
-        from_date = self._parse_date(request.query_params.get('from'))
-        to_date = self._parse_date(request.query_params.get('to'))
-        type_ = request.query_params.get('type', 'month')
+        # Lấy và xử lý các tham số từ request
+        from_date = self._parse_date(request.query_params.get('from'))  # Lấy ngày bắt đầu từ query params
+        to_date = self._parse_date(request.query_params.get('to'))      # Lấy ngày kết thúc từ query params
+        type_ = request.query_params.get('type', 'month')              # Lấy loại thống kê (mặc định là theo tháng)
 
+        # Lấy tất cả người dùng đang hoạt động
         queryset = User.objects.filter(is_active=True)
 
+        # Lọc theo khoảng thời gian nếu có
         if from_date:
-            queryset = queryset.filter(created_date__gte=from_date)
+            queryset = queryset.filter(created_date__gte=from_date)  # Lọc từ ngày bắt đầu
         if to_date:
-            queryset = queryset.filter(created_date__lte=to_date)
+            queryset = queryset.filter(created_date__lte=to_date)    # Lọc đến ngày kết thúc
 
+        # Thống kê theo ngày
         if type_ == 'day':
+            # Sử dụng extra để thêm trường day từ created_date và đếm số lượng
             data = queryset.extra({'day': "DATE(created_date)"}).values('day').annotate(count=Count('id')).order_by('day')
 
+        # Thống kê theo tháng
         elif type_ == 'month':
+            # Sử dụng DATE_FORMAT để lấy năm-tháng và đếm số lượng
             data = queryset.extra({'month': "DATE_FORMAT(created_date, '%%Y-%%m')"}).values('month').annotate(count=Count('id')).order_by('month')
 
+        # Thống kê theo năm
         elif type_ == 'year':
+            # Sử dụng DATE_FORMAT để lấy năm và đếm số lượng
             data = queryset.extra({'year': "DATE_FORMAT(created_date, '%%Y')"}).values('year').annotate(count=Count('id')).order_by('year')
 
+        # Thống kê theo quý
         elif type_ == 'quarter':
+            # Sử dụng QUARTER để lấy quý và đếm số lượng
             data = queryset.extra({
                 'year': "DATE_FORMAT(created_date, '%%Y')",
                 'quarter': "QUARTER(created_date)"
             }).values('year', 'quarter').annotate(count=Count('id')).order_by('year', 'quarter')
         else:
+            # Trả về lỗi nếu type không hợp lệ
             return Response({'error': 'type phải là day, month, year, quarter'})
 
+        # Trả về kết quả thống kê
         return Response(data)
 
 
@@ -2407,10 +2549,13 @@ class VNPayViewSet(viewsets.ViewSet):
         - Kiểm tra header X-Forwarded-For trước
         - Nếu không có thì lấy từ REMOTE_ADDR
         """
+        # Lấy IP từ header X-Forwarded-For (thường được set bởi proxy/load balancer)
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]  # Lấy IP đầu tiên trong danh sách
+            # Lấy IP đầu tiên trong danh sách (IP thật của client)
+            ip = x_forwarded_for.split(',')[0]
         else:
+            # Nếu không có X-Forwarded-For, lấy IP trực tiếp từ request
             ip = request.META.get('REMOTE_ADDR')
         return ip
 
@@ -2427,12 +2572,12 @@ class VNPayViewSet(viewsets.ViewSet):
         try:
             # Lấy dữ liệu từ request
             data = request.data
-            order_id = data.get('order_id')
-            amount = data.get('amount')
-            order_desc = data.get('order_desc', 'Thanh toan phong tro')
-            order_type = data.get('order_type', 'other')
-            bank_code = data.get('bank_code', '')
-            language = data.get('language', 'vn')
+            order_id = data.get('order_id')  # ID đơn hàng
+            amount = data.get('amount')  # Số tiền thanh toán
+            order_desc = data.get('order_desc', 'Thanh toan phong tro')  # Mô tả đơn hàng
+            order_type = data.get('order_type', 'other')  # Loại đơn hàng
+            bank_code = data.get('bank_code', '')  # Mã ngân hàng (nếu có)
+            language = data.get('language', 'vn')  # Ngôn ngữ hiển thị
 
             # Kiểm tra dữ liệu đầu vào
             if not order_id or not amount:
@@ -2450,7 +2595,7 @@ class VNPayViewSet(viewsets.ViewSet):
 
             # Khởi tạo đối tượng VNPay và set các thông tin
             vnp = vnpay()
-            vnp.requestData['vnp_Version'] = '2.1.0'  # Phiên bản API
+            vnp.requestData['vnp_Version'] = '2.1.0'  # Phiên bản API VNPay
             vnp.requestData['vnp_Command'] = 'pay'    # Lệnh thanh toán
             vnp.requestData['vnp_TmnCode'] = settings.VNPAY_TMN_CODE  # Mã website tại VNPAY
             vnp.requestData['vnp_Amount'] = amount * 100  # Số tiền * 100 (VNPay yêu cầu)
@@ -2469,8 +2614,10 @@ class VNPayViewSet(viewsets.ViewSet):
             vnp.requestData['vnp_IpAddr'] = ipaddr
             vnp.requestData['vnp_ReturnUrl'] = settings.VNPAY_RETURN_URL  # URL callback sau khi thanh toán
 
+            # Tạo URL thanh toán với chữ ký bảo mật
             vnpay_payment_url = vnp.get_payment_url(settings.VNPAY_PAYMENT_URL, settings.VNPAY_HASH_SECRET)
 
+            # Trả về URL thanh toán và thông tin đơn hàng
             return Response({
                 'payment_url': vnpay_payment_url,
                 'order_id': order_id,
@@ -2493,28 +2640,37 @@ class VNPayViewSet(viewsets.ViewSet):
         3. Kiểm tra mã phản hồi (vnp_ResponseCode)
         4. Trả về kết quả thanh toán cho client
         """
+        # Lấy tất cả tham số từ request GET
         inputData = request.GET
         if inputData:
+            # Khởi tạo đối tượng VNPay để xử lý response
             vnp = vnpay()
             vnp.responseData = inputData.dict()
-            order_id = inputData['vnp_TxnRef']
-            amount = int(inputData['vnp_Amount']) / 100  # Chia 100 để lấy số tiền thực
-            order_desc = inputData['vnp_OrderInfo']
-            vnp_TransactionNo = inputData['vnp_TransactionNo']
-            vnp_ResponseCode = inputData['vnp_ResponseCode']
-            vnp_TmnCode = inputData['vnp_TmnCode']
-            vnp_PayDate = inputData['vnp_PayDate']
-            vnp_BankCode = inputData['vnp_BankCode']
-            vnp_CardType = inputData['vnp_CardType']
 
+            # Lấy các thông tin từ response
+            order_id = inputData['vnp_TxnRef']  # Mã đơn hàng
+            amount = int(inputData['vnp_Amount']) / 100  # Số tiền (chia 100 để lấy số tiền thực)
+            order_desc = inputData['vnp_OrderInfo']  # Mô tả đơn hàng
+            vnp_TransactionNo = inputData['vnp_TransactionNo']  # Mã giao dịch VNPay
+            vnp_ResponseCode = inputData['vnp_ResponseCode']  # Mã phản hồi
+            vnp_TmnCode = inputData['vnp_TmnCode']  # Mã website tại VNPay
+            vnp_PayDate = inputData['vnp_PayDate']  # Thời gian thanh toán
+            vnp_BankCode = inputData['vnp_BankCode']  # Mã ngân hàng
+            vnp_CardType = inputData['vnp_CardType']  # Loại thẻ
+
+            # Kiểm tra tính hợp lệ của response bằng cách verify chữ ký
             if vnp.validate_response(settings.VNPAY_HASH_SECRET):
+                # Nếu mã phản hồi là 00 (thành công)
                 if vnp_ResponseCode == "00":
                     try:
+                        # Tìm payment trong database
                         payment = Payment.objects.get(id=order_id)
 
+                        # Cập nhật trạng thái thanh toán thành COMPLETED
                         payment.status = PaymentStatus.COMPLETED
                         payment.save()
 
+                        # Tạo thông báo cho người thanh toán
                         notification = Notifications.objects.create(
                             receiver=payment.payer,
                             title="Thanh toán thành công",
@@ -2523,6 +2679,7 @@ class VNPayViewSet(viewsets.ViewSet):
                             related_object_id=payment.id
                         )
 
+                        # Tạo thông báo cho chủ nhà
                         notification = Notifications.objects.create(
                             receiver=payment.room.motel.user,
                             title="Thanh toán thành công",
@@ -2534,6 +2691,7 @@ class VNPayViewSet(viewsets.ViewSet):
                     except Payment.DoesNotExist:
                         logger.error(f"Không tìm thấy payment với order_id: {order_id}")
 
+                    # Trả về thông tin thanh toán thành công
                     return Response({
                         "status": "success",
                         "message": "Thanh toán thành công",
@@ -2551,11 +2709,14 @@ class VNPayViewSet(viewsets.ViewSet):
 
                 else:
                     try:
+                        # Tìm payment trong database
                         payment = Payment.objects.get(id=order_id)
 
+                        # Cập nhật trạng thái thanh toán thành FAILED
                         payment.status = PaymentStatus.FAILED
                         payment.save()
 
+                        # Tạo thông báo cho người thanh toán
                         notification = Notifications.objects.create(
                             receiver=payment.payer,
                             title="Thanh toán thất bại",
@@ -2567,6 +2728,7 @@ class VNPayViewSet(viewsets.ViewSet):
                     except Payment.DoesNotExist:
                         logger.error(f"Không tìm thấy payment với order_id: {order_id}")
 
+                    # Trả về thông tin thanh toán thất bại
                     return Response({
                         "status": "error",
                         "message": "Thanh toán thất bại",
@@ -2578,7 +2740,8 @@ class VNPayViewSet(viewsets.ViewSet):
                             "vnp_ResponseCode": vnp_ResponseCode
                         }
                     }, status=status.HTTP_400_BAD_REQUEST)
-            else:  # Chữ ký không hợp lệ
+            else:
+                # Nếu chữ ký không hợp lệ
                 return Response({
                     "status": "error",
                     "message": "Sai checksum (chữ ký không hợp lệ)",
@@ -2591,6 +2754,7 @@ class VNPayViewSet(viewsets.ViewSet):
                     }
                 }, status=status.HTTP_400_BAD_REQUEST)
         else:
+            # Nếu không có dữ liệu trả về
             return Response({
                 "status": "error",
                 "message": "Không có dữ liệu"
@@ -2598,6 +2762,7 @@ class VNPayViewSet(viewsets.ViewSet):
 
 
 class GoogleAuthView(APIView):
+    # Cho phép tất cả người dùng truy cập API này mà không cần xác thực
     permission_classes = [AllowAny]
 
     @staticmethod
@@ -2607,23 +2772,29 @@ class GoogleAuthView(APIView):
         length: Độ dài của token (mặc định 32 ký tự)
         Chuỗi token ngẫu nhiên gồm chữ cái và số
         """
+        # Tạo chuỗi ngẫu nhiên từ các ký tự chữ cái và số với độ dài được chỉ định
         return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
     def post(self, request):
         try:
+            # Lấy token_id từ request data
             token_id = request.data.get('token_id')
 
+            # Kiểm tra xem token_id có được cung cấp không
             if not token_id:
                 return Response({'error': 'Token ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Lấy vai trò người dùng từ request data
             role = request.data.get('role')
 
+            # Kiểm tra vai trò có hợp lệ không (chỉ chấp nhận TENANT hoặc LANDLORD)
             if not role or role not in [UserRole.TENANT, UserRole.LANDLORD]:
                 return Response({
                     'error': 'Vai trò không hợp lệ. Vui lòng chọn TENANT hoặc LANDLORD'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             try:
+                # Xác thực token với Google OAuth2
                 idinfo = id_token.verify_oauth2_token(
                     token_id,
                     grequests.Request(),
@@ -2631,6 +2802,7 @@ class GoogleAuthView(APIView):
                     clock_skew_in_seconds=10  # Cho phép chênh lệch 10 giây
                 )
             except ValueError as e:
+                # Xử lý các lỗi xác thực token
                 error_msg = str(e)
                 if "Token used too early" in error_msg:
                     return Response({
@@ -2649,15 +2821,19 @@ class GoogleAuthView(APIView):
                     'error': 'Lỗi xác thực không xác định. Vui lòng thử lại sau.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            # Lấy email từ thông tin token
             email = idinfo.get('email')
 
+            # Kiểm tra xem email có tồn tại trong token không
             if not email:
                 print("Error: No email in token")
                 return Response({'error': 'Email not found in token'}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
+                # Tìm user trong database theo email
                 user = User.objects.get(email=email)
 
+                # Kiểm tra vai trò của user có khớp với vai trò yêu cầu không
                 if user.role != role:
                     print(f"Error: Role mismatch. User role: {user.role}, Requested role: {role}")
                     return Response({
@@ -2678,17 +2854,19 @@ class GoogleAuthView(APIView):
 
             except User.DoesNotExist:
                 try:
+                    # Tạo user mới nếu chưa tồn tại
                     user = User.objects.create(
                         email=email,
-                        username=email.split('@')[0],
+                        username=email.split('@')[0],  # Lấy phần trước @ làm username
                         first_name=idinfo.get('given_name', ''),
                         last_name=idinfo.get('family_name', ''),
                         is_active=True,
                         role=role,
-                        password=make_password(None),
+                        password=make_password(None),  # Tạo mật khẩu ngẫu nhiên
                         avatar=idinfo.get('picture', 'https://lh3.googleusercontent.com/a/default-user')
                     )
 
+                    # Tạo profile tương ứng với vai trò
                     if role == UserRole.TENANT:
                         Tenant.objects.create(user=user)
                     elif role == UserRole.LANDLORD:
@@ -2705,21 +2883,23 @@ class GoogleAuthView(APIView):
                     raise
 
             try:
+                # Tạo access token cho user
                 application = Application.objects.get(client_id=settings.CLIENT_ID)
                 access_token = AccessToken.objects.create(
                     user=user,
                     application=application,
                     token=self.generate_token(),
-                    expires=timezone.now() + timedelta(days=1),
+                    expires=timezone.now() + timedelta(days=1),  # Token hết hạn sau 1 ngày
                     scope='read write'
                 )
             except Exception as e:
                 raise
 
+            # Trả về thông tin user và access token
             return Response({
                 'access_token': access_token.token,
                 'token_type': 'Bearer',
-                'expires_in': 86400,
+                'expires_in': 86400,  # Thời gian hết hạn tính bằng giây (1 ngày)
                 'user': {
                     'id': user.id,
                     'email': user.email,
@@ -2730,6 +2910,7 @@ class GoogleAuthView(APIView):
             })
 
         except Exception as e:
+            # Xử lý các lỗi không xác định
             return Response({
                 'error': f'Lỗi server: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
