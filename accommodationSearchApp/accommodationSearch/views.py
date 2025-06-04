@@ -1338,9 +1338,13 @@ class FavoriteViewSet(viewsets.ViewSet, generics.ListAPIView):
 
 
 class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    # Lấy tất cả bài viết đang hoạt động
     queryset = Post.objects.filter(active=True)
+    # Serializer class để chuyển đổi dữ liệu Post thành JSON và ngược lại
     serializer_class = serializers.PostSerializer
+    # Sử dụng phân trang tùy chỉnh cho danh sách bài viết
     pagination_class = paginators.ItemPanigator
+    # Yêu cầu người dùng phải đăng nhập và là chủ sở hữu hoặc chỉ có quyền đọc
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
 
     def get_serializer_class(self):
@@ -1349,6 +1353,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         return serializers.PostSerializer
 
     def perform_create(self, serializer):
+        # Lưu bài viết mới với người dùng hiện tại là tác giả
         post = serializer.save(user=self.request.user)
 
         # Xử lý lưu hình ảnh
@@ -1388,6 +1393,7 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                 send_notification(notification.receiver.id, notification_data)
 
     def perform_update(self, serializer):
+        # Cập nhật bài viết
         post = serializer.save()
         # Xử lý cập nhật hình ảnh nếu có
         if 'images' in self.request.FILES:
@@ -1401,9 +1407,10 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
                     order=order
                 )
 
-    # lấy danh sách các bình luận cấp cao nhất
+    # API endpoint để lấy danh sách bình luận của bài viết
     @action(detail=True, methods=['get'])
     def comments(self, request, pk=None):
+        # Lấy bài viết cần xem bình luận
         post = self.get_object()
         comments = Comment.objects.filter(post=post, parent=None)
         serializer = serializers.CommentSerializer(comments, many=True)
@@ -1413,7 +1420,9 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     @action(detail=True, methods=['delete'], url_path='images/(?P<image_id>[^/.]+)')
     def delete_image(self, request, pk=None, image_id=None):
         try:
+            # Lấy bài viết cần xóa hình ảnh
             post = self.get_object()
+            # Lấy hình ảnh cần xóa
             image = post.images.get(id=image_id)
             image.active = False
             image.save()
@@ -1426,9 +1435,13 @@ class PostViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
 
 
 class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateAPIView):
+    # Lấy tất cả bình luận đang hoạt động
     queryset = Comment.objects.filter(active=True)
+    # Yêu cầu người dùng phải là chủ sở hữu bình luận hoặc chỉ có quyền đọc
     permission_classes = [IsOwnerOrReadOnly]
+    # Serializer class để chuyển đổi dữ liệu Comment thành JSON và ngược lại
     serializer_class = serializers.CommentSerializer
+    # Sử dụng phân trang tùy chỉnh cho danh sách bình luận
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
@@ -1583,19 +1596,22 @@ class CommentViewSet(viewsets.ViewSet, generics.DestroyAPIView, generics.UpdateA
 
 
 class SearchHistoryViewSet(viewsets.ModelViewSet):
+    # Serializer class để chuyển đổi dữ liệu SearchHistory thành JSON và ngược lại
     serializer_class = serializers.SearchHistorySerializer
+    # Yêu cầu người dùng phải đăng nhập để truy cập các API
     permission_classes = [permissions.IsAuthenticated]
+    # Sử dụng phân trang tùy chỉnh cho danh sách lịch sử tìm kiếm
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
+        # Kiểm tra nếu là request giả từ Swagger
         if getattr(self, 'swagger_fake_view', False):
             return SearchHistory.objects.none()
-        return SearchHistory.objects.filter(
-            user=self.request.user,
-            active=True
-        ).order_by('-created_date')
+        # Trả về danh sách lịch sử tìm kiếm của người dùng hiện tại, sắp xếp theo thời gian tìm kiếm mới nhất
+        return SearchHistory.objects.filter(user=self.request.user, active=True).order_by('-search_date')
 
     def perform_create(self, serializer):
+        # Lưu lịch sử tìm kiếm mới với người dùng hiện tại
         serializer.save(user=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
@@ -1606,8 +1622,11 @@ class SearchHistoryViewSet(viewsets.ModelViewSet):
 
 
 class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView):
+    # Yêu cầu người dùng phải đăng nhập để truy cập các API
     permission_classes = [permissions.IsAuthenticated]
+    # Serializer class để chuyển đổi dữ liệu Follow thành JSON và ngược lại
     serializer_class = serializers.FollowSerializer
+    # Sử dụng phân trang tùy chỉnh cho danh sách theo dõi
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
@@ -1687,43 +1706,46 @@ class FollowViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIVi
         Hủy theo dõi một người dùng
         """
         try:
-            follow = Follow.objects.get(
-                followed_user_id=pk,
-                follower_user=request.user
-            )
+            # Tìm mối quan hệ theo dõi cần xóa
+            follow = Follow.objects.get(follower_user=request.user, followed_user_id=pk, active=True)
+            # Xóa mềm mối quan hệ (chỉ cập nhật trạng thái active=False)
             follow.active = False
             follow.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Follow.DoesNotExist:
             return Response({"error": "Không tìm thấy mối quan hệ theo dõi"}, status=status.HTTP_404_NOT_FOUND)
 
+    # API endpoint để lấy danh sách người theo dõi
     @action(detail=False, methods=['get'], url_path='followers')
     def followers(self, request):
-        """
-        Tạo mới yêu thích
-        - Tự động gán người tạo là người dùng hiện tại
-        - Tạo thông báo cho chủ trọ nếu yêu thích nhà trọ
-        - Gửi thông báo qua Firebase
-        """
+        # Lấy danh sách người đang theo dõi người dùng hiện tại
         followers = request.user.followers.filter(active=True).select_related('follower_user').order_by('-created_date')
+        # Chuyển đổi dữ liệu thành JSON
         serializer = self.get_serializer(followers, many=True)
         return Response(serializer.data)
 
 
 class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
+    # Lấy tất cả thông báo đang hoạt động
     queryset = Notifications.objects.filter(active=True)
+    # Yêu cầu người dùng phải đăng nhập để truy cập các API
     permission_classes = [IsAuthenticated]
+    # Serializer class để chuyển đổi dữ liệu Notification thành JSON và ngược lại
     serializer_class = serializers.NotificationSerializer
+    # Sử dụng phân trang tùy chỉnh cho danh sách thông báo
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
+        # Kiểm tra nếu là request giả từ Swagger
         if getattr(self, 'swagger_fake_view', False):
             return Notifications.objects.none()
+        # Trả về danh sách thông báo của người dùng hiện tại, sắp xếp theo thời gian tạo mới nhất
         return Notifications.objects.filter(receiver=self.request.user, active=True).order_by('-created_date')
 
     def perform_create(self, serializer):
+        # Lưu thông báo mới
         notification = serializer.save()
-        # Gửi thông báo đến Firebase Realtime Database
+        # Chuẩn bị dữ liệu thông báo để gửi đến Firebase
         notification_data = {
             'id': notification.id,
             'title': notification.title,
@@ -1732,104 +1754,137 @@ class NotificationViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retri
             'created_date': notification.created_date.isoformat(),
             'is_read': notification.is_read
         }
+        # Gửi thông báo đến Firebase Realtime Database
         send_notification(notification.receiver.id, notification_data)
         return notification
 
     def perform_destroy(self, instance):
+        # Xóa mềm thông báo (chỉ cập nhật trạng thái active=False)
         instance.active = False
         instance.save()
 
-    # lấy danh sách thông báo chưa đọc
+    # API endpoint để lấy danh sách thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread')
     def unread(self, request):
+        # Lấy danh sách thông báo chưa đọc của người dùng hiện tại
         notifications = self.get_queryset().filter(is_read=False)
+        # Chuyển đổi dữ liệu thành JSON
         serializer = self.serializer_class(notifications, many=True)
         return Response(serializer.data)
 
-    # Đánh dấu một thông báo là đã đọc
+    # API endpoint để đánh dấu một thông báo là đã đọc
     @action(detail=True, methods=['put'], url_path='read')
     def read(self, request, pk=None):
         try:
+            # Lấy thông báo cần đánh dấu đã đọc
             notification = self.get_object()
+            # Cập nhật trạng thái đã đọc
             notification.is_read = True
             notification.save()
             return Response({'message': 'Thông báo được đánh dấu là đã đọc'})
         except Notifications.DoesNotExist:
             return Response({'error': 'Không tìm thấy thông báo'}, status=status.HTTP_200_OK)
 
-    # Đánh dấu tất cả thông báo là đã đọc
+    # API endpoint để đánh dấu tất cả thông báo là đã đọc
     @action(detail=False, methods=['put'], url_path='read_all')
     def read_all(self, request):
+        # Cập nhật trạng thái đã đọc cho tất cả thông báo chưa đọc
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'message': 'Tất cả thông báo được đánh dấu là đã đọc'})
 
-    # Xóa tất cả thông báo
+    # API endpoint để xóa tất cả thông báo
     @action(detail=False, methods=['delete'], url_path='delete_all')
     def delete_all(self, request):
+        # Xóa mềm tất cả thông báo (cập nhật trạng thái active=False)
         self.get_queryset().update(active=False)
         return Response({'message': 'Tất cả thông báo đã bị xóa'})
 
-    # Đếm số thông báo chưa đọc
+    # API endpoint để đếm số thông báo chưa đọc
     @action(detail=False, methods=['get'], url_path='unread_count')
     def unread_count(self, request):
+        # Đếm số lượng thông báo chưa đọc
         count = self.get_queryset().filter(is_read=False).count()
         return Response({'unread_count': count})
 
-    # Lọc thông báo theo loại
+    # API endpoint để lọc thông báo theo loại
     @action(detail=False, methods=['get'], url_path='by_type')
     def by_type(self, request):
+        # Lấy loại thông báo từ query parameters
         notification_type = request.query_params.get('type')
+        # Kiểm tra xem có loại thông báo được chỉ định không
         if not notification_type:
             return Response({'error': 'Notification type là bắt buộc'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Lọc thông báo theo loại
         notifications = self.get_queryset().filter(notification_type=notification_type)
+        # Chuyển đổi dữ liệu thành JSON
         serializer = self.serializer_class(notifications, many=True)
         return Response(serializer.data)
 
 
 class ChatRoomViewSet(viewsets.ModelViewSet):
+    # Serializer class để chuyển đổi dữ liệu ChatRoom thành JSON và ngược lại
     serializer_class = serializers.ChatRoomSerializer
+    # Yêu cầu người dùng phải đăng nhập để truy cập các API
     permission_classes = [permissions.IsAuthenticated]
+    # Sử dụng phân trang tùy chỉnh cho danh sách phòng chat
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
+        # Kiểm tra nếu là request giả từ Swagger
         if getattr(self, 'swagger_fake_view', False):
             return ChatRoom.objects.none()
+        # Trả về danh sách phòng chat của người dùng hiện tại, sắp xếp theo thời gian cập nhật mới nhất
         return self.request.user.chat_rooms.filter(active=True).order_by('-updated_date')
 
     def perform_create(self, serializer):
+        # Lưu phòng chat mới
         chat_room = serializer.save()
+        # Thêm người dùng hiện tại vào danh sách thành viên của phòng chat
         chat_room.participants.add(self.request.user)
+        # Lấy danh sách ID người tham gia từ request data
         participants = self.request.data.get('participants', [])
+        # Thêm từng người tham gia vào phòng chat
         for participant_id in participants:
             try:
+                # Tìm user theo ID
                 user = User.objects.get(id=participant_id)
+                # Thêm user vào phòng chat
                 chat_room.participants.add(user)
             except User.DoesNotExist:
+                # Bỏ qua nếu không tìm thấy user
                 continue
 
 
 class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    # Serializer class để chuyển đổi dữ liệu Message thành JSON và ngược lại
     serializer_class = serializers.MessageSerializer
+    # Yêu cầu người dùng phải đăng nhập để truy cập các API
     permission_classes = [permissions.IsAuthenticated]
+    # Sử dụng phân trang tùy chỉnh cho danh sách tin nhắn
     pagination_class = paginators.ItemPanigator
 
     def get_queryset(self):
+        # Lấy ID phòng chat từ URL parameters
         chat_room_id = self.kwargs.get('chat_room_id')
+        # Trả về danh sách tin nhắn của phòng chat, sắp xếp theo thời gian tạo
         return Message.objects.filter(chat_room_id=chat_room_id, active=True).order_by('created_date')
 
     def perform_create(self, serializer):
+        # Lấy ID phòng chat từ URL parameters
         chat_room_id = self.kwargs.get('chat_room_id')
         try:
+            # Tìm phòng chat theo ID
             chat_room = ChatRoom.objects.get(id=chat_room_id)
+            # Kiểm tra xem người dùng hiện tại có phải là thành viên của phòng chat không
             if self.request.user not in chat_room.participants.all():
                 raise PermissionDenied("Bạn không có quyền gửi tin nhắn trong phòng chat này")
-            # Lưu tin nhắn mới với người gửi là user hiện tại, gán vào phòng chat đó.
+            # Lưu tin nhắn mới với người gửi là user hiện tại
             message = serializer.save(sender=self.request.user, chat_room=chat_room)
 
-            # Broadcast tin nhắn qua WebSocket
-            # Gửi bản tin mới đến các user đang kết nối vào nhóm chat_<ID phòng> trên WebSocket, Sử dụng Django Channels.
+            # Lấy channel layer để gửi thông báo qua WebSocket
             channel_layer = get_channel_layer()
+            # Gửi tin nhắn mới đến tất cả thành viên trong phòng chat qua WebSocket
             async_to_sync(channel_layer.group_send)(
                 f'chat_{chat_room_id}',
                 {
@@ -1848,13 +1903,17 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
             raise NotFound("Không tìm thấy phòng chat")
 
     def perform_update(self, serializer):
+        # Lấy tin nhắn cần cập nhật
         message = serializer.instance
+        # Kiểm tra xem người dùng hiện tại có phải là người gửi tin nhắn không
         if message.sender != self.request.user:
             raise PermissionDenied("Bạn không có quyền chỉnh sửa tin nhắn này")
+        # Lưu tin nhắn đã cập nhật
         message = serializer.save()
 
-        # Broadcast cập nhật tin nhắn qua WebSocket
+        # Lấy channel layer để gửi thông báo qua WebSocket
         channel_layer = get_channel_layer()
+        # Gửi thông báo cập nhật tin nhắn đến tất cả thành viên trong phòng chat
         async_to_sync(channel_layer.group_send)(
             f'chat_{message.chat_room.id}',
             {
@@ -1872,14 +1931,18 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
         )
 
     def perform_destroy(self, instance):
+        # Kiểm tra xem người dùng hiện tại có phải là người gửi tin nhắn không
         if instance.sender != self.request.user:
             raise PermissionDenied("Bạn không có quyền xóa tin nhắn này")
+        # Lưu ID phòng chat để gửi thông báo sau khi xóa
         chat_room_id = instance.chat_room.id
+        # Xóa mềm tin nhắn (chỉ cập nhật trạng thái active=False)
         instance.active = False
         instance.save()
 
-        # Broadcast xóa tin nhắn qua WebSocket
+        # Lấy channel layer để gửi thông báo qua WebSocket
         channel_layer = get_channel_layer()
+        # Gửi thông báo xóa tin nhắn đến tất cả thành viên trong phòng chat
         async_to_sync(channel_layer.group_send)(
             f'chat_{chat_room_id}',
             {
@@ -1893,12 +1956,15 @@ class MessageViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retr
 
     @action(detail=True, methods=['put'], url_path='read')
     def read(self, request, chat_room_id=None, pk=None):
+        # Lấy tin nhắn cần đánh dấu đã đọc
         message = self.get_object()
+        # Cập nhật trạng thái đã đọc
         message.is_read = True
         message.save()
 
-        # Broadcast trạng thái đã đọc qua WebSocket
+        # Lấy channel layer để gửi thông báo qua WebSocket
         channel_layer = get_channel_layer()
+        # Gửi thông báo trạng thái đã đọc đến tất cả thành viên trong phòng chat
         async_to_sync(channel_layer.group_send)(
             f'chat_{chat_room_id}',
             {
