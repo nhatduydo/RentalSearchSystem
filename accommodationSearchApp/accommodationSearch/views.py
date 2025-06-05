@@ -69,11 +69,13 @@ class UserViewSet(viewsets.ViewSet,
         - Chỉ cho phép chủ sở hữu hoặc admin cập nhật/xóa
         - Cho phép tất cả người dùng xem
         """
-        if self.action in ['update', 'partial_update', 'destroy']:  # Nếu là action cập nhật/xóa
-            return [IsOwnerOrAdmin()]  # Yêu cầu là chủ sở hữu hoặc admin
-        return [AllowAny()]  # Cho phép tất cả người dùng xem
+        # Nếu là thao tác cập nhật hoặc xóa, yêu cầu người dùng là chủ sở hữu hoặc admin
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsOwnerOrAdmin()]
+        # Các thao tác khác cho phép tất cả người dùng truy cập
+        return [AllowAny()]
 
-    @transaction.atomic  # Đảm bảo tính toàn vẹn dữ liệu
+    @transaction.atomic  # Đảm bảo tính toàn vẹn dữ liệu khi tạo người dùng mới
     def create(self, request, *args, **kwargs):
         """
         Tạo người dùng mới với transaction để đảm bảo tính toàn vẹn dữ liệu
@@ -217,9 +219,9 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
         - Chỉ cho phép chủ sở hữu hoặc admin cập nhật
         - Cho phép tất cả người dùng xem
         """
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [IsOwnerOrAdmin()]
-        return [AllowAny()]
+        if self.action in ['update', 'partial_update']:  # Nếu là action cập nhật
+            return [IsOwnerOrAdmin()]  # Yêu cầu là chủ sở hữu hoặc admin
+        return [AllowAny()]  # Cho phép tất cả người dùng xem
 
     def retrieve(self, request, pk=None):
         """
@@ -550,9 +552,9 @@ class MotelViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retrie
     - Có phân quyền truy cập dựa trên vai trò
     - Tự động gửi thông báo cho người theo dõi khi có cập nhật
     """
-    queryset = Motel.objects.filter(active=True)
-    serializer_class = serializers.MotelSerializer
-    pagination_class = paginators.ItemPanigator
+    queryset = Motel.objects.filter(active=True)  # Lấy danh sách nhà trọ đang hoạt động
+    serializer_class = serializers.MotelSerializer  # Serializer chuyển đổi dữ liệu
+    pagination_class = paginators.ItemPanigator  # Phân trang tùy chỉnh
 
     def get_permissions(self):
         """
@@ -827,8 +829,11 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
     - Cho phép xem danh sách, chi tiết, tạo mới, cập nhật và xóa phòng trọ
     - Có phân quyền truy cập dựa trên vai trò
     """
+    # Lấy tất cả phòng trọ đang hoạt động (active=True)
     queryset = Room.objects.filter(active=True)
+    # Serializer class để chuyển đổi dữ liệu Room thành JSON và ngược lại
     serializer_class = serializers.RoomSerializer
+    # Sử dụng phân trang tùy chỉnh cho danh sách phòng trọ
     pagination_class = paginators.ItemPanigator
 
     def get_permissions(self):
@@ -837,8 +842,11 @@ class RoomViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.Retriev
         - Chỉ cho phép chủ sở hữu hoặc admin tạo mới/cập nhật/xóa
         - Cho phép tất cả người dùng xem
         """
+        # Kiểm tra nếu action là create, update, partial_update hoặc destroy
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # Yêu cầu người dùng phải là chủ sở hữu hoặc admin
             return [IsOwnerOrAdmin()]
+        # Cho phép tất cả người dùng truy cập các action khác
         return [AllowAny()]
 
     def retrieve(self, request, pk=None):
@@ -1056,7 +1064,9 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
     - Cho phép xem danh sách, chi tiết, tạo mới, cập nhật và xóa thông tin thuê phòng
     - Có phân quyền truy cập dựa trên vai trò
     """
+    # Serializer class để chuyển đổi dữ liệu RoomTenant thành JSON và ngược lại
     serializer_class = serializers.RoomTenantSerializer
+    # Yêu cầu người dùng phải đăng nhập để truy cập các API
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
@@ -1255,8 +1265,11 @@ class RoomTenantViewSet(viewsets.ModelViewSet):
 
 
 class MotelRatingViewSet(viewsets.ViewSet, generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
+    # Serializer class để chuyển đổi dữ liệu MotelRating thành JSON và ngược lại
     serializer_class = serializers.MotelRatingSerializer
+    # Sử dụng phân trang tùy chỉnh cho danh sách đánh giá
     pagination_class = paginators.ItemPanigator
+    # Cho phép người dùng chưa đăng nhập xem, nhưng yêu cầu đăng nhập để tạo/cập nhật/xóa
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
