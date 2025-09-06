@@ -30,8 +30,8 @@ services:
     volumes:
       - .:/app
     command: >
-      sh -c "python accommodationSearchApp/accommodationSearchApp/manage.py migrate &&
-             gunicorn accommodationSearchApp.wsgi:application --bind 0.0.0.0:8000"
+      sh -c "python accommodationSearchApp/manage.py migrate &&
+         gunicorn accommodationSearchApp.wsgi:application --bind 0.0.0.0:8000"
 
   nginx:
     image: nginx:latest
