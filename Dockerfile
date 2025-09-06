@@ -11,17 +11,18 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements trước để cache
-COPY requirements.txt .
+COPY accommodationSearchApp/requirements.txt .
 
 # Cài Python packages
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install gunicorn
 
 # Copy toàn bộ source code
-COPY . .
+COPY accommodationSearchApp/ .
 
 # Collect static files
-RUN python accommodationSearchApp/manage.py collectstatic --noinput || true
+RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000
 
