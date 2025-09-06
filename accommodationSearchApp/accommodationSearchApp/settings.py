@@ -22,6 +22,7 @@ cloudinary.config(
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+NGROK = 'https://3015df015ea4.ngrok-free.app'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -180,7 +181,8 @@ DATABASES = {
         'NAME': 'rentalmanagementdb',
         'USER': 'root',
         'PASSWORD': 'Admin@123',
-        'HOST': ''
+        'HOST': 'localhost',
+        'PORT': '3306'
     }
 }
 
@@ -270,8 +272,8 @@ CLIENT_ID = "oAphbHhnaltzHuQooLxJoP72djbSeFaJOooGQamK"
 CLIENT_SECRET = "WPSFJMMPz6YjFBUhyyxzZHftjH3PH0XgmxPN8AaP7DUPSQFSA2X6GbbFDBb4OFyZMaimvHCZYSk9PB4qeQysLb3LLSO0KIsKhOhX9EGR0r1QqjfVlFovWrJ7iOOy6uk6"
 
 # Base URL for local development
-# BASE_URL = 'http://localhost:8000'  # Thay đổi khi chạy local
-BASE_URL = 'https://systemaccommodation.online'  # URL public
+BASE_URL = NGROK  # Thay đổi khi chạy local
+# BASE_URL = 'https://systemaccommodation.online'  # URL public
 # BASE_URL = 'http://100.85.57.9:8000' # URL ngrok
 # VNPay settings
 VNPAY_TMN_CODE = 'X381HOFV'  # Terminal ID / Mã Website
@@ -292,6 +294,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://www.systemaccommodation.online",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:8081",
+    NGROK
 ]
 
 
@@ -311,8 +315,10 @@ SENDER_NAME = 'System Accommodation'
 EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False  # Set to False in production
 
+
 # Frontend URL
-FRONTEND_URL = 'https://systemaccommodation.online'
+# FRONTEND_URL = 'https://systemaccommodation.online'
+FRONTEND_URL = NGROK
 
 # Autoslug settings
 AUTOSLUG_SLUGIFY_FUNCTION = 'autoslug.utils.slugify'
@@ -327,6 +333,9 @@ CSRF_TRUSTED_ORIGINS = [
     'http://100.85.57.9:8000',
     'https://systemaccommodation.online',
     'https://www.systemaccommodation.online',
+    'http://localhost:8081',
+    'https://3015df015ea4.ngrok-free.app',
+    NGROK
 ]
 
 # Maximum upload file size (10MB)

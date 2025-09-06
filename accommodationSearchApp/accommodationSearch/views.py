@@ -134,8 +134,6 @@ class UserViewSet(viewsets.ViewSet,
     def get_Current_user(self, request):
         """
         API endpoint để lấy và cập nhật thông tin người dùng hiện tại
-        - GET: Lấy thông tin user đang đăng nhập
-        - PATCH: Cập nhật thông tin user đang đăng nhập
         """
         if request.method.__eq__("PATCH"):  # Nếu là method PATCH
             user = request.user
@@ -151,12 +149,6 @@ class UserViewSet(viewsets.ViewSet,
 
     @action(methods=['PATCH'], url_path='change-password', detail=False, permission_classes=[permissions.IsAuthenticated])
     def change_password(self, request):
-        """
-        API endpoint để thay đổi mật khẩu
-        - Kiểm tra mật khẩu cũ
-        - Xác nhận mật khẩu mới
-        - Cập nhật mật khẩu mới
-        """
         old_password = request.data.get("old_password")  # Lấy mật khẩu cũ
         new_password = request.data.get("new_password")  # Lấy mật khẩu mới
         confirm_password = request.data.get("confirm_password")  # Lấy xác nhận mật khẩu
@@ -216,8 +208,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     def get_permissions(self):
         """
         Xác định quyền truy cập cho từng action
-        - Chỉ cho phép chủ sở hữu hoặc admin cập nhật
-        - Cho phép tất cả người dùng xem
         """
         if self.action in ['update', 'partial_update']:  # Nếu là action cập nhật
             return [IsOwnerOrAdmin()]  # Yêu cầu là chủ sở hữu hoặc admin
@@ -226,8 +216,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     def retrieve(self, request, pk=None):
         """
         Lấy thông tin chi tiết chủ nhà theo ID, username hoặc slug
-        - Tìm kiếm theo ID nếu pk là số
-        - Tìm kiếm theo username hoặc slug nếu pk là chuỗi
         """
         try:
             if pk.isdigit():
@@ -245,12 +233,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
             )
 
     def get_queryset(self):
-        """
-        Lấy danh sách chủ nhà với các điều kiện tìm kiếm
-        - Lọc theo ID người dùng
-        - Lọc theo tên
-        - Lọc theo slug
-        """
         query = self.queryset
 
         if self.action.__eq__('list'):
@@ -268,12 +250,6 @@ class LandlordViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
         return query
 
     def update(self, request, *args, **kwargs):
-        """
-        Cập nhật thông tin chủ nhà
-        - Kiểm tra quyền cập nhật
-        - Cập nhật thông tin nếu có quyền
-        - Trả về thông báo lỗi nếu không có quyền
-        """
         try:
             pk = kwargs.get('pk')
             if pk.isdigit():
@@ -389,8 +365,6 @@ class TenantViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPI
     def retrieve(self, request, pk=None):
         """
         Lấy thông tin chi tiết người thuê theo ID, username hoặc slug
-        - Tìm kiếm theo ID nếu pk là số
-        - Tìm kiếm theo username hoặc slug nếu pk là chuỗi
         """
         try:
             if pk.isdigit():
