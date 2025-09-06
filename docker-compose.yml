@@ -8,8 +8,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: Admin@123
       MYSQL_DATABASE: rentalmanagementdb
-      MYSQL_USER: root
-      MYSQL_PASSWORD: Admin@123
     ports:
       - "3307:3306"
     volumes:
@@ -22,11 +20,8 @@ services:
     depends_on:
       - mysql
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_NAME: rentalmanagementdb
-      DB_USER: root
-      DB_PASSWORD: Admin@123
+      MYSQL_ROOT_PASSWORD: Admin@123
+      MYSQL_DATABASE: rentalmanagementdb
     volumes:
       - .:/app
     command: >
