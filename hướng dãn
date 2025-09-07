@@ -36,3 +36,23 @@ sudo systemctl stop nginx
 chạy lại certbot
 sudo certbot certonly --standalone -d systemaccommodation.online -d www.systemaccommodation.online
 
+
+
+Xoá database:
+
+sudo docker exec -it mysql_container mysql -u root -pAdmin@123 -e "DROP DATABASE rentalmanagementdb; CREATE DATABASE rentalmanagementdb;"
+
+
+Sửa toàn bộ trong data.sql:
+
+sed -i 's/accommodationSearch_/accommodationsearch_/g' /home/ubuntu/SystemForSearchingAccommodations/data.sql
+
+
+Import lại:
+
+sudo docker exec -i mysql_container mysql -u root -pAdmin@123 rentalmanagementdb < /home/ubuntu/SystemForSearchingAccommodations/data.sql
+
+
+#!/bin/bash
+systemctl stop docker || true
+systemctl stop mysql || true

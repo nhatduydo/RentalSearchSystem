@@ -130,6 +130,7 @@ class User(AbstractUser):
     class Meta:
         verbose_name = "User"
         verbose_name_plural = "User"
+        # db_table = "accommodationsearch_user"
 
     def __str__(self):
         return self.username
@@ -151,6 +152,9 @@ class Admin(ActiveModel):
 
     def email(self):
         return self.user.email
+    
+    # class Meta:
+        # db_table = "accommodationsearch_admin"
 
 
 class Landlord(InformationUserModel):
@@ -167,7 +171,7 @@ class Landlord(InformationUserModel):
     class Meta:
         verbose_name = "Chủ nhà trọ"
         verbose_name_plural = "Chủ nhà trọ"
-
+        # db_table = "accommodationsearch_landlord"
 
 class Tenant(InformationUserModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,  related_name="tenant_profile")
@@ -183,6 +187,7 @@ class Tenant(InformationUserModel):
     class Meta:
         verbose_name = "Người thuê trọ"
         verbose_name_plural = "Người thuê trọ"
+        # db_table = "accommodationsearch_tenant"
 
 
 class Motel(SlugModel):
@@ -243,6 +248,7 @@ class Motel(SlugModel):
         verbose_name = "Nhà trọ"
         verbose_name_plural = "Nhà trọ"
         ordering = ['-created_date']
+        # db_table = "accommodationsearch_motel"
 
 
 class Room(SlugModel):
@@ -273,9 +279,11 @@ class Room(SlugModel):
         unique_together = ('room_name', 'motel')
         verbose_name = "Phòng trọ"
         verbose_name_plural = "Phòng trọ"
+        # db_table = "accommodationsearch_room"
 
     def __str__(self):
         return self.room_name
+
 
 class Amenity(SlugModel):
     id = models.AutoField(primary_key=True)
@@ -288,6 +296,7 @@ class Amenity(SlugModel):
     class Meta:
         verbose_name = "Tiện nghi, tiện ích"
         verbose_name_plural = "Tiện nghi, tiện ích"
+        # db_table = "accommodationsearch_amenity"
 
 
 class MotelImage(ActiveModel):
@@ -302,6 +311,7 @@ class MotelImage(ActiveModel):
     class Meta:
         verbose_name = 'hình ảnh'
         verbose_name_plural = "Hình ảnh nhà trọ"
+        # db_table = "accommodationsearch_motelimage"
 
 
 class RoomImage(ActiveModel):
@@ -315,6 +325,7 @@ class RoomImage(ActiveModel):
     class Meta:
         verbose_name = 'hình ảnh'
         verbose_name_plural = "Hình ảnh phòng trọ"
+        # db_table = "accommodationsearch_roomimage"
 
 
 class RoomTenant(ActiveModel):
@@ -328,7 +339,8 @@ class RoomTenant(ActiveModel):
 
     def __str__(self):
         return f"RoomTenant for {self.room.room_name} with {self.tenant.full_name}"
-
+    # class Meta:
+        # db_table = "accommodationsearch_roomtenant"
 
 class MotelRating(ActiveModel):
     id = models.AutoField(primary_key=True)
@@ -341,6 +353,7 @@ class MotelRating(ActiveModel):
         verbose_name = 'Đánh giá'
         verbose_name_plural = 'Đánh giá'
         unique_together = ['motel', 'user']
+        # db_table = "accommodationsearch_motelrating"
 
 
 class Favorite(ActiveModel):
@@ -352,6 +365,8 @@ class Favorite(ActiveModel):
         unique_together = ('user', 'motel')
         verbose_name = "Yêu thích"
         verbose_name_plural = "Yêu thích"
+        # db_table = "accommodationsearch_favorite"
+
 
     def __str__(self):
         return f"{self.user.username} favorite {self.motel.motel_name}"
@@ -375,6 +390,7 @@ class Post(SlugModel):
     class Meta:
         verbose_name = "Post"
         verbose_name_plural = "Bài Post"
+        # db_table = "accommodationsearch_post"
 
     def __str__(self):
         return self.title
@@ -391,6 +407,7 @@ class PostImage(ActiveModel):
         verbose_name = 'Hình ảnh bài đăng'
         verbose_name_plural = "Hình ảnh bài đăng"
         ordering = ['order']
+        # db_table = "accommodationsearch_postimage"
 
     def __str__(self):
         return f"Image for {self.post.title}"
@@ -412,6 +429,7 @@ class Comment(ActiveModel):
     class Meta:
         verbose_name = "Bình Luận"
         verbose_name_plural = "Bình luận"
+        # db_table = "accommodationsearch_comment"
 
 
 class LikeComment(ActiveModel):
@@ -426,6 +444,7 @@ class LikeComment(ActiveModel):
         unique_together = ('user', 'comment')
         verbose_name = "Like bình luận"
         verbose_name_plural = "Like bình luận"
+        # db_table = "accommodationsearch_likecomment"
 
 
 class LikeMotel(ActiveModel):
@@ -437,6 +456,7 @@ class LikeMotel(ActiveModel):
         unique_together = ('user', 'motel')
         verbose_name = "Like nhà trọ"
         verbose_name_plural = "Like nhà trọ"
+        # db_table = "accommodationsearch_likemotel"
 
     def __str__(self):
         return self.user.username
@@ -461,6 +481,7 @@ class SearchHistory(ActiveModel):
     class Meta:
         verbose_name = "Lịch sử tìm kiếm"
         verbose_name_plural = "Lịch sử tìm kiếm"
+        # db_table = "accommodationsearch_searchhistory"
 
 
 class Follow(ActiveModel):
@@ -473,6 +494,7 @@ class Follow(ActiveModel):
         unique_together = ('followed_user', 'follower_user')
         verbose_name = "Theo dõi"
         verbose_name_plural = "Theo dõi"
+        # db_table = "accommodationsearch_follow"
 
 
 class Notifications(ActiveModel):
@@ -490,12 +512,14 @@ class Notifications(ActiveModel):
     class Meta:
         verbose_name = "Thông báo"
         verbose_name_plural = "Thông báo"
+        # db_table = "accommodationsearch_notifications"
 
 
 class ChatRoom(ActiveModel):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, null=True, blank=True)
     participants = models.ManyToManyField(User, related_name="chat_rooms")
+    
 
     def __str__(self):
         if self.name:
@@ -504,7 +528,9 @@ class ChatRoom(ActiveModel):
         if len(participants) == 2:
             return f"{participants[0].username} - {participants[1].username}"
         return f"Group chat with {len(participants)} participants"
-
+    
+    # class Meta:
+        # db_table = "accommodationsearch_chatroom"
 
 class Message(ActiveModel):
     id = models.AutoField(primary_key=True)
@@ -515,6 +541,9 @@ class Message(ActiveModel):
 
     def __str__(self):
         return f"Message from {self.sender.username} in {self.chat_room}"
+    
+    # class Meta:
+        # db_table = "accommodationsearch_message"
 
 
 class Payment(ActiveModel):
@@ -537,3 +566,4 @@ class Payment(ActiveModel):
     class Meta:
         verbose_name = "Thanh toán"
         verbose_name_plural = "Thanh toán"
+        # db_table = "accommodationsearch_payment"
