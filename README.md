@@ -1,135 +1,184 @@
-# System_For_Searching_Accommodations
-HỆ THỐNG HỖ TRỢ TÌM KIẾM NHÀ TRỌ
-# 🌟 Dự Án Quản Lý Nhà Trọ 🌟
+(System_For_Searching_Accommodations)
 
-## 📋 Đăng Ký Tài Khoản
-- **Chủ Trọ hoặc Người Thuê Trọ** (bắt buộc phải có avatar)
+Ứng dụng hỗ trợ tìm kiếm, đăng tin và quản lý nhà trọ, kết nối chủ nhà trọ – người thuê trọ – quản trị viên trên cùng một nền tảng.
+Dự án được xây dựng với Django REST Framework (backend) và React Native (frontend mobile), tích hợp nhiều công nghệ hiện đại như Firebase realtime chat, Google Maps API, AI recommendation, online payment.
 
-## 🔑 Đăng Nhập
-- **Quản Trị Viên, Chủ Nhà Trọ, Người Thuê Trọ**
+✨ Tính năng chính
+👨‍💼 Quản trị viên (Admin)
 
----
+Quản lý người dùng (duyệt, khóa, xóa tài khoản).
 
-## 🛠️ Chức Năng Quản Trị Viên
-- ✅ Quản lý người dùng (duyệt, khóa, xóa tài khoản)
-- ✅ Duyệt tin đăng của chủ trọ (kiểm duyệt nội dung và hình ảnh)
-- ✅ Quản lý báo cáo vi phạm
-- 📊 Thống kê hệ thống
-- 💳 Quản lý thanh toán
-- ✅ Quản lý chứng thực nhà trọ
-- 📢 Gửi thông báo hệ thống
-- 🛠️ Quản lý danh mục tiện ích
+Kiểm duyệt tin đăng của chủ trọ (nội dung, hình ảnh).
 
----
+Quản lý báo cáo vi phạm.
 
-## 🏠 Chức Năng Chủ Nhà Trọ
-- 📝 Đăng ký tài khoản (bắt buộc cung cấp avatar, số điện thoại, hình ảnh trọ)
-- 🛠️ Quản lý tin đăng
-- 🗺️ Tích hợp Google Maps
-- 💬 Trả lời bình luận của người thuê
-- 🔔 Nhận thông báo khi có bình luận hoặc tin nhắn
-- 👥 Quản lý danh sách người theo dõi
-- 📣 Gửi thông báo cho người theo dõi
-- ✅ Chứng thực nhà trọ
-- 💰 Quản lý thanh toán và đặt cọc
-- 📈 Xem thống kê tin đăng
-- 🤖 Tích hợp chatbot hỗ trợ
-- 💡 Tích hợp AI gợi ý giá thuê hợp lý
+Thống kê hệ thống (theo ngày/tháng/năm).
 
----
+Quản lý thanh toán & chứng thực nhà trọ.
 
-## 🏡 Chức Năng Người Thuê Trọ
-- 📝 Đăng ký tài khoản (bắt buộc có avatar)
-- 🔍 Tìm kiếm nhà trọ theo tiêu chí linh hoạt
-- ❤️ Lưu tin yêu thích
-- 💬 Bình luận & trao đổi với chủ trọ
-- 👥 Theo dõi chủ trọ
-- 📝 Đăng tin tìm phòng trọ
-- 🔔 Nhận thông báo khi có chủ trọ phù hợp
-- ⭐ Tích hợp đánh giá và phản hồi
-- 💬 Tích hợp chat thời gian thực
-- 🚨 Gửi báo cáo vi phạm
-- 💡 Đề xuất giá thuê hợp lý
+Gửi thông báo hệ thống.
 
----
+Quản lý danh mục tiện ích.
 
-## 📊 Chức Năng Chung
-- 🔒 Hệ thống đăng nhập & đăng ký bảo mật
-- 💬 Tích hợp Firebase để chat thời gian thực
-- 💳 Tích hợp thanh toán online
-- 🔔 Thông báo đẩy
-- 🔍 Bộ lọc tìm kiếm nâng cao
-- ✅ Chứng thực thông tin chủ trọ
-- 🗺️ Tích hợp bản đồ Google Maps
-- 📈 Thống kê dữ liệu trên dashboard
-- 🤖 Tích hợp AI hỗ trợ tìm trọ thông minh
-- 💬 Tích hợp chatbot hỗ trợ tự động
+🏠 Chủ nhà trọ (Landlord)
 
----
+Đăng ký tài khoản (yêu cầu avatar, số điện thoại, ít nhất 3 hình ảnh dãy/phòng trọ).
 
-## 🚀 Chức Năng Mở Rộng
-- ⭐ Hệ thống đánh giá & phản hồi tin đăng
-- 📜 Lịch sử giao dịch & thuê trọ
-- 💳 Đặt cọc online ngay trên ứng dụng
-- 📌 Chế độ hiển thị tin đăng nổi bật
-- 🤖 Hệ thống gợi ý nhà trọ bằng AI
-- 💬 Hỗ trợ chatbot AI
-- 🌐 Hỗ trợ đa ngôn ngữ
-- 📅 Tích hợp lịch hẹn xem phòng
-- 📄 Hệ thống quản lý hợp đồng thuê trọ online
+Quản lý tin đăng (thêm/sửa/xóa/báo cáo).
 
----
+Tích hợp Google Maps (tọa độ, địa chỉ chính xác).
 
-## 💻 Công Nghệ Đề Xuất
-- **Backend**: Python Django + Django REST Framework (API)
-- **Frontend Mobile**: React Native (Expo)
-- **Database**: PostgreSQL / Firebase Firestore
-- **Authentication**: JWT + OAuth
-- **Real-time Chat**: Firebase
-- **Maps & Location**: Google Maps API
-- **Push Notification**: Firebase Cloud Messaging
-- **Payment Gateway**: VNPay, ZaloPay, Stripe
-- **Data Visualization**: Chart.js / Google Charts
-- **AI Recommendation System**: TensorFlow / OpenAI API
+Trả lời bình luận của người thuê.
 
----
+Nhận thông báo khi có bình luận/tin nhắn.
 
-## 📚 Mô Hình Class
-```plaintext
-User   & Roles
-User   (username (PK), password, fullName, role , email, phone, avatar, address, createdDate)
-Enum: UserRole (ADMIN, LANDLORD, TENANT)
-Admin (username (PK, FK → User))
-Landlord (username (PK, FK → User), landlordName, citizenId, bankAccount, isVerified (boolean)) 
-Tenant (username (PK, FK → User), tenantName, citizenId, dateOfBirth, gender, bankAccount) 
-Enum: Gender (MALE, FEMALE, OTHER)
-Motel & Room System
-Motel (id (PK), username (FK → User), motelName, description, address, latitude, longitude, totalRooms, availableRooms, status (boolean), ratingScore) 
-Room (id (PK), motelId (FK), roomName, description, area, price, maxPeople, amenities, status (boolean))
-MotelImage (id (PK), motelId (FK), imageUrl, imageType)
-Enum: ImageType (INSIDE, OUTSIDE) 
-RoomImage (id (PK), roomId (FK), imageUrl)
-Posts & Comments
-Post (id (PK), username (FK → User), postType, title, content, createdDate,
-desiredAddress, minPrice, maxPrice, status (boolean)
-+  desiredLatitude, desiredLongitude, // for FIND_ROOM
-+ motelId (FK), // for RENT_OUT
-)
-Enum: PostType (RENT_OUT, FIND_ROOM)
-Comment (id (PK), postId (FK), username (FK), content, createdDate)
-MotelRating (id (PK), username (FK), motelId (FK), rating, comment, createdDate)
-Social Features (Follow & Notifications)
-Follow (id (PK), follower(FK → theo dõi), followed(FK → được theo dõi ), createdDate)
-Notification (id (PK), receiverId (FK → User), title, content, isRead (boolean), createdDate, notificationType, relatedObjectId)
-Enum: NotificationType (NEW_POST, NEW_COMMENT, COMMENT_REPLY, ACCOUNT_VERIFICATION, MOTEL_UPDATE, PAYMENT, SYSTEM)
-Messaging System
-ChatRoom (id (PK), user1Id (FK → User), user2Id (FK → User), lastMessageTime)
-RealTimeChat (id (PK), senderId (FK → User), receiverId (FK → User), chatRoomId (FK → ChatRoom), content, timestamp, isRead (boolean))
-Payment System
-Payment (id (PK), payerId (FK → User), amount, paymentMethod, paymentStatus, roomId (FK → Room), paymentDate, description)
-Enum: PaymentStatus (PENDING, COMPLETED, FAILED)
-Enum: PaymentMethod (VNPAY, STRIPE, CASH)
-Room Renting & Favorites
-Room_Tenant (id (PK), roomId (FK → Room), tenantId (FK → Tenant), startDate, endDate, status, isPaid (boolean))
-Enum status (ACTIVE, EXPIRED, CANCELLED, PENDING)
-Favorite (id (PK), tenantId (FK → Tenant), roomId (FK → Room), createdDate)
+Quản lý danh sách người theo dõi, gửi thông báo cho followers.
+
+Quản lý chứng thực nhà trọ.
+
+Quản lý thanh toán và đặt cọc.
+
+Xem thống kê tin đăng.
+
+Hỗ trợ chatbot và AI gợi ý giá thuê hợp lý.
+
+👤 Người thuê trọ (Tenant)
+
+Đăng ký tài khoản (yêu cầu avatar).
+
+Tìm kiếm nhà trọ theo tiêu chí linh hoạt: vị trí, giá, số người, khu vực.
+
+Lưu tin yêu thích, bình luận và trao đổi với chủ trọ.
+
+Theo dõi chủ nhà trọ, nhận thông báo khi có tin mới.
+
+Đăng tin tìm phòng.
+
+Gửi báo cáo vi phạm.
+
+Đánh giá và phản hồi tin đăng.
+
+Chat thời gian thực qua Firebase.
+
+Nhận gợi ý giá thuê hợp lý từ AI.
+
+📊 Chức năng chung
+
+Đăng nhập/đăng ký bảo mật (JWT + OAuth).
+
+Chat realtime (Firebase).
+
+Tích hợp bản đồ Google Maps.
+
+Thanh toán online (VNPay, ZaloPay, Stripe).
+
+Thông báo đẩy (Firebase Cloud Messaging).
+
+Bộ lọc tìm kiếm nâng cao.
+
+Chứng thực thông tin chủ trọ.
+
+Thống kê dữ liệu hiển thị qua Chart.js / Google Charts.
+
+AI hỗ trợ tìm trọ thông minh & chatbot tự động.
+
+🚀 Chức năng mở rộng
+
+Hệ thống đánh giá & phản hồi tin đăng.
+
+Lịch sử giao dịch & thuê trọ.
+
+Đặt cọc online ngay trong ứng dụng.
+
+Hiển thị tin nổi bật.
+
+Hỗ trợ đa ngôn ngữ.
+
+Tích hợp lịch hẹn xem phòng.
+
+Quản lý hợp đồng thuê trọ online.
+
+🏗️ Kiến trúc hệ thống
+
+Backend: Python Django + Django REST Framework (API).
+
+Frontend Mobile: React Native (Expo).
+
+Database: PostgreSQL / Firebase Firestore.
+
+Authentication: JWT + OAuth2.
+
+Realtime Chat: Firebase Realtime Database.
+
+Maps & Location: Google Maps API.
+
+Notifications: Firebase Cloud Messaging.
+
+Payment Gateway: VNPay, ZaloPay, Stripe.
+
+Data Visualization: Chart.js / Google Charts.
+
+AI Recommendation System: TensorFlow / OpenAI API.
+
+⚙️ Hướng dẫn cài đặt
+1️⃣ Clone project
+```
+git clone https://github.com/<your-username>/System_For_Searching_Accommodations.git
+cd System_For_Searching_Accommodations
+```
+2️⃣ Cấu hình Backend (Django)
+```
+cd backend
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+3️⃣ Cấu hình Frontend (React Native)
+```
+cd frontend
+npm install
+npm start
+```
+4️⃣ Cấu hình Database
+
+Tạo database PostgreSQL hoặc Firebase Firestore.
+
+Cập nhật thông tin DB trong file .env.
+
+5️⃣ Tích hợp API
+
+Google Maps API Key
+
+Firebase Project (chat + notification)
+
+VNPay/ZaloPay/Stripe credentials
+
+📂 Cấu trúc dự án (rút gọn)
+```
+System_For_Searching_Accommodations/
+ ├── backend/             # Django REST API
+ │   ├── apps/            # Modules: users, rentals, payments, chat
+ │   ├── settings.py      # Config + JWT + OAuth
+ │   └── tests/           # Unit tests
+ ├── frontend/            # React Native app
+ │   ├── screens/         # Giao diện (Home, Search, Chat, Payment)
+ │   ├── components/      # Reusable UI
+ │   └── services/        # API connection
+ └── docs/                # Tài liệu hướng dẫn
+
+```
+👥 Nhóm phát triển
+
+Team size: 2 người.
+
+Vai trò:
+
+Backend: xây dựng API với Django, thiết kế DB, tích hợp Google Maps, thanh toán, AI gợi ý.
+
+Frontend: xây dựng ứng dụng mobile bằng React Native, tích hợp Firebase chat, thông báo đẩy.
+
+📌 Ghi chú
+
+Đây là dự án học thuật nhưng có thể mở rộng thành ứng dụng thực tế.
+
+Tương lai có thể bổ sung thêm: OCR xác thực giấy tờ thuê trọ, Machine Learning dự đoán giá thuê, Chatbot nâng cao.
